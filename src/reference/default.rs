@@ -1,0 +1,65 @@
+use crate::reference::{FromValue, Reference};
+use std::cmp::Ord;
+use std::ops::{Deref, DerefMut};
+
+//----------------------------------------------------------------------------//
+// Default reference                                                          //
+//----------------------------------------------------------------------------//
+
+/// Implementation of [`Reference`](trait.Reference.html) as its inner value.
+///
+/// ## Generics:
+///
+/// * `V`: The type of the value held in the
+/// [`Reference`](trait.Reference.html). Must be orderable.
+///
+/// ## Examples
+///
+/// ```
+/// use cache::reference::{Reference, Default};
+///
+/// let p0 = Default::new("item0");
+/// let p1 = Default::new("item1");
+/// assert!( p0 < p1 );
+/// assert!( p1 > p0 );
+/// assert!( p0 == p0 );
+/// assert!( p1 == p1 );
+/// ```
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, Eq, PartialEq)]
+pub struct Default<V: Ord> {
+    value: V,
+}
+
+impl<V: Ord> Default<V> {
+    pub fn new(v: V) -> Self {
+        Default { value: v }
+    }
+}
+
+impl<V: Ord> FromValue<V> for Default<V> {
+    fn from_value(v: V) -> Self {
+        Default::new(v)
+    }
+}
+
+impl<V: Ord> Reference<V> for Default<V> {
+    fn unwrap(self) -> V {
+        self.value
+    }
+    fn from_ref(value: V, _other: &Self) -> Self {
+        Default { value: value }
+    }
+}
+
+impl<V: Ord> Deref for Default<V> {
+    type Target = V;
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<V: Ord> DerefMut for Default<V> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
+}
