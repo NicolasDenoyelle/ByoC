@@ -119,12 +119,18 @@ where
     H: Hasher + Clone,
 {
     fn offset_of(&self, key: &K) -> Result<u64, OutOfBoundError> {
+        let size = self.file.metadata().unwrap().len();
+        let element_size = size_of::<FileMapElement<K, V>>() as u64;
         let mut hasher = self.hasher.clone();
         key.hash(&mut hasher);
         let mut offset = hasher.finish();
-        offset = offset * size_of::<FileMapElement<K, V>>() as u64;
-        let size = self.file.metadata().unwrap().len();
-        let element_size = size_of::<FileMapElement<K, V>>() as u64;
+
+        offset = match offset
+            .checked_mul(size_of::<FileMapElement<K, V>>() as u64)
+        {
+            Some(x) => x,
+            None => u64::MAX - element_size,
+        };
 
         if offset + element_size > size {
             Err(OutOfBoundError {
