@@ -105,7 +105,7 @@ where
     H: Hasher + Clone,
 {
     file: File,
-    max_size: u64,
+    capacity: usize,
     hasher: H,
     unused_k: PhantomData<K>,
     unused_v: PhantomData<V>,
@@ -118,30 +118,26 @@ where
     V: Sized,
     H: Hasher + Clone,
 {
-    fn offset_of(&self, key: &K) -> Result<u64, OutOfBoundError> {
-        let size = self.file.metadata().unwrap().len();
-        let element_size = size_of::<FileMapElement<K, V>>() as u64;
+    const ELEMENT_SIZE: usize = size_of::<FileMapElement<K, V>>();
+
+    fn index(&self, key: &K) -> usize {
         let mut hasher = self.hasher.clone();
         key.hash(&mut hasher);
-        let mut offset = hasher.finish();
+        (hasher.finish() % self.capacity as u64) as usize
+    }
 
-        offset = match offset
-            .checked_mul(size_of::<FileMapElement<K, V>>() as u64)
-        {
-            Some(x) => x,
-            None => u64::MAX - element_size,
-        };
+    fn offset_of(&self, key: &K) -> Result<u64, OutOfBoundError> {
+        let i = self.index(key);
+        let size = self.file.metadata().unwrap().len();
+        let offset = (i as u64)
+            .checked_mul(FileMap::<K, V, H>::ELEMENT_SIZE as u64)
+            .unwrap();
 
-        let val = match offset.checked_add(element_size) {
-            Some(x) => x,
-            None => u64::MAX - element_size,
-        };
-
-        if offset + element_size > size {
+        if offset >= size {
             Err(OutOfBoundError {
                 lower_bound: 0usize,
                 upper_bound: size as usize,
-                value: (val + element_size) as usize,
+                value: offset as usize,
             })
         } else {
             Ok(offset)
@@ -160,13 +156,19 @@ where
     }
 
     fn extend(&mut self, len: u64) -> IOResult<u64> {
-        let size = self.file.metadata().unwrap().len();
-        if size + len > self.max_size {
+        let new_size = (self.file.metadata().unwrap().len())
+            .checked_add(len)
+            .expect("u64 overflow when computing new file size.");
+        let max_size = (self.capacity as u64)
+            .checked_mul(FileMap::<K, V, H>::ELEMENT_SIZE as u64)
+            .unwrap();
+
+        if new_size > max_size {
             IOResult::Err(IOError::new(
                 ErrorKind::UnexpectedEof,
                 format!(
-                    "Cannot extend past FileMap past limit size of {}B",
-                    &self.max_size
+                    "Cannot extend past FileMap past capcacity {}",
+                    &self.capacity
                 ),
             ))
         } else {
@@ -194,7 +196,23 @@ where
     fn seek(&mut self, key: &K) -> IOResult<u64> {
         match self.offset_of(key) {
             Err(bounds) => {
-                match self.extend((bounds.value - bounds.upper_bound) as u64) {
+                let size = self.file.metadata().unwrap().len() as usize;
+                let bound_size =
+                    bounds.value + FileMap::<K, V, H>::ELEMENT_SIZE;
+                let max_size = self.capacity * FileMap::<K, V, H>::ELEMENT_SIZE;
+                assert!(bound_size <= max_size);
+
+                let new_size = match size.checked_mul(2) {
+                    Some(s) => {
+                        if s > bound_size {
+                            s
+                        } else {
+                            bound_size
+                        }
+                    }
+                    None => bound_size,
+                };
+                match self.extend(new_size as u64) {
                     Ok(_) => self
                         .file
                         .seek(SeekFrom::Start(self.offset_of(key).unwrap())),
@@ -219,13 +237,13 @@ where
 
     pub fn new(
         filename: &str,
-        max_size: u64,
+        capacity: usize,
         hasher: H,
     ) -> Result<Self, IOError> {
         match File::create(PathBuf::from(filename)) {
             Ok(f) => Ok(FileMap {
                 file: f,
-                max_size: max_size,
+                capacity: capacity,
                 hasher: hasher,
                 unused_k: PhantomData,
                 unused_v: PhantomData,
@@ -338,8 +356,7 @@ where
 {
     fn capacity(&self) -> usize {
         let size = self.file.metadata().unwrap().len();
-        let element_size = size_of::<FileMapElement<K, R>>() as u64;
-        (size / element_size) as usize
+        (size / FileMap::<K, R, H>::ELEMENT_SIZE as u64) as usize
     }
 
     fn count(&self) -> usize {
