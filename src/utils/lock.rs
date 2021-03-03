@@ -210,16 +210,16 @@ impl<'a, V> Drop for RWLockGuard<'a, V> {
 }
 
 #[derive(Debug)]
-pub struct RWLockWrapper<V> {
+pub struct RWLockCell<V> {
     lock: RWLock,
     value: V,
 }
 
 #[allow(dead_code)]
-impl<V> RWLockWrapper<V> {
+impl<V> RWLockCell<V> {
     /// Construct a new lock wrapping a value.
     pub fn new(v: V) -> Self {
-        RWLockWrapper {
+        RWLockCell {
             lock: RWLock::new(),
             value: v,
         }
