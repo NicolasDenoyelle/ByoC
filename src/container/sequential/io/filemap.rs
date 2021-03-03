@@ -120,16 +120,16 @@ where
 {
     const ELEMENT_SIZE: usize = size_of::<FileMapElement<K, V>>();
 
-    fn index(&self, key: &K) -> usize {
+    fn index(&self, key: &K) -> u64 {
         let mut hasher = self.hasher.clone();
         key.hash(&mut hasher);
-        (hasher.finish() % self.capacity as u64) as usize
+        hasher.finish() % self.capacity as u64
     }
 
     fn offset_of(&self, key: &K) -> Result<u64, OutOfBoundError> {
         let i = self.index(key);
         let size = self.file.metadata().unwrap().len();
-        let offset = (i as u64)
+        let offset = i
             .checked_mul(FileMap::<K, V, H>::ELEMENT_SIZE as u64)
             .unwrap();
 
