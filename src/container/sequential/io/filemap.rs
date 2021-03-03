@@ -11,7 +11,7 @@ use std::path::PathBuf;
 use std::slice;
 
 #[derive(Debug)]
-pub struct OutOfBoundError {
+struct OutOfBoundError {
     lower_bound: usize,
     upper_bound: usize,
     value: usize,
@@ -29,7 +29,7 @@ impl fmt::Display for OutOfBoundError {
 impl Error for OutOfBoundError {}
 
 #[repr(C, packed)]
-pub struct FileMapElement<K, V>
+struct FileMapElement<K, V>
 where
     K: Sized,
     V: Sized,
@@ -39,13 +39,12 @@ where
     value: V,
 }
 
-#[allow(dead_code)]
 impl<K, V> FileMapElement<K, V>
 where
     K: Sized,
     V: Sized,
 {
-    pub fn new(key: K, value: V) -> Self {
+    fn new(key: K, value: V) -> Self {
         FileMapElement {
             set: true,
             key: key,
@@ -111,7 +110,6 @@ where
     unused_v: PhantomData<V>,
 }
 
-#[allow(dead_code)]
 impl<K, V, H> FileMap<K, V, H>
 where
     K: Sized + Hash,
@@ -144,15 +142,15 @@ where
         }
     }
 
-    fn zero(&mut self, len: u64) -> IOResult<usize> {
+    fn zero(file: &mut File, len: u64) -> IOResult<usize> {
         let zero: [u8; 512] = [0; 512];
         let n = len / 4096;
         for _ in 0..n {
-            self.file.write(&zero)?;
+            file.write(&zero)?;
         }
 
         let rem = (len % 4096) / size_of::<u8>() as u64;
-        self.file.write(&zero[..rem as usize])
+        file.write(&zero[..rem as usize])
     }
 
     fn extend(&mut self, len: u64) -> IOResult<u64> {
@@ -173,7 +171,7 @@ where
             ))
         } else {
             self.file.seek(SeekFrom::End(0))?;
-            match self.zero(len) {
+            match FileMap::<K, V, H>::zero(&mut self.file, len) {
                 Err(e) => Err(e),
                 Ok(i) => Ok(i as u64),
             }
@@ -272,8 +270,7 @@ where
     K: Sized + Hash,
     V: Sized,
 {
-    pub fn new<H: Hasher + Clone>(fmap: &FileMap<K, V, H>) -> IOResult<Self> {
-        let mut f = fmap.file.try_clone()?;
+    pub fn new(mut f: File) -> IOResult<Self> {
         f.seek(SeekFrom::Start(0))?;
         Ok(FileMapIterator {
             file: f,
@@ -311,7 +308,7 @@ where
     type IntoIter = FileMapIterator<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        FileMapIterator::<K, V>::new(&self).unwrap()
+        FileMapIterator::<K, V>::new(self.file).unwrap()
     }
 }
 
@@ -325,7 +322,8 @@ where
     type IntoIter = FileMapIterator<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        FileMapIterator::<K, V>::new(self).unwrap()
+        let f = self.file.try_clone().unwrap();
+        FileMapIterator::<K, V>::new(f).unwrap()
     }
 }
 
@@ -339,7 +337,8 @@ where
     type IntoIter = FileMapIterator<K, V>;
 
     fn into_iter(self) -> Self::IntoIter {
-        FileMapIterator::<K, V>::new(self).unwrap()
+        let f = self.file.try_clone().unwrap();
+        FileMapIterator::<K, V>::new(f).unwrap()
     }
 }
 
@@ -369,7 +368,7 @@ where
             Ok(Err(_)) => false,
             Ok(Ok(mut f)) => match FileMapElement::<K, V>::read(&mut f) {
                 Err(_) => false,
-                Ok(Some(_)) => true,
+                Ok(Some(e)) => key == &e.into_kv().0,
                 Ok(None) => false,
             },
         }
@@ -382,10 +381,21 @@ where
             Ok(Ok(mut f)) => match FileMapElement::<K, R>::read(&mut f) {
                 Err(_) => None,
                 Ok(Some(e)) => {
-                    self.seek(key).unwrap();
-                    self.zero(size_of::<FileMapElement<K, R>>() as u64)
+                    let (k, v) = e.into_kv();
+                    if key == &k {
+                        f.seek(SeekFrom::Current(
+                            -1 * (FileMap::<K, R, H>::ELEMENT_SIZE as i64),
+                        ))
                         .unwrap();
-                    Some(e.value)
+                        FileMap::<K, R, H>::zero(
+                            &mut f,
+                            size_of::<FileMapElement<K, R>>() as u64,
+                        )
+                        .unwrap();
+                        Some(v)
+                    } else {
+                        None
+                    }
                 }
                 Ok(None) => None,
             },
