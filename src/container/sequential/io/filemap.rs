@@ -132,11 +132,16 @@ where
             None => u64::MAX - element_size,
         };
 
+        let val = match offset.checked_add(element_size) {
+            Some(x) => x,
+            None => u64::MAX - element_size,
+        };
+
         if offset + element_size > size {
             Err(OutOfBoundError {
                 lower_bound: 0usize,
                 upper_bound: size as usize,
-                value: (size + element_size) as usize,
+                value: (val + element_size) as usize,
             })
         } else {
             Ok(offset)
