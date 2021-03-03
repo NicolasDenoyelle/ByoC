@@ -3,6 +3,7 @@ use std::error::Error;
 use std::fmt;
 use std::fs::File;
 use std::hash::{Hash, Hasher};
+use std::io::{Error as IOError, ErrorKind, Result as IOResult};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
 use std::mem::{size_of, MaybeUninit};
@@ -52,7 +53,11 @@ where
         }
     }
 
-    pub fn read(f: &mut File) -> std::io::Result<Option<Self>> {
+    pub fn into_kv(self) -> (K, V) {
+        (self.key, self.value)
+    }
+
+    pub fn read(f: &mut File) -> IOResult<Option<Self>> {
         let mut uninit = MaybeUninit::<Self>::uninit();
         // SAFETY: Fully initialize on reading file.
         // If file reading fails, ret is not used.
@@ -80,7 +85,7 @@ where
         }
     }
 
-    pub fn write(&self, f: &mut File) -> std::io::Result<usize> {
+    pub fn write(&self, f: &mut File) -> IOResult<usize> {
         // SAFETY: slice representation is safe because self is
         // initialized.
         let s = unsafe {
@@ -99,8 +104,8 @@ where
     V: Sized,
     H: Hasher + Clone,
 {
-    file_handle: File,
-    capacity: usize,
+    file: File,
+    max_size: u64,
     hasher: H,
     unused_k: PhantomData<K>,
     unused_v: PhantomData<V>,
@@ -113,139 +118,277 @@ where
     V: Sized,
     H: Hasher + Clone,
 {
-    fn offset_of(&self, key: &K) -> Result<usize, OutOfBoundError> {
+    fn offset_of(&self, key: &K) -> Result<u64, OutOfBoundError> {
         let mut hasher = self.hasher.clone();
         key.hash(&mut hasher);
-        let mut offset = hasher.finish() as usize;
-        offset = offset % self.capacity;
-        offset = offset * size_of::<FileMapElement<K, V>>();
-        let size = self.capacity * size_of::<FileMapElement<K, V>>();
+        let mut offset = hasher.finish();
+        offset = offset * size_of::<FileMapElement<K, V>>() as u64;
+        let size = self.file.metadata().unwrap().len();
+        let element_size = size_of::<FileMapElement<K, V>>() as u64;
 
-        if offset >= size {
+        if offset + element_size > size {
             Err(OutOfBoundError {
                 lower_bound: 0usize,
-                upper_bound: size,
-                value: offset,
+                upper_bound: size as usize,
+                value: (size + element_size) as usize,
             })
         } else {
-            Ok(size)
+            Ok(offset)
         }
     }
 
-    fn zero(file_handle: &mut File, size: usize) {
+    fn zero(&mut self, len: u64) -> IOResult<usize> {
         let zero: [u8; 512] = [0; 512];
-        let n = size / 4096usize;
+        let n = len / 4096;
         for _ in 0..n {
-            file_handle
-                .write(&zero)
-                .expect("Error initializing file with zeroes");
+            self.file.write(&zero)?;
         }
 
-        let rem = (size % 4096) / size_of::<u8>();
-        file_handle
-            .write(&zero[..rem])
-            .expect("Error initializing file with zeroes");
+        let rem = (len % 4096) / size_of::<u8>() as u64;
+        self.file.write(&zero[..rem as usize])
+    }
+
+    fn extend(&mut self, len: u64) -> IOResult<u64> {
+        let size = self.file.metadata().unwrap().len();
+        if size + len > self.max_size {
+            IOResult::Err(IOError::new(
+                ErrorKind::UnexpectedEof,
+                format!(
+                    "Cannot extend past FileMap past limit size of {}B",
+                    &self.max_size
+                ),
+            ))
+        } else {
+            self.file.seek(SeekFrom::End(0))?;
+            match self.zero(len) {
+                Err(e) => Err(e),
+                Ok(i) => Ok(i as u64),
+            }
+        }
+    }
+
+    fn seek_const(&self, key: &K) -> Result<IOResult<File>, OutOfBoundError> {
+        match self.offset_of(key) {
+            Err(e) => Err(e),
+            Ok(offset) => match self.file.try_clone() {
+                Err(e) => Ok(Err(e)),
+                Ok(mut f) => match f.seek(SeekFrom::Start(offset)) {
+                    Ok(_) => Ok(IOResult::<File>::Ok(f)),
+                    Err(e) => Ok(IOResult::<File>::Err(e)),
+                },
+            },
+        }
+    }
+
+    fn seek(&mut self, key: &K) -> IOResult<u64> {
+        match self.offset_of(key) {
+            Err(bounds) => {
+                match self.extend((bounds.value - bounds.upper_bound) as u64) {
+                    Ok(_) => self
+                        .file
+                        .seek(SeekFrom::Start(self.offset_of(key).unwrap())),
+                    e => e,
+                }
+            }
+            Ok(offset) => self.file.seek(SeekFrom::Start(offset)),
+        }
+    }
+
+    pub fn get(&mut self, key: &K) -> Option<V> {
+        match self.seek_const(&key) {
+            Err(_) => None,
+            Ok(Err(_)) => None,
+            Ok(Ok(mut f)) => match FileMapElement::<K, V>::read(&mut f) {
+                Ok(Some(element)) => Some(element.value),
+                Ok(None) => None,
+                Err(_) => None,
+            },
+        }
     }
 
     pub fn new(
-        directory: &str,
-        id: usize,
-        capacity: usize,
+        filename: &str,
+        max_size: u64,
         hasher: H,
-    ) -> Result<Self, std::io::Error> {
-        let mut path = PathBuf::from(directory);
-        path.push(format!("{}", id));
-
-        match File::create(path) {
-            Ok(mut f) => {
-                Self::zero(&mut f, capacity);
-                Ok(FileMap {
-                    file_handle: f,
-                    capacity: capacity,
-                    hasher: hasher,
-                    unused_k: PhantomData,
-                    unused_v: PhantomData,
-                })
-            }
+    ) -> Result<Self, IOError> {
+        match File::create(PathBuf::from(filename)) {
+            Ok(f) => Ok(FileMap {
+                file: f,
+                max_size: max_size,
+                hasher: hasher,
+                unused_k: PhantomData,
+                unused_v: PhantomData,
+            }),
             Err(e) => Err(e),
         }
     }
 }
 
 //----------------------------------------------------------------------------//
-// TODO: Impl iter trait for going through elements.
+// Iterator of FileMap elements.
 //----------------------------------------------------------------------------//
-// impl<K, V, R, H> Container<K, V, R> for FileMap<K, R, H>
-// where
-//     K: Ord + Sized,
-//     V: Sized,
-//     R: Reference<V>,
-//     H: Hash,
-// {
-//     fn capacity(&self) -> usize {
-//         self.capacity
-//     }
 
-//     fn count(&self) -> usize {
-//         let mut count = 0usize;
-//         let mut f = self
-//             .file_handle
-//             .try_clone()
-//             .expect("Cannot clone file handle.");
-//         f.seek(SeekFrom::Start(0));
-//         loop {
-//             match FileMapElement::<K, V>::read(&mut f) {
-//                 Err(_) => break,
-//                 Ok(Some(e)) => count += 1,
-//                 Ok(None) => (),
-//             }
-//         }
-//         count
-//     }
+pub struct FileMapIterator<K, V>
+where
+    K: Sized,
+    V: Sized,
+{
+    file: File,
+    unused_k: PhantomData<K>,
+    unused_v: PhantomData<V>,
+}
 
-// fn contains(&self, key: &K) -> bool {
-//     let mut f = self
-//         .file_handle
-//         .try_clone()
-//         .expect("Cannot clone file handle.");
-//     match self.offset_of(key) {
-//         Err(_) => return false,
-//         Ok(offset) => match f.seek(SeekFrom::Start(offset as u64)) {
-//             Err(_) => false,
-//             Ok(_) => match FileMapElement::<K, V>::read(&mut f) {
-//                 Err(_) => false,
-//                 Ok(Some(_)) => true,
-//                 Ok(None) => false,
-//             },
-//         },
-//     }
-// }
+impl<K, V> FileMapIterator<K, V>
+where
+    K: Sized + Hash,
+    V: Sized,
+{
+    pub fn new<H: Hasher + Clone>(fmap: &FileMap<K, V, H>) -> IOResult<Self> {
+        let mut f = fmap.file.try_clone()?;
+        f.seek(SeekFrom::Start(0))?;
+        Ok(FileMapIterator {
+            file: f,
+            unused_k: PhantomData,
+            unused_v: PhantomData,
+        })
+    }
+}
 
-// fn take(&mut self, key: &K) -> Option<R> {
-//     let mut f = self
-//         .file_handle
-//         .try_clone()
-//         .expect("Cannot clone file handle.");
-//     match self.offset_of(key) {
-//         Err(_) => return None,
-//         Ok(offset) => match f.seek(SeekFrom::Start(offset as u64)) {
-//             Err(_) => None,
-//             Ok(_) => match FileMapElement::<K, R>::read(&mut f) {
-//                 Err(_) => None,
-//                 Ok(Some(e)) => Some(e.value),
-//                 Ok(None) => None,
-//             },
-//         },
-//     }
-// }
+impl<K, V> Iterator for FileMapIterator<K, V>
+where
+    K: Sized + Hash,
+    V: Sized,
+{
+    type Item = (K, V);
 
-// fn clear(&mut self) {
-//     FileMap::<K, R, H>::zero(
-//         &mut self.file_handle,
-//         self.capacity * size_of::<FileMapElement<K, R>>(),
-//     )
-// }
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match FileMapElement::<K, V>::read(&mut self.file) {
+                Err(_) => break None,
+                Ok(Some(e)) => break Some(e.into_kv()),
+                Ok(None) => (),
+            }
+        }
+    }
+}
 
-//     fn pop(&mut self) -> Option<(K, R)>;
-//     fn push(&mut self, key: K, reference: R) -> Option<(K, R)>;
-// }
+impl<K, V, H> IntoIterator for FileMap<K, V, H>
+where
+    K: Sized + Hash,
+    V: Sized,
+    H: Hasher + Clone,
+{
+    type Item = (K, V);
+    type IntoIter = FileMapIterator<K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        FileMapIterator::<K, V>::new(&self).unwrap()
+    }
+}
+
+impl<'a, K, V, H> IntoIterator for &'a FileMap<K, V, H>
+where
+    K: Sized + Hash,
+    V: Sized,
+    H: Hasher + Clone,
+{
+    type Item = (K, V);
+    type IntoIter = FileMapIterator<K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        FileMapIterator::<K, V>::new(self).unwrap()
+    }
+}
+
+impl<'a, K, V, H> IntoIterator for &'a mut FileMap<K, V, H>
+where
+    K: Sized + Hash,
+    V: Sized,
+    H: Hasher + Clone,
+{
+    type Item = (K, V);
+    type IntoIter = FileMapIterator<K, V>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        FileMapIterator::<K, V>::new(self).unwrap()
+    }
+}
+
+//----------------------------------------------------------------------------//
+// Container impl
+//----------------------------------------------------------------------------//
+
+impl<K, V, R, H> Container<K, V, R> for FileMap<K, R, H>
+where
+    K: Ord + Sized + Hash,
+    V: Sized,
+    R: Reference<V>,
+    H: Hasher + Clone,
+{
+    fn capacity(&self) -> usize {
+        let size = self.file.metadata().unwrap().len();
+        let element_size = size_of::<FileMapElement<K, R>>() as u64;
+        (size / element_size) as usize
+    }
+
+    fn count(&self) -> usize {
+        self.into_iter().count()
+    }
+
+    fn contains(&self, key: &K) -> bool {
+        match self.seek_const(key) {
+            Err(_) => false,
+            Ok(Err(_)) => false,
+            Ok(Ok(mut f)) => match FileMapElement::<K, V>::read(&mut f) {
+                Err(_) => false,
+                Ok(Some(_)) => true,
+                Ok(None) => false,
+            },
+        }
+    }
+
+    fn take(&mut self, key: &K) -> Option<R> {
+        match self.seek_const(key) {
+            Err(_) => None,
+            Ok(Err(_)) => None,
+            Ok(Ok(mut f)) => match FileMapElement::<K, R>::read(&mut f) {
+                Err(_) => None,
+                Ok(Some(e)) => {
+                    self.seek(key).unwrap();
+                    self.zero(size_of::<FileMapElement<K, R>>() as u64)
+                        .unwrap();
+                    Some(e.value)
+                }
+                Ok(None) => None,
+            },
+        }
+    }
+
+    fn clear(&mut self) {
+        self.file.set_len(0).unwrap()
+    }
+
+    fn pop(&mut self) -> Option<(K, R)> {
+        match self.into_iter().max_by(|a, b| (&a.0).cmp(&b.0)) {
+            None => None,
+            Some((k, v)) => {
+                self.take(&k).unwrap();
+                Some((k, v))
+            }
+        }
+    }
+
+    fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+        self.seek(&key).unwrap();
+        let ret = match FileMapElement::<K, R>::read(&mut self.file) {
+            Err(_) => None,
+            Ok(Some(e)) => Some(e.into_kv()),
+            Ok(None) => None,
+        };
+        self.seek(&key).unwrap();
+        FileMapElement::new(key, reference)
+            .write(&mut self.file)
+            .unwrap();
+        ret
+    }
+}
