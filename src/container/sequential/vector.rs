@@ -223,6 +223,13 @@ where
 mod tests {
     use super::Vector;
     use crate::container::sequential::tests;
+    use crate::container::tests::test_container;
+
+    #[test]
+    fn container_test() {
+        test_container(Vector::new(10), 100);
+        test_container(Vector::new(100), 10);
+    }
 
     #[test]
     fn test_vector() {

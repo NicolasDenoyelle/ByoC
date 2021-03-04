@@ -1,18 +1,9 @@
-#[cfg(test)]
 use crate::container::{Container, Sequential};
-#[cfg(test)]
 use crate::reference::Default;
-#[cfg(test)]
-use crate::utils::rand::rand_ab;
-/// This module is for testing container.
-/// Users that wish to test a container implementation should call the function
-/// `test_container()` on an initialized container.
-
-#[cfg(test)]
+use crate::utils::rand::Rand;
 use std::collections::BTreeSet;
 
 // Assert container contains a specific value.
-#[cfg(test)]
 fn test_contains<C>(c: &mut C, i: u32)
 where
     C: Container<u16, u32, Default<u32>> + Sequential<u16, u32, Default<u32>>,
@@ -37,7 +28,6 @@ where
 
 // Assert that value can be taken out and reinserted without implying an eviction.
 // Also check that count of element remain correct.
-#[cfg(test)]
 fn test_take<C>(c: &mut C, i: u32)
 where
     C: Container<u16, u32, Default<u32>>,
@@ -62,7 +52,6 @@ where
 // Assert that insertion keep key/values association working and that count update
 // remain valid whether the container pops or not. Also check that the container does
 // not overflow.
-#[cfg(test)]
 fn test_insert<C>(c: &mut C, i: u32)
 where
     C: Container<u16, u32, Default<u32>> + Sequential<u16, u32, Default<u32>>,
@@ -95,7 +84,6 @@ where
 // Same as test_insert + check from a BTreeSet that popped victims are
 // the expected ones. Some container like Associative do not respect exactly
 // victims order. In that case test_insert() should be used.
-#[cfg(test)]
 fn test_insert_order<C>(c: &mut C, i: u32, set: &mut BTreeSet<u32>)
 where
     C: Container<u16, u32, Default<u32>> + Sequential<u16, u32, Default<u32>>,
@@ -137,7 +125,6 @@ where
     }
 }
 
-#[cfg(test)]
 fn test_clear<C>(c: &mut C)
 where
     C: Container<u16, u32, Default<u32>>,
@@ -160,7 +147,6 @@ where
     assert!(c.pop().is_none());
 }
 
-#[cfg(test)]
 pub fn test_container<C>(mut c: C, test_order: bool)
 where
     C: Container<u16, u32, Default<u32>> + Sequential<u16, u32, Default<u32>>,
@@ -170,7 +156,7 @@ where
     let max = c.capacity() * 2;
 
     for _ in 0..num {
-        let i = rand_ab(0, max as u64);
+        let i = Rand::range(0, max as u64);
         if test_order {
             test_insert_order(&mut c, i as u32, &mut set);
         } else {

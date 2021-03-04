@@ -6,6 +6,6 @@ pub mod clone;
 
 pub mod num;
 pub mod ptr;
-#[cfg(test)]
-pub mod rand;
 pub mod stats;
+
+pub mod rand;

@@ -158,3 +158,4 @@ where
 
 pub mod concurrent;
 pub mod sequential;
+mod tests;
