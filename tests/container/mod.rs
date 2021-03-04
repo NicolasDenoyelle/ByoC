@@ -58,7 +58,7 @@ where
     }
 }
 
-pub fn test_container<C>(mut c: C, n: usize)
+fn test_n_container<C>(c: &mut C, n: usize)
 where
     C: Container<u16, u32, Reference>,
 {
@@ -66,6 +66,21 @@ where
         .map(|i| (i as u16, rand(0, n as u64) as u32))
         .collect();
     for (k, v) in elements {
-        test_push(&mut c, k, v);
+        test_push(c, k, v);
     }
+    c.clear();
+}
+
+pub fn test_container<C>(mut c: C)
+where
+    C: Container<u16, u32, Reference>,
+{
+    let mut n = 0;
+    test_n_container(&mut c, n);
+    n = c.capacity() / 2;
+    test_n_container(&mut c, n);
+    n = c.capacity();
+    test_n_container(&mut c, n);
+    n = c.capacity() * 2;
+    test_n_container(&mut c, n);
 }

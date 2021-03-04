@@ -59,10 +59,6 @@ where
     R: Reference<V>,
 {
     pub fn new(n: usize) -> Self {
-        if n == 0 {
-            panic!("Cannot create a Map of size 0.")
-        }
-
         Map {
             capacity: n,
             map: std::collections::BTreeMap::new(),
@@ -110,15 +106,14 @@ where
             None => return None,
             Some((k, _)) => k.clone(),
         };
-        match self.map.remove(&key) {
-            None => {
-                panic!("Element identified for eviction cannot be find in BTreeMap.")
-            }
-            Some(r) => Some((key.clone(), r)),
-        }
+        Some((key.clone(), self.map.remove(&key).unwrap()))
     }
 
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+        if self.capacity == 0 {
+            return Some((key, reference));
+        }
+
         match self.map.insert(key.clone(), reference) {
             Some(r) => Some((key, r)),
             None => {

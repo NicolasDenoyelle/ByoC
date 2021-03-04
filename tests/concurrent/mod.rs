@@ -1,41 +1,17 @@
-#[cfg(test)]
-use crate::container::{Concurrent, Container};
-#[cfg(test)]
-use crate::reference::Default;
-#[cfg(test)]
-use crate::utils::clone::CloneMut;
-#[cfg(test)]
-#[cfg(test)]
-use std::collections::BTreeSet;
-#[cfg(test)]
-use std::sync::atomic::{AtomicU64, Ordering};
-#[cfg(test)]
-use std::sync::Arc;
-#[cfg(test)]
-use std::thread;
-#[cfg(test)]
-use std::thread::JoinHandle;
-/// This module is for testing container.
-/// Users that wish to test a container implementation should call the function
-/// `test_container()` on an initialized container.
+pub mod clone;
 
-#[cfg(test)]
+use cache::container::{Concurrent, Container};
+use cache::reference::Default;
+use clone::CloneMut;
+use std::collections::BTreeSet;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::thread;
+use std::thread::JoinHandle;
 use std::time::Instant;
 
-//------------------------------------------------------------------------------------//
-//                            Tests for Concurrent Containers                         //
-//------------------------------------------------------------------------------------//
+type Reference = Default<u32>;
 
-// Insert a Default reference with i value into C container.
-// Return true if the value is now expected to be inside the container.
-//
-// This test asserts that count update on insertion is working whether the container
-// pops or not. Also check that the container does not overflow. If insertion succeeded
-// and inserted key is not popped, test contain() method for existing element in
-// container.
-//
-// This test assumes that container is not used simultaneously by other threads.
-#[cfg(test)]
 fn test_insert_sequential<C>(
     c: &mut C,
     i: u32,
@@ -94,7 +70,6 @@ where
 }
 
 // Test the container for the presence of an element and that returned value is correct.
-#[cfg(test)]
 fn test_get<C>(c: &mut C, i: u32)
 where
     C: Container<u16, u32, Default<u32>> + Concurrent<u16, u32, Default<u32>>,
@@ -115,7 +90,6 @@ where
 
 // Pop() count() elements. Test that container is empty after that.
 // Reinsert one element and call clear(). Test that container is empty after that.
-#[cfg(test)]
 fn test_clear_sequential<C>(c: &mut C)
 where
     C: Container<u16, u32, Default<u32>>,
@@ -141,7 +115,6 @@ where
 
 // Assert that value can be taken out and reinserted without implying an eviction.
 // Also check that count of element remain correct.
-#[cfg(test)]
 fn test_take_sequential<C>(c: &mut C, i: u32)
 where
     C: Container<u16, u32, Default<u32>>,
@@ -163,7 +136,6 @@ where
     }
 }
 
-#[cfg(test)]
 pub fn test_sequential<C>(mut c: C, eviction_check: bool)
 where
     C: Container<u16, u32, Default<u32>> + Concurrent<u16, u32, Default<u32>>,
@@ -187,7 +159,6 @@ where
     }
 }
 
-#[cfg(test)]
 pub fn test_concurrent<C>(c: C)
 where
     C: 'static

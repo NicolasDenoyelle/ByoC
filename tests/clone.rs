@@ -1,9 +1,9 @@
-mod utils;
+mod concurrent;
 use std::thread;
 
 #[test]
 fn test_clone() {
-    let v = utils::clone::CloneMut::new(96u32);
+    let v = concurrent::clone::CloneMut::new(96u32);
 
     for i in 0..64 {
         let mut vc = v.clone();

@@ -60,9 +60,6 @@ where
     R: Reference<V>,
 {
     pub fn new(n: usize) -> Self {
-        if n == 0 {
-            panic!("Cannot create a Vector of size 0.")
-        }
         Vector {
             capacity: n,
             values: Vec::with_capacity(n + 1),
@@ -115,6 +112,10 @@ where
     }
 
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+        if self.capacity == 0 {
+            return Some((key, reference));
+        }
+
         match self.values.iter().position(|(k, _)| k == &key) {
             None => {
                 self.values.push((key, reference));
