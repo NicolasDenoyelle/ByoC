@@ -10,5 +10,3 @@ pub use crate::container::concurrent::associative::{
 
 mod profiler;
 pub use crate::container::concurrent::profiler::{Profiler, ProfilerIter};
-
-mod tests;

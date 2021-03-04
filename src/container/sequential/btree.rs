@@ -313,19 +313,3 @@ where
         .map(|(k, v)| (k, v))
     }
 }
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::BTree;
-    use crate::container::sequential::tests;
-
-    #[test]
-    fn test_btree() {
-        tests::test_container(BTree::new(10), true);
-        tests::test_container(BTree::new(100), true);
-    }
-}

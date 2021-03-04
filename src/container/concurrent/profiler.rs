@@ -1,8 +1,8 @@
 use crate::container::{
     Concurrent, Container, Insert, Iter, IterMut, Sequential,
 };
+use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
-use crate::utils::lock::RWLockGuard;
 use crate::utils::stats::SyncOnlineStats;
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
@@ -627,34 +627,5 @@ where
             hit: &mut self._hit,
             container_iterator: self.cache.iter(),
         }
-    }
-}
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::Profiler;
-    use crate::container::concurrent::{tests, Sequential as SeqLock};
-    use crate::container::sequential::Map;
-    use crate::reference::Default;
-
-    #[test]
-    fn test_associative() {
-        tests::test_sequential(
-            Profiler::new(SeqLock::new(Map::<_, _, Default<_>>::new(1))),
-            true,
-        );
-        tests::test_sequential(
-            Profiler::new(SeqLock::new(Map::<_, _, Default<_>>::new(100))),
-            true,
-        );
-        tests::test_concurrent(Profiler::new(SeqLock::new(Map::<
-            _,
-            _,
-            Default<_>,
-        >::new(100))));
     }
 }

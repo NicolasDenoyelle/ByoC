@@ -1,5 +1,5 @@
+use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
-use crate::utils::lock::RWLockGuard;
 
 /// Container trait.
 ///
@@ -158,4 +158,3 @@ where
 
 pub mod concurrent;
 pub mod sequential;
-mod tests;

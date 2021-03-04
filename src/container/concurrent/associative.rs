@@ -2,8 +2,8 @@ use crate::container::concurrent::{Sequential, SequentialIter};
 use crate::container::{
     Concurrent, Container, Insert, Iter, IterMut, Sequential as Seq,
 };
+use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
-use crate::utils::lock::RWLockGuard;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
 
@@ -407,39 +407,5 @@ where
             containers: self.containers.iter_mut(),
             it: None,
         }
-    }
-}
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::Associative;
-    use crate::container::concurrent::tests;
-    use crate::container::sequential::Vector;
-    use std::collections::hash_map::DefaultHasher;
-
-    #[test]
-    fn test_associative() {
-        tests::test_sequential(
-            Associative::new(1, 10, |n| Vector::new(n), DefaultHasher::new()),
-            false,
-        );
-        tests::test_sequential(
-            Associative::new(10, 1, |n| Vector::new(n), DefaultHasher::new()),
-            false,
-        );
-        tests::test_sequential(
-            Associative::new(10, 10, |n| Vector::new(n), DefaultHasher::new()),
-            false,
-        );
-        tests::test_concurrent(Associative::new(
-            10,
-            10,
-            |n| Vector::new(n),
-            DefaultHasher::new(),
-        ));
     }
 }

@@ -209,19 +209,3 @@ where
         })
     }
 }
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::Map;
-    use crate::container::sequential::tests;
-
-    #[test]
-    fn test_map() {
-        tests::test_container(Map::new(10), true);
-        tests::test_container(Map::new(100), true);
-    }
-}

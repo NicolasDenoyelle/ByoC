@@ -189,24 +189,3 @@ where
         self.container.iter_mut()
     }
 }
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::TopK;
-    use crate::container::sequential::tests;
-    use crate::container::sequential::Map;
-    use crate::reference::Default;
-
-    #[test]
-    fn test_associative() {
-        tests::test_container(TopK::new(Map::<_, _, Default<_>>::new(1)), true);
-        tests::test_container(
-            TopK::new(Map::<_, _, Default<_>>::new(100)),
-            true,
-        );
-    }
-}

@@ -1,7 +1,19 @@
-use crate::container::Container;
-use crate::reference::Default;
-use crate::utils::rand::Rand;
+use cache::container::Container;
+use cache::reference::Default;
+use cache::timestamp::{Counter, Timestamp};
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::vec::Vec;
+
+pub fn rand(a: u64, b: u64) -> u64 {
+    if a >= b {
+        panic!("Empty range for random number");
+    }
+    let n = Counter::new();
+    let mut hasher = DefaultHasher::new();
+    n.hash(&mut hasher);
+    hasher.finish() % (b - a) + a
+}
 
 type Reference = Default<u32>;
 
@@ -51,7 +63,7 @@ where
     C: Container<u16, u32, Reference>,
 {
     let elements: Vec<(u16, u32)> = (0..n as u64)
-        .map(|i| (i as u16, Rand::range(0, n as u64) as u32))
+        .map(|i| (i as u16, rand(0, n as u64) as u32))
         .collect();
     for (k, v) in elements {
         test_push(&mut c, k, v);
