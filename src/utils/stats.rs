@@ -1,4 +1,4 @@
-use crate::utils::lock::RWLock;
+use crate::lock::RWLock;
 use std::marker::Sync;
 
 /// Facility to compute online statistics with O(1) memory footprint.

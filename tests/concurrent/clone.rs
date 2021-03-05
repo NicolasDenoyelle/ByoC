@@ -1,7 +1,8 @@
-use crate::container::{Concurrent, Container, Iter, IterMut, Sequential};
-use crate::reference::Reference;
-use crate::utils::lock::{RWLock, RWLockGuard};
+use cache::container::{Concurrent, Container, Iter, IterMut, Sequential};
+use cache::lock::{RWLock, RWLockGuard};
+use cache::reference::Reference;
 use std::boxed::Box;
+use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
 
 //------------------------------------------------------------------------------------//
@@ -27,7 +28,6 @@ impl<V> DerefMut for CloneCell<V> {
 }
 
 impl<V> CloneCell<V> {
-    #[allow(dead_code)]
     pub fn new(value: V) -> Self {
         let rc = RWLock::new();
         // Increment reference count in the lock by one.
@@ -38,14 +38,10 @@ impl<V> CloneCell<V> {
         }
     }
 
-    /// Increment reference count in the lock by one.
     pub fn clone(&self) {
         self.rc.lock();
     }
 
-    /// Function to call when a thread stops using this clone cell.
-    /// The reference count of uses is decreased by one and the
-    /// function returns `true` if the reference count drops to one.
     pub fn drop(&mut self) -> bool {
         self.rc.unlock(); // release (last?) read lock.
         self.rc.try_lock_mut() // Return whether we are the only remaining clone owner.
@@ -87,7 +83,6 @@ impl<V> CloneMut<V> {
     /// CloneMut constructor.
     /// Wraps a value into a `CloneCell`.
     ///
-    #[allow(dead_code)]
     pub fn new(value: V) -> Self {
         CloneMut {
             ptr: Box::into_raw(Box::new(CloneCell::new(value))),
@@ -228,7 +223,11 @@ where
     }
 }
 
-#[cfg(test)]
+//------------------------------------------------------------------------------
+// Tests
+//------------------------------------------------------------------------------
+
+#[cfg(tests)]
 mod tests {
     use super::CloneMut;
     use std::thread;

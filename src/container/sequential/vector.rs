@@ -60,9 +60,6 @@ where
     R: Reference<V>,
 {
     pub fn new(n: usize) -> Self {
-        if n == 0 {
-            panic!("Cannot create a Vector of size 0.")
-        }
         Vector {
             capacity: n,
             values: Vec::with_capacity(n + 1),
@@ -115,6 +112,10 @@ where
     }
 
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+        if self.capacity == 0 {
+            return Some((key, reference));
+        }
+
         match self.values.iter().position(|(k, _)| k == &key) {
             None => {
                 self.values.push((key, reference));
@@ -212,21 +213,5 @@ where
         std::iter::Map<std::vec::IntoIter<(K, R)>, fn((K, R)) -> (K, V)>;
     fn into_iter(self) -> Self::IntoIter {
         self.values.into_iter().map(|(k, r)| (k, r.unwrap()))
-    }
-}
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::Vector;
-    use crate::container::sequential::tests;
-
-    #[test]
-    fn test_vector() {
-        tests::test_container(Vector::new(10), true);
-        tests::test_container(Vector::new(100), true);
     }
 }

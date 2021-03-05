@@ -16,4 +16,3 @@ pub use crate::container::sequential::top_k::TopK;
 /// in mediums other than main memory.
 /// ```
 mod io;
-mod tests;

@@ -1,5 +1,5 @@
+use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
-use crate::utils::lock::RWLockGuard;
 
 /// Container trait.
 ///
