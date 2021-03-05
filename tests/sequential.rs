@@ -15,36 +15,6 @@ fn sequential_container_test_small() {
 }
 
 #[test]
-fn sequential_sequential_test_0() {
-    concurrent::test_concurrent(
-        Sequential::new(Vector::new(0)),
-        concurrent::rand::rand_set(100),
-        1,
-    );
-
-    concurrent::test_concurrent(
-        Sequential::new(Vector::new(0)),
-        concurrent::rand::range_set(100),
-        1,
-    );
-}
-
-#[test]
-fn sequential_sequential_test_small() {
-    concurrent::test_concurrent(
-        Sequential::new(Vector::new(100)),
-        concurrent::rand::rand_set(1000),
-        1,
-    );
-
-    concurrent::test_concurrent(
-        Sequential::new(Vector::new(100)),
-        concurrent::rand::range_set(1000),
-        1,
-    );
-}
-
-#[test]
 fn sequential_concurrent_test_0() {
     concurrent::test_concurrent(
         Sequential::new(Vector::new(0)),
