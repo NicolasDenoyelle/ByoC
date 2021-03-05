@@ -1,72 +1,109 @@
 pub mod clone;
+pub mod rand;
 
-use cache::container::{Concurrent, Container};
-use cache::lock::RWLockCell;
-use cache::reference::Default;
-use cache::timestamp::{Counter, Timestamp};
+use cache::{
+    container::{Concurrent, Container},
+    reference::Default,
+};
 use clone::CloneMut;
-use std::cmp::min;
-use std::collections::hash_map::DefaultHasher;
-use std::collections::BTreeSet;
-use std::hash::{Hash, Hasher};
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
-use std::thread;
-use std::thread::JoinHandle;
-use std::time::Instant;
-use std::vec::Vec;
+use std::{cmp::min, sync::mpsc::channel, thread, vec::Vec};
 
 type Reference = Default<u32>;
 
-fn rand(a: u64, b: u64) -> u64 {
-    if a >= b {
-        panic!("Empty range for random number");
-    }
-    let n = Counter::new();
-    let mut hasher = DefaultHasher::new();
-    n.hash(&mut hasher);
-    (hasher.finish() % (b - a) + a) as u64
-}
-
-fn rand_set(n: usize) -> Vec<(u16, Reference)> {
-    let mut set = BTreeSet::new();
-    for _ in 0..n {
-        while !set.insert((
-            rand(0, n as u64) as u16,
-            Default::new(rand(0, n as u64) as u32),
-        )) {}
-    }
-    set.into_iter().collect()
-}
-
-fn range_set(n: usize) -> Vec<(u16, Reference)> {
-    (0..n).map(|i| (i as u16, Default::new(i as u32))).collect()
-}
-
-fn test_push<C>(c: &mut C, set: Vec<(u16, Reference)>, num_thread: usize)
-where
-    C: Container<u16, u32, Reference> + Concurrent<u16, u32, Reference>,
+fn test_after_push<C>(
+    mut c: C,
+    count: usize,
+    keys: Vec<u16>,
+    popped_keys: Vec<u16>,
+) where
+    C: 'static
+        + Container<u16, u32, Default<u32>>
+        + Concurrent<u16, u32, Default<u32>>,
 {
-    let num_thread = min(num_thread, set.len());
-    let t_size = set.len() / num_thread;
-    let count = Arc::new(AtomicU64::new(0));
-    let c = CloneMut::new(c);
-    let out = CloneMut::new(RWLockCell::new(Vec::<(u16, Reference)>::new()));
-    let mut threads: Vec<JoinHandle<_>> = Vec::with_capacity(num_threads);
+    // Test container count is the incremented count.
+    assert!(c.count() == count);
+    // Test popped keys plus inserted keys is the number of keys.
+    assert!(keys.len() == c.count() + popped_keys.len());
 
-    for _ in ..num_threads {
-        let mut t_count = count.clone();
-        let mut t_container = *c.clone();
-        let mut t_out = *out.clone();
-        let mut t_set = if set.len() % t_size == 0 {
-            set.split_off(set.len() - t_size);
-        } else {
-            set.split_off(set.len() - (set.len() % t_size));
-        };
-        threads.push(thread::spawn(move || {}));
+    // Test popped keys and inside keys do not overlap.
+    for key in keys {
+        match c.get_mut(&key) {
+            None => {
+                assert!(popped_keys.contains(&key));
+            }
+            Some(_) => {
+                assert!(!popped_keys.contains(&key));
+            }
+        }
     }
 
-    assert!(container.count() == count.load(Ordering::SeqCst) as usize);
+    // Test container count does not exceed capacity:
+    assert!(c.count() <= c.capacity());
+}
+
+pub fn push_concurrent<C>(c: C, mut set: Vec<(u16, Reference)>, num_thread: u8)
+where
+    C: 'static
+        + Container<u16, u32, Default<u32>>
+        + Concurrent<u16, u32, Default<u32>>,
+{
+    // Not more threads than elements.
+    let num_thread = min(num_thread as usize, set.len()) as u8;
+    // The total number of elements to push in the container c.
+    let keys: Vec<u16> = set.iter().map(|(k, _)| k.clone()).collect();
+
+    // The base set size for each thread.
+    let t_size = set.len() / num_thread as usize;
+    // Elements popped out.
+    let (count, counted) = channel();
+    // Make the container clonable and concurrently mutable.
+    let c = CloneMut::new(c);
+    // Elements popped out.
+    let (pop, popped) = channel();
+
+    // Parallel push.
+    let handles = (0..num_thread).map(|i| {
+        let count = count.clone();
+        let mut c = c.clone();
+        let pop = pop.clone();
+        let set = if i == num_thread - 1 {
+            set.split_off(0)
+        } else {
+            set.split_off(set.len() - t_size)
+        };
+        thread::spawn(move || {
+            for (k, v) in set.into_iter() {
+                match c.push(k, v) {
+                    None => {
+                        count.send(1usize).unwrap();
+                    }
+                    Some((k, _)) => {
+                        pop.send(k).unwrap();
+                    }
+                }
+            }
+        })
+    });
+
+    for h in handles {
+        h.join().unwrap()
+    }
+
+    test_after_push(
+        c,
+        counted.try_iter().sum(),
+        keys,
+        popped.try_iter().collect(),
+    );
+}
+
+pub fn test_concurrent<C>(c: C, set: Vec<(u16, Reference)>, num_thread: u8)
+where
+    C: 'static
+        + Container<u16, u32, Default<u32>>
+        + Concurrent<u16, u32, Default<u32>>,
+{
+    push_concurrent(c, set, num_thread);
 }
 
 // pub fn test_concurrent<C>(c: C)
