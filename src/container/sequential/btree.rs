@@ -1,4 +1,4 @@
-use crate::container::{Container, Insert, Iter, IterMut, Sequential};
+use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
 use crate::utils::ptr::OrdPtr;
 use std::collections::{BTreeMap, BTreeSet};
@@ -229,6 +229,14 @@ where
         }
     }
 }
+
+impl<K, V, R> Packed<K, V, R> for BTree<K, V, R>
+where
+    K: Ord + Copy,
+    R: Reference<V>,
+{
+}
+
 //----------------------------------------------------------------------------//
 // BTree iterator                                                             //
 //----------------------------------------------------------------------------//

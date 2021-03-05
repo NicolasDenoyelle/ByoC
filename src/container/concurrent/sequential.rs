@@ -1,5 +1,5 @@
 use crate::container::{
-    Concurrent, Container, Insert, Iter, IterMut, Sequential as Seq,
+    Concurrent, Container, Insert, Iter, IterMut, Packed, Sequential as Seq,
 };
 use crate::lock::{RWLock, RWLockGuard};
 use crate::reference::{FromValue, Reference};
@@ -179,6 +179,14 @@ where
         self.lock.unlock();
         v
     }
+}
+
+impl<K, V, R, C> Packed<K, V, R> for Sequential<K, V, R, C>
+where
+    K: Ord + Clone,
+    R: Reference<V>,
+    C: Container<K, V, R> + Packed<K, V, R>,
+{
 }
 
 impl<K, V, R, C> Insert<K, V, R> for Sequential<K, V, R, C>

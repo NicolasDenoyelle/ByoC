@@ -1,4 +1,4 @@
-use crate::container::{Container, Insert, Iter, IterMut, Sequential};
+use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
 use std::marker::PhantomData;
 
@@ -150,6 +150,15 @@ where
             }
         }
     }
+}
+
+impl<K, V, R, C1, C2> Packed<K, V, R> for Stack<K, V, R, C1, C2>
+where
+    K: Ord + Clone,
+    R: Reference<V>,
+    C1: Container<K, V, R> + Packed<K, V, R>,
+    C2: Container<K, V, R> + Packed<K, V, R>,
+{
 }
 
 impl<K, V, R, C1, C2> Sequential<K, V, R> for Stack<K, V, R, C1, C2>

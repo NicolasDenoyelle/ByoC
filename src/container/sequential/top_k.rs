@@ -1,4 +1,4 @@
-use crate::container::{Container, Insert, Iter, IterMut, Sequential};
+use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
 use std::marker::PhantomData;
 
@@ -71,6 +71,14 @@ where
             unused_r: PhantomData,
         }
     }
+}
+
+impl<K, V, R, C> Packed<K, V, R> for TopK<K, V, R, C>
+where
+    K: Clone + Ord,
+    R: Reference<V>,
+    C: Container<K, V, R> + Packed<K, V, R>,
+{
 }
 
 impl<K, V, R, C> Insert<K, V, R> for TopK<K, V, R, C>

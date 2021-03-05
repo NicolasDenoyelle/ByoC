@@ -94,13 +94,6 @@ where
     where
         F: Fn(usize) -> C,
     {
-        if n_sets == 0 {
-            panic!("Cannot build an associative container of 0 sets.");
-        }
-        if set_size == 0 {
-            panic!("Cannot create an Associative container of size 0.")
-        }
-
         let mut a = Associative {
             n_sets: n_sets,
             set_size: set_size,
@@ -114,6 +107,9 @@ where
     }
 
     fn set(&self, key: K) -> usize {
+        if self.n_sets == 0 || self.set_size == 0 {
+            return 0;
+        };
         let mut hasher = self.hasher.clone();
         key.hash(&mut hasher);
         let i = hasher.finish();
@@ -236,6 +232,10 @@ where
     }
 
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+        if self.n_sets == 0 || self.set_size == 0 {
+            return Some((key, reference));
+        };
+
         let i = self.set(key.clone());
         self.containers[i].push(key, reference)
     }
@@ -249,11 +249,17 @@ where
     H: Hasher + Clone,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
+        if self.n_sets == 0 || self.set_size == 0 {
+            return None;
+        };
         let i = self.set(key.clone());
         self.containers[i].get(key)
     }
 
     fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>> {
+        if self.n_sets == 0 || self.set_size == 0 {
+            return None;
+        };
         let i = self.set(key.clone());
         self.containers[i].get_mut(key)
     }
