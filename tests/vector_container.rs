@@ -1,20 +1,20 @@
-mod container;
+mod packed;
 mod sequential;
 use cache::container::sequential::Vector;
 
 #[test]
 fn vector_container_test_0() {
-    container::test_container(Vector::new(0));
+    packed::test_container(Vector::new(0));
 }
 
 #[test]
 fn vector_container_test_small() {
-    container::test_container(Vector::new(10));
+    packed::test_container(Vector::new(10));
 }
 
 #[test]
 fn vector_container_test_large() {
-    container::test_container(Vector::new(1000));
+    packed::test_container(Vector::new(1000));
 }
 
 #[test]

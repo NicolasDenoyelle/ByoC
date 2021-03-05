@@ -1,20 +1,20 @@
 use cache::container::sequential::{TopK, Vector};
-mod container;
+mod packed;
 mod sequential;
 
 #[test]
 fn topk_container_test_0() {
-    container::test_container(TopK::new(Vector::new(0)));
+    packed::test_container(TopK::new(Vector::new(0)));
 }
 
 #[test]
 fn topk_container_test_small() {
-    container::test_container(TopK::new(Vector::new(10)));
+    packed::test_container(TopK::new(Vector::new(10)));
 }
 
 #[test]
 fn topk_container_test_large() {
-    container::test_container(TopK::new(Vector::new(1000)));
+    packed::test_container(TopK::new(Vector::new(1000)));
 }
 
 #[test]

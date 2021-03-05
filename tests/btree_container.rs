@@ -1,20 +1,20 @@
 use cache::container::sequential::BTree;
-mod container;
+mod packed;
 mod sequential;
 
 #[test]
 fn btree_container_test_0() {
-    container::test_container(BTree::new(0));
+    packed::test_container(BTree::new(0));
 }
 
 #[test]
 fn btree_container_test_small() {
-    container::test_container(BTree::new(10));
+    packed::test_container(BTree::new(10));
 }
 
 #[test]
 fn btree_container_test_large() {
-    container::test_container(BTree::new(1000));
+    packed::test_container(BTree::new(1000));
 }
 
 #[test]

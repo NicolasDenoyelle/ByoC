@@ -1,17 +1,17 @@
 mod concurrent;
-mod container;
+mod packed;
 
 use cache::container::concurrent::Sequential;
 use cache::container::sequential::Vector;
 
 #[test]
 fn sequential_container_test_0() {
-    container::test_container(Sequential::new(Vector::new(0)));
+    packed::test_container(Sequential::new(Vector::new(0)));
 }
 
 #[test]
 fn sequential_container_test_small() {
-    container::test_container(Sequential::new(Vector::new(10)));
+    packed::test_container(Sequential::new(Vector::new(10)));
 }
 
 #[test]

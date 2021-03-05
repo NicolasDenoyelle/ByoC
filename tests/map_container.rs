@@ -1,20 +1,20 @@
 use cache::container::sequential::Map;
-mod container;
+mod packed;
 mod sequential;
 
 #[test]
 fn map_container_test_0() {
-    container::test_container(Map::new(0));
+    packed::test_container(Map::new(0));
 }
 
 #[test]
 fn map_container_test_small() {
-    container::test_container(Map::new(10));
+    packed::test_container(Map::new(10));
 }
 
 #[test]
 fn map_container_test_large() {
-    container::test_container(Map::new(1000));
+    packed::test_container(Map::new(1000));
 }
 
 #[test]

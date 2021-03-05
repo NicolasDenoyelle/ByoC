@@ -51,10 +51,6 @@ where
             test_is_min(c, &out.1);
         }
         assert_eq!(c.count(), count);
-    } else {
-        assert!(c.push(key, reference).is_none());
-        assert_eq!(c.count(), count + 1);
-        assert!(c.contains(&key));
     }
 }
 
