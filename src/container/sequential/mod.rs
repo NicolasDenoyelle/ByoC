@@ -8,5 +8,3 @@ mod stack;
 pub use crate::container::sequential::stack::Stack;
 mod top_k;
 pub use crate::container::sequential::top_k::TopK;
-mod filemap;
-pub use crate::container::sequential::filemap::FileMap;
