@@ -1,0 +1,31 @@
+* CloneMut Pinnning instead of Boxing
+* Lock Poisoning.
+When a thread owning a lock panics, it goes out of scope without unlocking,
+leaving other lock users in a deadlock situation.
+#+begin_src 
+#+language: rust
+std::thread::panicking
+#+end_src
+
+* Use Dynamic Dispatch on Container Wrappers Instead of Generics.
+
+* Const Hash Trait:
+Add a user interface to for customizing how keys are 
+hashed into buckets for associative container.
+
+* Parallel Associative Container Methods.
+Make methods in associative container parallel.
+
+* Clone for Concurrent Containers.
+
+* Compact IO Map
+Instead of building a map with elements offset based on key hash,
+just pack elements to be more space efficient.
+
+* Prefetcher:
+Build a Prefetcher trait and Prefetcher container wrapping a container
+ and prefetching data.
+
+* Parallel Tests
+Build Concurrent Container trait tests.
+
