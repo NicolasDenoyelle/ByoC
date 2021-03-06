@@ -1,4 +1,4 @@
-use crate::container::{Container, Insert, Iter, IterMut, Sequential};
+use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
 use std::marker::PhantomData;
 
@@ -46,7 +46,7 @@ use std::marker::PhantomData;
 ///```
 pub struct TopK<K, V, R, C>
 where
-    K: Ord + Clone,
+    K: Clone,
     R: Reference<V>,
     C: Container<K, V, R>,
 {
@@ -58,7 +58,7 @@ where
 
 impl<K, V, R, C> TopK<K, V, R, C>
 where
-    K: Ord + Clone,
+    K: Clone,
     R: Reference<V>,
     C: Container<K, V, R>,
 {
@@ -73,9 +73,17 @@ where
     }
 }
 
+impl<K, V, R, C> Packed<K, V, R> for TopK<K, V, R, C>
+where
+    K: Clone,
+    R: Reference<V>,
+    C: Container<K, V, R> + Packed<K, V, R>,
+{
+}
+
 impl<K, V, R, C> Insert<K, V, R> for TopK<K, V, R, C>
 where
-    K: Clone + Ord,
+    K: Clone,
     R: Reference<V> + FromValue<V>,
     C: Container<K, V, R>,
 {
@@ -83,7 +91,7 @@ where
 
 impl<K, V, R, C> Container<K, V, R> for TopK<K, V, R, C>
 where
-    K: Ord + Clone,
+    K: Clone,
     R: Reference<V>,
     C: Container<K, V, R>,
 {
@@ -129,7 +137,7 @@ where
 
 impl<K, V, R, C> Sequential<K, V, R> for TopK<K, V, R, C>
 where
-    K: Ord + Clone,
+    K: Clone,
     R: Reference<V>,
     C: Container<K, V, R> + Sequential<K, V, R>,
 {
@@ -148,7 +156,7 @@ where
 
 impl<K, V, R, C, I> IntoIterator for TopK<K, V, R, C>
 where
-    K: Ord + Clone,
+    K: Clone,
     R: Reference<V>,
     C: Container<K, V, R> + IntoIterator<Item = (K, V), IntoIter = I>,
     I: Iterator<Item = (K, V)>,
@@ -162,7 +170,7 @@ where
 
 impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for TopK<K, V, R, C>
 where
-    K: 'a + Ord + Clone,
+    K: 'a + Clone,
     V: 'a,
     R: 'a + Reference<V>,
     C: 'a + Container<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
@@ -177,7 +185,7 @@ where
 
 impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for TopK<K, V, R, C>
 where
-    K: 'a + Ord + Clone,
+    K: 'a + Clone,
     V: 'a,
     R: 'a + Reference<V>,
     C: 'a + Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I>,
@@ -187,26 +195,5 @@ where
 
     fn iter_mut(&'a mut self) -> Self::Iterator {
         self.container.iter_mut()
-    }
-}
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::TopK;
-    use crate::container::sequential::tests;
-    use crate::container::sequential::Map;
-    use crate::reference::Default;
-
-    #[test]
-    fn test_associative() {
-        tests::test_container(TopK::new(Map::<_, _, Default<_>>::new(1)), true);
-        tests::test_container(
-            TopK::new(Map::<_, _, Default<_>>::new(100)),
-            true,
-        );
     }
 }

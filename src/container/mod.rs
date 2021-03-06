@@ -1,5 +1,5 @@
+use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
-use crate::utils::lock::RWLockGuard;
 
 /// Container trait.
 ///
@@ -10,7 +10,6 @@ use crate::utils::lock::RWLockGuard;
 /// * `R`: Type of [cache reference](../reference/trait.Reference.html).
 pub trait Container<K, V, R>
 where
-    K: Ord,
     R: Reference<V>,
 {
     /// Get the number of elements fitting in the container.
@@ -51,6 +50,19 @@ where
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)>;
 }
 
+/// Marker trait of a container assessing that if the container hash
+/// room for an extra element, then next push will not pop if key
+/// is not already in the container. If a container does not implement
+/// this trait, the it may pop on trying to push a key that is not already
+/// In the container. This is specifically NOT used in
+/// [Associative](struct.Associative.html) containers that will pop when
+/// inserting in a full set/bucket.
+pub trait Packed<K, V, R>: Container<K, V, R>
+where
+    R: Reference<V>,
+{
+}
+
 /// `get()` and `get_mut()` methods for sequential [containers](trait.Container.html).
 ///
 /// `get()` and `get_mut()` methods apply to a mutable container reference.
@@ -65,7 +77,6 @@ where
 /// mutated.
 pub trait Sequential<K, V, R>: Container<K, V, R>
 where
-    K: Ord,
     R: Reference<V>,
 {
     /// Get read-only reference to the content of a cache
@@ -91,7 +102,6 @@ where
 /// ```
 pub trait Insert<K, V, R>: Container<K, V, R>
 where
-    K: Ord,
     R: Reference<V> + FromValue<V>,
 {
     fn insert(&mut self, key: K, value: V) -> Option<(K, R)> {
@@ -103,7 +113,7 @@ where
 /// From ref mut [Container](trait.Container.html) into iterator of non mutable values.
 pub trait Iter<'a, K, V, R>: Container<K, V, R>
 where
-    K: 'a + Ord,
+    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
 {
@@ -114,7 +124,7 @@ where
 /// From ref mut [Container](trait.Container.html) into iterator of mutable values.
 pub trait IterMut<'a, K, V, R>: Container<K, V, R>
 where
-    K: 'a + Ord,
+    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
 {
@@ -140,7 +150,6 @@ where
 /// out of scope
 pub trait Concurrent<K, V, R>: Container<K, V, R> + Sync + Send
 where
-    K: Ord,
     R: Reference<V>,
 {
     /// Get read-only reference to the content of a cache

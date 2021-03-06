@@ -1,5 +1,6 @@
-use crate::container::{Container, Insert, Iter, IterMut, Sequential};
+use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
+use std::cmp::Eq;
 use std::marker::PhantomData;
 use std::vec::Vec;
 
@@ -46,7 +47,7 @@ use std::vec::Vec;
 /// ```
 pub struct Vector<K, V, R>
 where
-    K: Ord,
+    K: Eq,
     R: Reference<V>,
 {
     capacity: usize,
@@ -56,13 +57,10 @@ where
 
 impl<K, V, R> Vector<K, V, R>
 where
-    K: Ord,
+    K: Eq,
     R: Reference<V>,
 {
     pub fn new(n: usize) -> Self {
-        if n == 0 {
-            panic!("Cannot create a Vector of size 0.")
-        }
         Vector {
             capacity: n,
             values: Vec::with_capacity(n + 1),
@@ -75,14 +73,14 @@ where
 //  Container implementation.                                                 //
 //----------------------------------------------------------------------------//
 
-impl<K: Ord, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
+impl<K: Eq, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
     for Vector<K, V, R>
 {
 }
 
 impl<K, V, R> Container<K, V, R> for Vector<K, V, R>
 where
-    K: Ord,
+    K: Eq,
     R: Reference<V>,
 {
     fn capacity(&self) -> usize {
@@ -115,6 +113,10 @@ where
     }
 
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+        if self.capacity == 0 {
+            return Some((key, reference));
+        }
+
         match self.values.iter().position(|(k, _)| k == &key) {
             None => {
                 self.values.push((key, reference));
@@ -141,7 +143,7 @@ where
 
 impl<K, V, R> Sequential<K, V, R> for Vector<K, V, R>
 where
-    K: Ord,
+    K: Eq,
     R: Reference<V>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
@@ -162,13 +164,20 @@ where
     }
 }
 
+impl<K, V, R> Packed<K, V, R> for Vector<K, V, R>
+where
+    K: Eq,
+    R: Reference<V>,
+{
+}
+
 //----------------------------------------------------------------------------//
 //  Vector iterator.                                                          //
 //----------------------------------------------------------------------------//
 
 impl<'a, K, V, R> Iter<'a, K, V, R> for Vector<K, V, R>
 where
-    K: 'a + Ord,
+    K: 'a + Eq,
     V: 'a,
     R: 'a + Reference<V>,
 {
@@ -186,7 +195,7 @@ where
 
 impl<'a, K, V, R> IterMut<'a, K, V, R> for Vector<K, V, R>
 where
-    K: 'a + Ord,
+    K: 'a + Eq,
     V: 'a,
     R: 'a + Reference<V>,
 {
@@ -204,7 +213,7 @@ where
 
 impl<K, V, R> IntoIterator for Vector<K, V, R>
 where
-    K: Ord,
+    K: Eq,
     R: Reference<V>,
 {
     type Item = (K, V);
@@ -212,21 +221,5 @@ where
         std::iter::Map<std::vec::IntoIter<(K, R)>, fn((K, R)) -> (K, V)>;
     fn into_iter(self) -> Self::IntoIter {
         self.values.into_iter().map(|(k, r)| (k, r.unwrap()))
-    }
-}
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::Vector;
-    use crate::container::sequential::tests;
-
-    #[test]
-    fn test_vector() {
-        tests::test_container(Vector::new(10), true);
-        tests::test_container(Vector::new(100), true);
     }
 }

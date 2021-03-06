@@ -1,8 +1,8 @@
 use crate::container::{
-    Concurrent, Container, Insert, Iter, IterMut, Sequential as Seq,
+    Concurrent, Container, Insert, Iter, IterMut, Packed, Sequential as Seq,
 };
+use crate::lock::{RWLock, RWLockGuard};
 use crate::reference::{FromValue, Reference};
-use crate::utils::lock::{RWLock, RWLockGuard};
 use std::marker::{PhantomData, Sync};
 
 //----------------------------------------------------------------------------//
@@ -181,6 +181,14 @@ where
     }
 }
 
+impl<K, V, R, C> Packed<K, V, R> for Sequential<K, V, R, C>
+where
+    K: Ord + Clone,
+    R: Reference<V>,
+    C: Container<K, V, R> + Packed<K, V, R>,
+{
+}
+
 impl<K, V, R, C> Insert<K, V, R> for Sequential<K, V, R, C>
 where
     K: Ord + Clone,
@@ -300,23 +308,5 @@ where
             it: self.container.iter_mut(),
             _guard: RWLockGuard::new(&self.lock, true),
         }
-    }
-}
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::Sequential;
-    use crate::container::concurrent::tests;
-    use crate::container::sequential::Vector;
-
-    #[test]
-    fn test_sequential() {
-        tests::test_sequential(Sequential::new(Vector::new(10)), true);
-        tests::test_sequential(Sequential::new(Vector::new(100)), true);
-        tests::test_concurrent(Sequential::new(Vector::new(100)));
     }
 }

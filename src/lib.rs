@@ -2,7 +2,9 @@
 /// This code is not available to user but used throughout the
 /// library.
 mod utils;
-pub use utils::clone;
+
+/// Library custom read/write lock.
+pub mod lock;
 
 /// Fixed point in time.
 ///

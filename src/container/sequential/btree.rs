@@ -1,4 +1,4 @@
-use crate::container::{Container, Insert, Iter, IterMut, Sequential};
+use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
 use crate::utils::ptr::OrdPtr;
 use std::collections::{BTreeMap, BTreeSet};
@@ -69,10 +69,6 @@ where
     R: Reference<V>,
 {
     pub fn new(n: usize) -> Self {
-        if n == 0 {
-            panic!("Cannot create a BTree of size 0.")
-        }
-
         BTree {
             capacity: n,
             references: Vec::with_capacity(n + 1),
@@ -116,6 +112,10 @@ where
     }
 
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+        if self.capacity == 0 {
+            return Some((key, reference));
+        }
+
         match self.map.get(&key) {
             Some(j) => {
                 assert!(self
@@ -229,6 +229,14 @@ where
         }
     }
 }
+
+impl<K, V, R> Packed<K, V, R> for BTree<K, V, R>
+where
+    K: Ord + Copy,
+    R: Reference<V>,
+{
+}
+
 //----------------------------------------------------------------------------//
 // BTree iterator                                                             //
 //----------------------------------------------------------------------------//
@@ -311,21 +319,5 @@ where
             unused: PhantomData,
         }
         .map(|(k, v)| (k, v))
-    }
-}
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::BTree;
-    use crate::container::sequential::tests;
-
-    #[test]
-    fn test_btree() {
-        tests::test_container(BTree::new(10), true);
-        tests::test_container(BTree::new(100), true);
     }
 }

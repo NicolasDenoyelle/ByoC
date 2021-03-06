@@ -1,5 +1,6 @@
-use crate::container::{Container, Insert, Iter, IterMut, Sequential};
+use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
+use std::cmp::Eq;
 use std::marker::PhantomData;
 
 //----------------------------------------------------------------------------//
@@ -46,7 +47,7 @@ use std::marker::PhantomData;
 /// ```
 pub struct Stack<K, V, R, C1, C2>
 where
-    K: Ord + Clone,
+    K: Clone + Eq,
     R: Reference<V>,
     C1: Container<K, V, R>,
     C2: Container<K, V, R>,
@@ -60,7 +61,7 @@ where
 
 impl<K, V, R, C1, C2> Insert<K, V, R> for Stack<K, V, R, C1, C2>
 where
-    K: Ord + Clone,
+    K: Clone + Eq,
     R: Reference<V> + FromValue<V>,
     C1: Container<K, V, R>,
     C2: Container<K, V, R>,
@@ -69,7 +70,7 @@ where
 
 impl<K, V, R, C1, C2> Stack<K, V, R, C1, C2>
 where
-    K: Ord + Clone,
+    K: Clone + Eq,
     R: Reference<V>,
     C1: Container<K, V, R>,
     C2: Container<K, V, R>,
@@ -93,7 +94,7 @@ where
 
 impl<K, V, R, C1, C2> Container<K, V, R> for Stack<K, V, R, C1, C2>
 where
-    K: Ord + Clone,
+    K: Clone + Eq,
     R: Reference<V>,
     C1: Container<K, V, R>,
     C2: Container<K, V, R>,
@@ -152,9 +153,18 @@ where
     }
 }
 
+impl<K, V, R, C1, C2> Packed<K, V, R> for Stack<K, V, R, C1, C2>
+where
+    K: Clone + Eq,
+    R: Reference<V>,
+    C1: Container<K, V, R> + Packed<K, V, R>,
+    C2: Container<K, V, R> + Packed<K, V, R>,
+{
+}
+
 impl<K, V, R, C1, C2> Sequential<K, V, R> for Stack<K, V, R, C1, C2>
 where
-    K: Ord + Clone,
+    K: Clone + Eq,
     R: Reference<V>,
     C1: Container<K, V, R> + Sequential<K, V, R>,
     C2: Container<K, V, R> + Sequential<K, V, R>,
@@ -194,7 +204,7 @@ where
 
 impl<K, V, R, C1, I1, C2, I2> IntoIterator for Stack<K, V, R, C1, C2>
 where
-    K: Ord + Clone,
+    K: Clone + Eq,
     R: Reference<V>,
     C1: Container<K, V, R> + IntoIterator<Item = (K, V), IntoIter = I1>,
     I1: Iterator<Item = (K, V)>,
@@ -210,7 +220,7 @@ where
 
 impl<'a, K, V, R, C1, I1, C2, I2> Iter<'a, K, V, R> for Stack<K, V, R, C1, C2>
 where
-    K: 'a + Ord + Clone,
+    K: 'a + Clone + Eq,
     V: 'a,
     R: 'a + Reference<V>,
     C1: 'a + Container<K, V, R> + Iter<'a, K, V, R, Iterator = I1>,
@@ -228,7 +238,7 @@ where
 impl<'a, K, V, R, C1, I1, C2, I2> IterMut<'a, K, V, R>
     for Stack<K, V, R, C1, C2>
 where
-    K: 'a + Ord + Clone,
+    K: 'a + Clone + Eq,
     V: 'a,
     R: 'a + Reference<V>,
     C1: 'a + Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I1>,
@@ -240,42 +250,5 @@ where
 
     fn iter_mut(&'a mut self) -> Self::Iterator {
         self.l1.iter_mut().chain(self.l2.iter_mut())
-    }
-}
-
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
-
-#[cfg(test)]
-mod tests {
-    use super::Stack;
-    use crate::container::sequential::tests;
-    use crate::container::sequential::Map;
-    use crate::reference::Default;
-
-    #[test]
-    fn test_associative() {
-        tests::test_container(
-            Stack::new(
-                Map::<_, _, Default<_>>::new(10),
-                Map::<_, _, Default<_>>::new(100),
-            ),
-            true,
-        );
-        tests::test_container(
-            Stack::new(
-                Map::<_, _, Default<_>>::new(1),
-                Map::<_, _, Default<_>>::new(10),
-            ),
-            true,
-        );
-        tests::test_container(
-            Stack::new(
-                Map::<_, _, Default<_>>::new(10),
-                Map::<_, _, Default<_>>::new(1),
-            ),
-            true,
-        );
     }
 }
