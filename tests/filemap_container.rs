@@ -4,13 +4,17 @@ use cache::container::sequential::FileMap;
 
 #[test]
 fn filemap_container_test_0() {
-    packed::test_container(FileMap::new("filemap_container_test_0", 0, false).unwrap());
+    packed::test_container(
+        FileMap::new("filemap_container_test_0", 0, false).unwrap(),
+    );
 }
 
-#[test]
-fn filemap_container_test_small() {
-    packed::test_container(FileMap::new("filemap_container_test_small", 100, false).unwrap());
-}
+// #[test]
+// fn filemap_container_test_small() {
+//     packed::test_container(
+//         FileMap::new("filemap_container_test_small", 100, false).unwrap(),
+//     );
+// }
 
 // #[test]
 // fn vector_container_test_large() {

@@ -1,14 +1,17 @@
-use crate::{container::{Container, Packed}, reference::Reference};
+use crate::{
+    container::{Container, Packed},
+    reference::Reference,
+};
 use std::{
     cmp::{min, Ord},
-    fs::{File, remove_file},
+    fs::{remove_file, File, OpenOptions},
     io::{Error as IOError, ErrorKind, Read, Result, Seek, SeekFrom, Write},
     marker::PhantomData,
     mem::{size_of, MaybeUninit},
+    ops::Drop,
     path::PathBuf,
     slice,
-		ops::Drop,
-		string::String,
+    string::String,
 };
 
 #[repr(C, packed)]
@@ -76,12 +79,12 @@ where
         }
     }
 
-    pub fn write(&self, f: &mut File) -> Result<usize> {
+    pub fn write(self, f: &mut File) -> Result<usize> {
         // SAFETY: slice representation is safe because self is
         // initialized.
         let s = unsafe {
             slice::from_raw_parts(
-                self as *const _ as *const u8,
+                &self as *const _ as *const u8,
                 size_of::<Self>(),
             )
         };
@@ -89,11 +92,13 @@ where
     }
 }
 
-impl<K,V,R> Packed<K,V,R> for FileMap<K,R>
+impl<K, V, R> Packed<K, V, R> for FileMap<K, R>
 where
     K: Sized + Ord,
     V: Sized,
-		R: Reference<V> {}
+    R: Reference<V>,
+{
+}
 
 pub struct FileMap<K, V>
 where
@@ -101,7 +106,7 @@ where
     V: Sized,
 {
     file: File,
-		persistant: Option<String>,
+    persistant: Option<String>,
     capacity: usize,
     unused_k: PhantomData<K>,
     unused_v: PhantomData<V>,
@@ -113,10 +118,12 @@ where
     V: Sized,
 {
     fn drop(&mut self) {
-				match &self.persistant {
-						Some(filename) => { remove_file(filename).unwrap(); }
-						None => (),
-				}
+        match &self.persistant {
+            Some(filename) => {
+                remove_file(filename).unwrap();
+            }
+            None => (),
+        }
     }
 }
 
@@ -180,12 +187,25 @@ where
         }
     }
 
-    pub fn new(filename: &str, capacity: usize, persistant: bool) -> Result<Self> {
-        match File::create(PathBuf::from(filename)) {
+    pub fn new(
+        filename: &str,
+        capacity: usize,
+        persistant: bool,
+    ) -> Result<Self> {
+        match OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(PathBuf::from(filename))
+        {
             Ok(f) => Ok(FileMap {
                 file: f,
                 capacity: capacity,
-								persistant: if persistant { Some(String::from(filename)) } else { None },
+                persistant: if persistant {
+                    Some(String::from(filename))
+                } else {
+                    None
+                },
                 unused_k: PhantomData,
                 unused_v: PhantomData,
             }),
@@ -213,7 +233,7 @@ where
     K: Sized + Ord,
     V: Sized,
 {
-    pub fn new(mut f: File, ) -> Result<Self> {
+    pub fn new(mut f: File) -> Result<Self> {
         f.seek(SeekFrom::Start(0))?;
         Ok(FileMapIterator {
             file: f,
@@ -295,6 +315,7 @@ where
     }
 
     fn take(&mut self, key: &K) -> Option<R> {
+        self.file.flush().unwrap();
         self.file.seek(SeekFrom::Start(0)).unwrap();
         loop {
             match FileMapElement::<K, R>::read(&mut self.file) {
@@ -325,6 +346,8 @@ where
     }
 
     fn pop(&mut self) -> Option<(K, R)> {
+        self.file.flush().unwrap();
+
         match self.into_iter().max_by(|a, b| (&a.0).cmp(&b.0)) {
             None => None,
             Some((k, v)) => {
@@ -354,6 +377,8 @@ where
                 }
             }
         }
+
+        self.file.flush().unwrap();
 
         // Find a victim to evict: Either an element with the same key
         // or the minimum element.
@@ -451,5 +476,49 @@ where
                 Some((k, v))
             }
         }
+    }
+}
+
+//----------------------------------------------------------------------------//
+// Tests
+//----------------------------------------------------------------------------//
+
+#[cfg(test)]
+mod tests {
+    use super::FileMapElement;
+    use std::fs::{remove_file, OpenOptions};
+    use std::io::{Seek, SeekFrom, Write};
+
+    #[test]
+    fn test_filemap_element() {
+        let filename = "test_filemap_element";
+        let mut file = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(filename)
+            .unwrap();
+
+        // Write
+        file.seek(SeekFrom::Start(0)).unwrap();
+        let values: Vec<usize> = (0..16).collect();
+        for i in values.iter() {
+            FileMapElement::new(i.clone(), i.clone())
+                .write(&mut file)
+                .unwrap();
+        }
+        file.flush().unwrap();
+
+        // Read
+        file.seek(SeekFrom::Start(0)).unwrap();
+        for i in values {
+            let (key, value) = FileMapElement::<usize, usize>::read(&mut file)
+                .unwrap()
+                .unwrap()
+                .into_kv();
+            assert_eq!(key, i);
+            assert_eq!(value, i);
+        }
+        remove_file(filename).unwrap();
     }
 }
