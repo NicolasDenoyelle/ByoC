@@ -1,5 +1,6 @@
 use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
+use std::cmp::Eq;
 use std::marker::PhantomData;
 use std::vec::Vec;
 
@@ -46,7 +47,7 @@ use std::vec::Vec;
 /// ```
 pub struct Vector<K, V, R>
 where
-    K: Ord,
+    K: Eq,
     R: Reference<V>,
 {
     capacity: usize,
@@ -56,7 +57,7 @@ where
 
 impl<K, V, R> Vector<K, V, R>
 where
-    K: Ord,
+    K: Eq,
     R: Reference<V>,
 {
     pub fn new(n: usize) -> Self {
@@ -72,14 +73,14 @@ where
 //  Container implementation.                                                 //
 //----------------------------------------------------------------------------//
 
-impl<K: Ord, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
+impl<K: Eq, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
     for Vector<K, V, R>
 {
 }
 
 impl<K, V, R> Container<K, V, R> for Vector<K, V, R>
 where
-    K: Ord,
+    K: Eq,
     R: Reference<V>,
 {
     fn capacity(&self) -> usize {
@@ -142,7 +143,7 @@ where
 
 impl<K, V, R> Sequential<K, V, R> for Vector<K, V, R>
 where
-    K: Ord,
+    K: Eq,
     R: Reference<V>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
@@ -165,7 +166,7 @@ where
 
 impl<K, V, R> Packed<K, V, R> for Vector<K, V, R>
 where
-    K: Ord + Copy,
+    K: Eq,
     R: Reference<V>,
 {
 }
@@ -176,7 +177,7 @@ where
 
 impl<'a, K, V, R> Iter<'a, K, V, R> for Vector<K, V, R>
 where
-    K: 'a + Ord,
+    K: 'a + Eq,
     V: 'a,
     R: 'a + Reference<V>,
 {
@@ -194,7 +195,7 @@ where
 
 impl<'a, K, V, R> IterMut<'a, K, V, R> for Vector<K, V, R>
 where
-    K: 'a + Ord,
+    K: 'a + Eq,
     V: 'a,
     R: 'a + Reference<V>,
 {
@@ -212,7 +213,7 @@ where
 
 impl<K, V, R> IntoIterator for Vector<K, V, R>
 where
-    K: Ord,
+    K: Eq,
     R: Reference<V>,
 {
     type Item = (K, V);

@@ -10,7 +10,6 @@ use crate::reference::{FromValue, Reference};
 /// * `R`: Type of [cache reference](../reference/trait.Reference.html).
 pub trait Container<K, V, R>
 where
-    K: Ord,
     R: Reference<V>,
 {
     /// Get the number of elements fitting in the container.
@@ -60,7 +59,6 @@ where
 /// inserting in a full set/bucket.
 pub trait Packed<K, V, R>: Container<K, V, R>
 where
-    K: Ord,
     R: Reference<V>,
 {
 }
@@ -79,7 +77,6 @@ where
 /// mutated.
 pub trait Sequential<K, V, R>: Container<K, V, R>
 where
-    K: Ord,
     R: Reference<V>,
 {
     /// Get read-only reference to the content of a cache
@@ -105,7 +102,6 @@ where
 /// ```
 pub trait Insert<K, V, R>: Container<K, V, R>
 where
-    K: Ord,
     R: Reference<V> + FromValue<V>,
 {
     fn insert(&mut self, key: K, value: V) -> Option<(K, R)> {
@@ -117,7 +113,7 @@ where
 /// From ref mut [Container](trait.Container.html) into iterator of non mutable values.
 pub trait Iter<'a, K, V, R>: Container<K, V, R>
 where
-    K: 'a + Ord,
+    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
 {
@@ -128,7 +124,7 @@ where
 /// From ref mut [Container](trait.Container.html) into iterator of mutable values.
 pub trait IterMut<'a, K, V, R>: Container<K, V, R>
 where
-    K: 'a + Ord,
+    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
 {
@@ -154,7 +150,6 @@ where
 /// out of scope
 pub trait Concurrent<K, V, R>: Container<K, V, R> + Sync + Send
 where
-    K: Ord,
     R: Reference<V>,
 {
     /// Get read-only reference to the content of a cache

@@ -3,7 +3,7 @@ use crate::{
     reference::Reference,
 };
 use std::{
-    cmp::{min, Ord},
+    cmp::{min, Eq, Ord},
     fs::{remove_file, File, OpenOptions},
     io::{Error as IOError, ErrorKind, Read, Result, Seek, SeekFrom, Write},
     marker::PhantomData,
@@ -17,7 +17,7 @@ use std::{
 #[repr(C, packed)]
 struct FileMapElement<K, V>
 where
-    K: Sized + Ord,
+    K: Sized,
     V: Sized,
 {
     set: bool,
@@ -27,7 +27,7 @@ where
 
 impl<K, V> FileMapElement<K, V>
 where
-    K: Sized + Ord,
+    K: Sized,
     V: Sized,
 {
     fn new(key: K, value: V) -> Self {
@@ -94,7 +94,7 @@ where
 
 impl<K, V, R> Packed<K, V, R> for FileMap<K, R>
 where
-    K: Sized + Ord,
+    K: Sized + Eq,
     V: Sized,
     R: Reference<V>,
 {
@@ -102,8 +102,8 @@ where
 
 pub struct FileMap<K, V>
 where
-    K: Sized + Ord,
-    V: Sized,
+    K: Sized + Eq,
+    V: Sized + Ord,
 {
     file: File,
     persistant: Option<String>,
@@ -114,8 +114,8 @@ where
 
 impl<K, V> Drop for FileMap<K, V>
 where
-    K: Sized + Ord,
-    V: Sized,
+    K: Sized + Eq,
+    V: Sized + Ord,
 {
     fn drop(&mut self) {
         match &self.persistant {
@@ -129,8 +129,8 @@ where
 
 impl<K, V> FileMap<K, V>
 where
-    K: Sized + Ord,
-    V: Sized,
+    K: Sized + Eq,
+    V: Sized + Ord,
 {
     const ELEMENT_SIZE: usize = size_of::<FileMapElement<K, V>>();
 
@@ -220,8 +220,8 @@ where
 
 pub struct FileMapIterator<K, V>
 where
-    K: Sized + Ord,
-    V: Sized,
+    K: Sized + Eq,
+    V: Sized + Ord,
 {
     file: File,
     unused_k: PhantomData<K>,
@@ -230,8 +230,8 @@ where
 
 impl<K, V> FileMapIterator<K, V>
 where
-    K: Sized + Ord,
-    V: Sized,
+    K: Sized + Eq,
+    V: Sized + Ord,
 {
     pub fn new(mut f: File) -> Result<Self> {
         f.seek(SeekFrom::Start(0))?;
@@ -245,8 +245,8 @@ where
 
 impl<K, V> Iterator for FileMapIterator<K, V>
 where
-    K: Sized + Ord,
-    V: Sized,
+    K: Sized + Eq,
+    V: Sized + Ord,
 {
     type Item = (K, V);
 
@@ -263,8 +263,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a FileMap<K, V>
 where
-    K: Sized + Ord,
-    V: Sized,
+    K: Sized + Eq,
+    V: Sized + Ord,
 {
     type Item = (K, V);
     type IntoIter = FileMapIterator<K, V>;
@@ -277,8 +277,8 @@ where
 
 impl<'a, K, V> IntoIterator for &'a mut FileMap<K, V>
 where
-    K: Sized + Ord,
-    V: Sized,
+    K: Sized + Eq,
+    V: Sized + Ord,
 {
     type Item = (K, V);
     type IntoIter = FileMapIterator<K, V>;
@@ -295,7 +295,7 @@ where
 
 impl<K, V, R> Container<K, V, R> for FileMap<K, R>
 where
-    K: Ord + Sized,
+    K: Sized + Eq,
     V: Sized,
     R: Reference<V>,
 {
@@ -348,7 +348,7 @@ where
     fn pop(&mut self) -> Option<(K, R)> {
         self.file.flush().unwrap();
 
-        match self.into_iter().max_by(|a, b| (&a.0).cmp(&b.0)) {
+        match self.into_iter().max_by(|a, b| (&a.1).cmp(&b.1)) {
             None => None,
             Some((k, v)) => {
                 self.take(&k).unwrap();
@@ -486,39 +486,53 @@ where
 #[cfg(test)]
 mod tests {
     use super::FileMapElement;
-    use std::fs::{remove_file, OpenOptions};
+    use std::fs::{remove_file, File, OpenOptions};
     use std::io::{Seek, SeekFrom, Write};
 
-    #[test]
-    fn test_filemap_element() {
-        let filename = "test_filemap_element";
-        let mut file = OpenOptions::new()
+    fn setup(filename: &str) -> File {
+        OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)
+            .truncate(true)
             .open(filename)
-            .unwrap();
+            .unwrap()
+    }
 
-        // Write
+    fn teardown(filename: &str) {
+        remove_file(filename).unwrap();
+    }
+
+    fn write_filemap_element(file: &mut File) {
         file.seek(SeekFrom::Start(0)).unwrap();
-        let values: Vec<usize> = (0..16).collect();
-        for i in values.iter() {
+        for i in 0..16 {
             FileMapElement::new(i.clone(), i.clone())
-                .write(&mut file)
+                .write(file)
                 .unwrap();
         }
         file.flush().unwrap();
+    }
 
-        // Read
+    fn read_filemap_element(
+        file: &mut File,
+    ) -> Vec<(usize, Option<FileMapElement<usize, usize>>)> {
         file.seek(SeekFrom::Start(0)).unwrap();
-        for i in values {
-            let (key, value) = FileMapElement::<usize, usize>::read(&mut file)
-                .unwrap()
-                .unwrap()
-                .into_kv();
-            assert_eq!(key, i);
-            assert_eq!(value, i);
+
+        (0..16)
+            .map(|i| (i, FileMapElement::<usize, usize>::read(file).unwrap()))
+            .collect()
+    }
+
+    #[test]
+    fn test_filemap_element() {
+        let filename: &str = "test_filemap_element";
+        let mut file = setup(filename);
+        write_filemap_element(&mut file);
+        for (i, e) in read_filemap_element(&mut file) {
+            let (k, v) = e.unwrap().into_kv();
+            assert_eq!(k, i);
+            assert_eq!(v, i);
         }
-        remove_file(filename).unwrap();
+        teardown(filename);
     }
 }
