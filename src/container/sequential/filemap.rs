@@ -3,7 +3,7 @@ use crate::{
     reference::Reference,
 };
 use std::{
-    cmp::{min, Eq, Ord},
+    cmp::{min, Eq},
     fs::{remove_file, File, OpenOptions},
     io::{Error as IOError, ErrorKind, Read, Result, Seek, SeekFrom, Write},
     marker::PhantomData,
@@ -103,7 +103,7 @@ where
 pub struct FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized + Ord,
+    V: Sized,
 {
     file: File,
     persistant: Option<String>,
@@ -115,7 +115,7 @@ where
 impl<K, V> Drop for FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized + Ord,
+    V: Sized,
 {
     fn drop(&mut self) {
         match &self.persistant {
@@ -130,7 +130,7 @@ where
 impl<K, V> FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized + Ord,
+    V: Sized,
 {
     const ELEMENT_SIZE: usize = size_of::<FileMapElement<K, V>>();
 
@@ -221,7 +221,7 @@ where
 pub struct FileMapIterator<K, V>
 where
     K: Sized + Eq,
-    V: Sized + Ord,
+    V: Sized,
 {
     file: File,
     unused_k: PhantomData<K>,
@@ -231,7 +231,7 @@ where
 impl<K, V> FileMapIterator<K, V>
 where
     K: Sized + Eq,
-    V: Sized + Ord,
+    V: Sized,
 {
     pub fn new(mut f: File) -> Result<Self> {
         f.seek(SeekFrom::Start(0))?;
@@ -246,7 +246,7 @@ where
 impl<K, V> Iterator for FileMapIterator<K, V>
 where
     K: Sized + Eq,
-    V: Sized + Ord,
+    V: Sized,
 {
     type Item = (K, V);
 
@@ -264,7 +264,7 @@ where
 impl<'a, K, V> IntoIterator for &'a FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized + Ord,
+    V: Sized,
 {
     type Item = (K, V);
     type IntoIter = FileMapIterator<K, V>;
@@ -278,7 +278,7 @@ where
 impl<'a, K, V> IntoIterator for &'a mut FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized + Ord,
+    V: Sized,
 {
     type Item = (K, V);
     type IntoIter = FileMapIterator<K, V>;
