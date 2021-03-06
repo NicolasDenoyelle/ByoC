@@ -1,12 +1,14 @@
-use crate::{container::Container, reference::Reference};
+use crate::{container::{Container, Packed}, reference::Reference};
 use std::{
     cmp::{min, Ord},
-    fs::File,
+    fs::{File, remove_file},
     io::{Error as IOError, ErrorKind, Read, Result, Seek, SeekFrom, Write},
     marker::PhantomData,
     mem::{size_of, MaybeUninit},
     path::PathBuf,
     slice,
+		ops::Drop,
+		string::String,
 };
 
 #[repr(C, packed)]
@@ -87,15 +89,35 @@ where
     }
 }
 
+impl<K,V,R> Packed<K,V,R> for FileMap<K,R>
+where
+    K: Sized + Ord,
+    V: Sized,
+		R: Reference<V> {}
+
 pub struct FileMap<K, V>
 where
     K: Sized + Ord,
     V: Sized,
 {
     file: File,
+		persistant: Option<String>,
     capacity: usize,
     unused_k: PhantomData<K>,
     unused_v: PhantomData<V>,
+}
+
+impl<K, V> Drop for FileMap<K, V>
+where
+    K: Sized + Ord,
+    V: Sized,
+{
+    fn drop(&mut self) {
+				match &self.persistant {
+						Some(filename) => { remove_file(filename).unwrap(); }
+						None => (),
+				}
+    }
 }
 
 impl<K, V> FileMap<K, V>
@@ -158,11 +180,12 @@ where
         }
     }
 
-    pub fn new(filename: &str, capacity: usize) -> Result<Self> {
+    pub fn new(filename: &str, capacity: usize, persistant: bool) -> Result<Self> {
         match File::create(PathBuf::from(filename)) {
             Ok(f) => Ok(FileMap {
                 file: f,
                 capacity: capacity,
+								persistant: if persistant { Some(String::from(filename)) } else { None },
                 unused_k: PhantomData,
                 unused_v: PhantomData,
             }),
@@ -190,7 +213,7 @@ where
     K: Sized + Ord,
     V: Sized,
 {
-    pub fn new(mut f: File) -> Result<Self> {
+    pub fn new(mut f: File, ) -> Result<Self> {
         f.seek(SeekFrom::Start(0))?;
         Ok(FileMapIterator {
             file: f,
@@ -215,19 +238,6 @@ where
                 Ok(None) => (),
             }
         }
-    }
-}
-
-impl<K, V> IntoIterator for FileMap<K, V>
-where
-    K: Sized + Ord,
-    V: Sized,
-{
-    type Item = (K, V);
-    type IntoIter = FileMapIterator<K, V>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        FileMapIterator::<K, V>::new(self.file).unwrap()
     }
 }
 
