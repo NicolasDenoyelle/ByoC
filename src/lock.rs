@@ -1,14 +1,16 @@
 use std::cmp::max;
-use std::marker::Sync;
 use std::ops::Drop;
 use std::ops::{Deref, DerefMut};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 use std::{thread, time};
 
 static EXCLUSIVE: u64 =
     0b0100000000000000000000000000000000000000000000000000000000000000;
 
-static POISONNED: u64 =
+static POISONED: u64 =
     0b1000000000000000000000000000000000000000000000000000000000000000;
 
 #[derive(Debug)]
@@ -58,17 +60,30 @@ pub struct RWLock {
     // [ 1000000000000000000000000000000000000000000000000000000000000000 ]
     // Shared
     // [ 00XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX ]
-    state: AtomicU64,
+    state: Arc<AtomicU64>,
 }
 
-unsafe impl Send for RWLock {}
-unsafe impl Sync for RWLock {}
+impl Drop for RWLock {
+    fn drop(&mut self) {
+        if thread::panicking() {
+            self.state.fetch_or(POISONED, Ordering::SeqCst);
+        }
+    }
+}
+
+impl Clone for RWLock {
+    fn clone(&self) -> Self {
+        RWLock {
+            state: self.state.clone(),
+        }
+    }
+}
 
 impl RWLock {
     /// Construct a new lock.
     pub fn new() -> Self {
         RWLock {
-            state: AtomicU64::new(0),
+            state: Arc::new(AtomicU64::new(0)),
         }
     }
 
@@ -87,7 +102,7 @@ impl RWLock {
     /// Call `unlock()` to unlock after succesfull `try_lock()`.
     pub fn try_lock(&self) -> Result<(), TryLockError<()>> {
         let count = self.state.load(Ordering::SeqCst);
-        if (count & POISONNED) != 0 {
+        if (count & POISONED) != 0 {
             Err(TryLockError::Poisoned(()))
         } else if (count & EXCLUSIVE) != 0 {
             Err(TryLockError::WouldBlock(()))
@@ -125,7 +140,7 @@ impl RWLock {
     /// Call `unlock()` to unlock after succesfull `try_lock_mut()`.
     pub fn try_lock_mut(&self) -> Result<(), TryLockError<()>> {
         let count = self.state.load(Ordering::SeqCst);
-        if (count & POISONNED) != 0 {
+        if (count & POISONED) != 0 {
             Err(TryLockError::Poisoned(()))
         } else if (count & EXCLUSIVE) != 0 {
             Err(TryLockError::WouldBlock(()))
@@ -343,18 +358,17 @@ impl<V> RWLockCell<V> {
 #[cfg(test)]
 mod tests {
     use super::{RWLock, TryLockError};
-    use std::sync::Arc;
     use std::thread;
     use std::thread::JoinHandle;
 
     #[test]
     fn test_lock() {
-        let lock = Arc::new(RWLock::new());
+        let lock = RWLock::new();
         let num_threads = 1024;
         let mut threads: Vec<JoinHandle<_>> = Vec::with_capacity(num_threads);
 
         for _ in 0..num_threads {
-            let local_lock = Arc::clone(&lock);
+            let local_lock = lock.clone();
             threads.push(thread::spawn(move || {
                 // No thread should be panicking.
                 local_lock.lock().unwrap();
@@ -373,7 +387,7 @@ mod tests {
         }
 
         for _ in 0..num_threads {
-            let local_lock = Arc::clone(&lock);
+            let local_lock = lock.clone();
             threads.push(thread::spawn(move || {
                 local_lock.unlock();
             }));
@@ -386,6 +400,23 @@ mod tests {
         match lock.try_lock_mut() {
             Ok(_) => {}
             Err(_) => panic!("Should be able to lock unlocked lock."),
+        }
+    }
+
+    #[test]
+    fn test_poison() {
+        let lock = RWLock::new();
+        let poisoned_lock = lock.clone();
+        assert!(thread::spawn(move || {
+            poisoned_lock.lock().unwrap();
+            panic!("Intended panic to poison the lock.")
+        })
+        .join()
+        .is_err());
+
+        match lock.try_lock() {
+            Err(TryLockError::Poisoned(_)) => {} // Ok
+            _ => panic!("Lock should be poisoned."),
         }
     }
 }
