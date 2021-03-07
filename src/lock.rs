@@ -357,7 +357,7 @@ impl<V> RWLockCell<V> {
 
 #[cfg(test)]
 mod tests {
-    use super::{RWLock, TryLockError};
+    use super::{LockError, RWLock, TryLockError};
     use std::thread;
     use std::thread::JoinHandle;
 
@@ -416,6 +416,11 @@ mod tests {
 
         match lock.try_lock() {
             Err(TryLockError::Poisoned(_)) => {} // Ok
+            _ => panic!("Lock should be poisoned."),
+        }
+
+        match lock.lock() {
+            Err(LockError::Poisoned(_)) => {} // Ok
             _ => panic!("Lock should be poisoned."),
         }
     }
