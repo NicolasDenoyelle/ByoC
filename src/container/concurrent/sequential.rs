@@ -96,28 +96,18 @@ where
 
     /// Unwrap concurrent sequential and return wrapped container.
     pub fn unwrap(self) -> C {
-        self.lock.lock_mut();
+        let _ = self.lock.lock_mut_for(()).unwrap();
         self.container
     }
 
     /// Lock the container for shared access.
     pub fn lock(&self) {
-        self.lock.lock()
+        self.lock.lock().unwrap()
     }
 
     /// Lock the container for exclusive access.
     pub fn lock_mut(&self) {
-        self.lock.lock_mut()
-    }
-
-    /// Lock the container for shared access.
-    pub fn try_lock(&self) -> bool {
-        self.lock.try_lock()
-    }
-
-    /// Lock the container for exclusive access.
-    pub fn try_lock_mut(&self) -> bool {
-        self.lock.try_lock_mut()
+        self.lock.lock_mut().unwrap()
     }
 
     /// Unlock the container.
@@ -133,51 +123,38 @@ where
     C: Container<K, V, R>,
 {
     fn capacity(&self) -> usize {
-        self.lock.lock();
-        let c = self.container.capacity();
-        self.lock.unlock();
-        c
+        let _ = self.lock.lock_for(()).unwrap();
+        self.container.capacity()
     }
 
     fn count(&self) -> usize {
-        self.lock.lock();
-        let c = self.container.count();
-        self.lock.unlock();
-        c
+        let _ = self.lock.lock_for(()).unwrap();
+        self.container.count()
     }
 
     fn contains(&self, key: &K) -> bool {
-        self.lock.lock();
-        let c = self.container.contains(key);
-        self.lock.unlock();
-        c
+        let _ = self.lock.lock_for(()).unwrap();
+        self.container.contains(key)
     }
 
     fn clear(&mut self) {
-        self.lock.lock_mut();
-        self.container.clear();
-        self.lock.unlock();
+        let _ = self.lock.lock_mut_for(()).unwrap();
+        self.container.clear()
     }
 
     fn take(&mut self, key: &K) -> Option<R> {
-        self.lock.lock_mut();
-        let ret = self.container.take(key);
-        self.lock.unlock();
-        ret
+        let _ = self.lock.lock_mut_for(()).unwrap();
+        self.container.take(key)
     }
 
     fn pop(&mut self) -> Option<(K, R)> {
-        self.lock.lock_mut();
-        let v = self.container.pop();
-        self.lock.unlock();
-        v
+        let _ = self.lock.lock_mut_for(()).unwrap();
+        self.container.pop()
     }
 
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
-        self.lock.lock_mut();
-        let v = self.container.push(key, reference);
-        self.lock.unlock();
-        v
+        let _ = self.lock.lock_mut_for(()).unwrap();
+        self.container.push(key, reference)
     }
 }
 
@@ -220,18 +197,15 @@ where
     C: Container<K, V, R> + Seq<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
-        self.lock.lock_mut();
+        let _ = self.lock.lock_mut_for(()).unwrap();
         match self.container.get(key) {
-            None => {
-                self.lock.unlock();
-                None
-            }
+            None => None,
             Some(v) => Some(RWLockGuard::new(&self.lock, v)),
         }
     }
 
     fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>> {
-        self.lock.lock_mut();
+        self.lock.lock_mut_for(()).unwrap();
         match self.container.get_mut(key) {
             None => {
                 self.lock.unlock();
@@ -256,7 +230,7 @@ where
     type Item = (K, V);
     type IntoIter = I;
     fn into_iter(self) -> Self::IntoIter {
-        self.lock.lock_mut();
+        self.lock.lock_mut_for(()).unwrap();
         self.container.into_iter()
     }
 }
@@ -284,7 +258,7 @@ where
     type Iterator = SequentialIter<'a, I>;
 
     fn iter(&'a mut self) -> Self::Iterator {
-        self.lock.lock_mut();
+        self.lock.lock_mut_for(()).unwrap();
         SequentialIter {
             it: self.container.iter(),
             _guard: RWLockGuard::new(&self.lock, true),
@@ -303,7 +277,7 @@ where
     type Iterator = SequentialIter<'a, I>;
 
     fn iter_mut(&'a mut self) -> Self::Iterator {
-        self.lock.lock_mut();
+        self.lock.lock_mut_for(()).unwrap();
         SequentialIter {
             it: self.container.iter_mut(),
             _guard: RWLockGuard::new(&self.lock, true),
