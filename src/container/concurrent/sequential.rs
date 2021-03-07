@@ -96,28 +96,34 @@ where
 
     /// Unwrap concurrent sequential and return wrapped container.
     pub fn unwrap(self) -> C {
-        self.lock.lock_mut();
+        self.lock.lock_mut().unwrap();
         self.container
     }
 
     /// Lock the container for shared access.
     pub fn lock(&self) {
-        self.lock.lock()
+        self.lock.lock().unwrap()
     }
 
     /// Lock the container for exclusive access.
     pub fn lock_mut(&self) {
-        self.lock.lock_mut()
+        self.lock.lock_mut().unwrap()
     }
 
     /// Lock the container for shared access.
     pub fn try_lock(&self) -> bool {
-        self.lock.try_lock()
+        match self.lock.try_lock() {
+            Err(_) => false,
+            Ok(_) => true,
+        }
     }
 
     /// Lock the container for exclusive access.
     pub fn try_lock_mut(&self) -> bool {
-        self.lock.try_lock_mut()
+        match self.lock.try_lock_mut() {
+            Err(_) => false,
+            Ok(_) => true,
+        }
     }
 
     /// Unlock the container.
@@ -133,48 +139,48 @@ where
     C: Container<K, V, R>,
 {
     fn capacity(&self) -> usize {
-        self.lock.lock();
+        self.lock.lock().unwrap();
         let c = self.container.capacity();
         self.lock.unlock();
         c
     }
 
     fn count(&self) -> usize {
-        self.lock.lock();
+        self.lock.lock().unwrap();
         let c = self.container.count();
         self.lock.unlock();
         c
     }
 
     fn contains(&self, key: &K) -> bool {
-        self.lock.lock();
+        self.lock.lock().unwrap();
         let c = self.container.contains(key);
         self.lock.unlock();
         c
     }
 
     fn clear(&mut self) {
-        self.lock.lock_mut();
+        self.lock.lock_mut().unwrap();
         self.container.clear();
         self.lock.unlock();
     }
 
     fn take(&mut self, key: &K) -> Option<R> {
-        self.lock.lock_mut();
+        self.lock.lock_mut().unwrap();
         let ret = self.container.take(key);
         self.lock.unlock();
         ret
     }
 
     fn pop(&mut self) -> Option<(K, R)> {
-        self.lock.lock_mut();
+        self.lock.lock_mut().unwrap();
         let v = self.container.pop();
         self.lock.unlock();
         v
     }
 
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
-        self.lock.lock_mut();
+        self.lock.lock_mut().unwrap();
         let v = self.container.push(key, reference);
         self.lock.unlock();
         v
@@ -220,7 +226,7 @@ where
     C: Container<K, V, R> + Seq<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
-        self.lock.lock_mut();
+        self.lock.lock_mut().unwrap();
         match self.container.get(key) {
             None => {
                 self.lock.unlock();
@@ -231,7 +237,7 @@ where
     }
 
     fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>> {
-        self.lock.lock_mut();
+        self.lock.lock_mut().unwrap();
         match self.container.get_mut(key) {
             None => {
                 self.lock.unlock();
@@ -256,7 +262,7 @@ where
     type Item = (K, V);
     type IntoIter = I;
     fn into_iter(self) -> Self::IntoIter {
-        self.lock.lock_mut();
+        self.lock.lock_mut().unwrap();
         self.container.into_iter()
     }
 }
@@ -284,7 +290,7 @@ where
     type Iterator = SequentialIter<'a, I>;
 
     fn iter(&'a mut self) -> Self::Iterator {
-        self.lock.lock_mut();
+        self.lock.lock_mut().unwrap();
         SequentialIter {
             it: self.container.iter(),
             _guard: RWLockGuard::new(&self.lock, true),
@@ -303,7 +309,7 @@ where
     type Iterator = SequentialIter<'a, I>;
 
     fn iter_mut(&'a mut self) -> Self::Iterator {
-        self.lock.lock_mut();
+        self.lock.lock_mut().unwrap();
         SequentialIter {
             it: self.container.iter_mut(),
             _guard: RWLockGuard::new(&self.lock, true),

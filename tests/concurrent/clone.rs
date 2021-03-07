@@ -31,7 +31,7 @@ impl<V> CloneCell<V> {
     pub fn new(value: V) -> Self {
         let rc = RWLock::new();
         // Increment reference count in the lock by one.
-        rc.lock();
+        rc.lock().unwrap();
         CloneCell {
             value: value,
             rc: rc,
@@ -39,12 +39,15 @@ impl<V> CloneCell<V> {
     }
 
     pub fn clone(&self) {
-        self.rc.lock();
+        self.rc.lock().unwrap();
     }
 
     pub fn drop(&mut self) -> bool {
         self.rc.unlock(); // release (last?) read lock.
-        self.rc.try_lock_mut() // Return whether we are the only remaining clone owner.
+        match self.rc.try_lock_mut() {
+            Ok(_) => true,
+            _ => false,
+        } // Return whether we are the only remaining clone owner.
     }
 }
 

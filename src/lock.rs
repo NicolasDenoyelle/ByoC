@@ -6,7 +6,21 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::{thread, time};
 
 static EXCLUSIVE: u64 =
+    0b0100000000000000000000000000000000000000000000000000000000000000;
+
+static POISONNED: u64 =
     0b1000000000000000000000000000000000000000000000000000000000000000;
+
+#[derive(Debug)]
+pub enum TryLockError<T> {
+    WouldBlock(T),
+    Poisoned(T),
+}
+
+#[derive(Debug)]
+pub enum LockError<T> {
+    Poisoned(T),
+}
 
 /// A custom Read Write Lock implementation based on Rust Atomic primitives.
 /// Unlike Rust RWLock interface, this RWLock allow to call `unlock()` after `lock()`.
@@ -38,10 +52,12 @@ static EXCLUSIVE: u64 =
 pub struct RWLock {
     // Unlocked
     // [ 0000000000000000000000000000000000000000000000000000000000000000 ]
-    // EXCLUSIVE
+    // Exclusive
+    // [ 0100000000000000000000000000000000000000000000000000000000000000 ]
+    // Poisoned
     // [ 1000000000000000000000000000000000000000000000000000000000000000 ]
     // Shared
-    // [ 0XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX ]
+    // [ 00XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX ]
     state: AtomicU64,
 }
 
@@ -69,10 +85,12 @@ impl RWLock {
     /// `try_lock()` may fail if the lock is locked in exclusive state or if
     /// a thread is currently performing operation on the lock.
     /// Call `unlock()` to unlock after succesfull `try_lock()`.
-    pub fn try_lock(&self) -> bool {
+    pub fn try_lock(&self) -> Result<(), TryLockError<()>> {
         let count = self.state.load(Ordering::SeqCst);
-        if (count & EXCLUSIVE) != 0 {
-            return false;
+        if (count & POISONNED) != 0 {
+            Err(TryLockError::Poisoned(()))
+        } else if (count & EXCLUSIVE) != 0 {
+            Err(TryLockError::WouldBlock(()))
         } else {
             match self.state.compare_exchange_weak(
                 count,
@@ -80,9 +98,22 @@ impl RWLock {
                 Ordering::SeqCst,
                 Ordering::Relaxed,
             ) {
-                Ok(_) => true,
-                Err(_) => false,
+                Ok(_) => Ok(()),
+                Err(_) => Err(TryLockError::WouldBlock(())),
             }
+        }
+    }
+
+    pub fn try_lock_for<T>(
+        &self,
+        t: T,
+    ) -> Result<RWLockGuard<T>, TryLockError<T>> {
+        match self.try_lock() {
+            Ok(_) => Ok(RWLockGuard::new(self, t)),
+            Err(TryLockError::WouldBlock(_)) => {
+                Err(TryLockError::WouldBlock(t))
+            }
+            Err(TryLockError::Poisoned(_)) => Err(TryLockError::Poisoned(t)),
         }
     }
 
@@ -92,35 +123,88 @@ impl RWLock {
     /// `try_lock_mut()` may fail if the lock is already locked or if
     /// a thread is currently performing operation on the lock.    
     /// Call `unlock()` to unlock after succesfull `try_lock_mut()`.
-    pub fn try_lock_mut(&self) -> bool {
-        match self.state.compare_exchange_weak(
-            0,
-            EXCLUSIVE,
-            Ordering::SeqCst,
-            Ordering::Relaxed,
-        ) {
-            Err(_) => false,
-            Ok(_) => true,
+    pub fn try_lock_mut(&self) -> Result<(), TryLockError<()>> {
+        let count = self.state.load(Ordering::SeqCst);
+        if (count & POISONNED) != 0 {
+            Err(TryLockError::Poisoned(()))
+        } else if (count & EXCLUSIVE) != 0 {
+            Err(TryLockError::WouldBlock(()))
+        } else {
+            match self.state.compare_exchange_weak(
+                0,
+                EXCLUSIVE,
+                Ordering::SeqCst,
+                Ordering::Relaxed,
+            ) {
+                Ok(_) => Ok(()),
+                Err(_) => Err(TryLockError::WouldBlock(())),
+            }
+        }
+    }
+
+    pub fn try_lock_mut_for<T>(
+        &self,
+        t: T,
+    ) -> Result<RWLockGuard<T>, TryLockError<T>> {
+        match self.try_lock_mut() {
+            Ok(_) => Ok(RWLockGuard::new(self, t)),
+            Err(TryLockError::Poisoned(_)) => Err(TryLockError::Poisoned(t)),
+            Err(TryLockError::WouldBlock(_)) => {
+                Err(TryLockError::WouldBlock(t))
+            }
         }
     }
 
     /// Hang until shared access to the lock is granted.
     /// Call `unlock()` to unlock after succesfull `lock()`.    
-    pub fn lock(&self) {
+    pub fn lock(&self) -> Result<(), LockError<()>> {
         let mut nanos: u64 = 1;
-        while !self.try_lock() {
-            nanos = max(nanos * 2, 1000);
-            thread::sleep(time::Duration::from_nanos(nanos));
+        loop {
+            match self.try_lock() {
+                Ok(_) => break Ok(()),
+                Err(TryLockError::Poisoned(_)) => {
+                    break Err(LockError::Poisoned(()))
+                }
+                Err(TryLockError::WouldBlock(_)) => {
+                    nanos = max(nanos * 2, 1000);
+                    thread::sleep(time::Duration::from_nanos(nanos));
+                }
+            }
+        }
+    }
+
+    pub fn lock_for<T>(&self, t: T) -> Result<RWLockGuard<T>, LockError<T>> {
+        match self.lock() {
+            Ok(_) => Ok(RWLockGuard::new(self, t)),
+            Err(LockError::Poisoned(_)) => Err(LockError::Poisoned(t)),
         }
     }
 
     /// Hang until exclusive access to the lock is granted.
     /// Call `unlock()` to unlock after succesfull `lock_mut()`.    
-    pub fn lock_mut(&self) {
+    pub fn lock_mut(&self) -> Result<(), LockError<()>> {
         let mut nanos: u64 = 1;
-        while !self.try_lock_mut() {
-            nanos = max(nanos * 2, 1000);
-            thread::sleep(time::Duration::from_nanos(nanos));
+        loop {
+            match self.try_lock_mut() {
+                Ok(()) => break Ok(()),
+                Err(TryLockError::Poisoned(_)) => {
+                    break Err(LockError::Poisoned(()))
+                }
+                Err(TryLockError::WouldBlock(_)) => {
+                    nanos = max(nanos * 2, 1000);
+                    thread::sleep(time::Duration::from_nanos(nanos));
+                }
+            }
+        }
+    }
+
+    pub fn lock_mut_for<T>(
+        &self,
+        t: T,
+    ) -> Result<RWLockGuard<T>, LockError<T>> {
+        match self.lock_mut() {
+            Ok(_) => Ok(RWLockGuard::new(self, t)),
+            Err(LockError::Poisoned(_)) => Err(LockError::Poisoned(t)),
         }
     }
 
@@ -227,34 +311,28 @@ impl<V> RWLockCell<V> {
 
     /// Try to acquire shared access to the wrapped value.
     /// Return None on failure, Some lock guard around the value on success.
-    pub fn try_lock(&self) -> Option<RWLockGuard<&V>> {
-        if self.lock.try_lock() {
-            Some(RWLockGuard::new(&self.lock, &self.value))
-        } else {
-            None
-        }
+    pub fn try_lock(&self) -> Result<RWLockGuard<&V>, TryLockError<&V>> {
+        self.lock.try_lock_for(&self.value)
     }
 
     /// Try to acquire exclusive access to the wrapped value.
     /// Return None on failure, Some lock guard around the value on success.
-    pub fn try_lock_mut(&mut self) -> Option<RWLockGuard<&mut V>> {
-        if self.lock.try_lock_mut() {
-            Some(RWLockGuard::new(&self.lock, &mut self.value))
-        } else {
-            None
-        }
+    pub fn try_lock_mut(
+        &mut self,
+    ) -> Result<RWLockGuard<&mut V>, TryLockError<&mut V>> {
+        self.lock.try_lock_mut_for(&mut self.value)
     }
 
     /// Hang until shared access to the wrapped balue is granted.
-    pub fn lock(&self) -> RWLockGuard<&V> {
-        self.lock.lock();
-        RWLockGuard::new(&self.lock, &self.value)
+    pub fn lock(&self) -> Result<RWLockGuard<&V>, LockError<&V>> {
+        self.lock.lock_for(&self.value)
     }
 
     /// Hang until exclusive access to the wrapped value is granted.
-    pub fn lock_mut(&mut self) -> RWLockGuard<&mut V> {
-        self.lock.lock_mut();
-        RWLockGuard::new(&self.lock, &mut self.value)
+    pub fn lock_mut(
+        &mut self,
+    ) -> Result<RWLockGuard<&mut V>, LockError<&mut V>> {
+        self.lock.lock_mut_for(&mut self.value)
     }
 }
 
@@ -264,7 +342,7 @@ impl<V> RWLockCell<V> {
 
 #[cfg(test)]
 mod tests {
-    use super::RWLock;
+    use super::{RWLock, TryLockError};
     use std::sync::Arc;
     use std::thread;
     use std::thread::JoinHandle;
@@ -278,8 +356,15 @@ mod tests {
         for _ in 0..num_threads {
             let local_lock = Arc::clone(&lock);
             threads.push(thread::spawn(move || {
-                local_lock.lock();
-                assert!(!local_lock.try_lock_mut());
+                // No thread should be panicking.
+                local_lock.lock().unwrap();
+                // The thread cannot reacquire lock.
+                match local_lock.try_lock_mut() {
+                    Err(TryLockError::WouldBlock(_)) => {}
+                    _ => panic!(
+                        "Try should cannot reacquire lock or be poisoned."
+                    ),
+                }
             }));
         }
 
@@ -298,6 +383,9 @@ mod tests {
             t.join().unwrap();
         }
 
-        assert!(lock.try_lock_mut());
+        match lock.try_lock_mut() {
+            Ok(_) => {}
+            Err(_) => panic!("Should be able to lock unlocked lock."),
+        }
     }
 }
