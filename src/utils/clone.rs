@@ -1,6 +1,6 @@
-use cache::container::{Concurrent, Container, Iter, IterMut, Sequential};
-use cache::lock::{RWLock, RWLockGuard};
-use cache::reference::Reference;
+use crate::container::{Concurrent, Container, Iter, IterMut, Sequential};
+use crate::lock::{RWLock, RWLockGuard};
+use crate::reference::Reference;
 use std::boxed::Box;
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
@@ -9,30 +9,30 @@ use std::ops::{Deref, DerefMut, Drop};
 //                      Ref counted cell inside clonable struct                       //
 //------------------------------------------------------------------------------------//
 
-struct CloneCell<V> {
+struct InnerClone<V> {
     value: V,
     rc: RWLock,
 }
 
-impl<V> Deref for CloneCell<V> {
+impl<V> Deref for InnerClone<V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
         &self.value
     }
 }
 
-impl<V> DerefMut for CloneCell<V> {
+impl<V> DerefMut for InnerClone<V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.value
     }
 }
 
-impl<V> CloneCell<V> {
+impl<V> InnerClone<V> {
     pub fn new(value: V) -> Self {
         let rc = RWLock::new();
         // Increment reference count in the lock by one.
         rc.lock().unwrap();
-        CloneCell {
+        InnerClone {
             value: value,
             rc: rc,
         }
@@ -55,22 +55,22 @@ impl<V> CloneCell<V> {
 //                                 Public clonable struct                             //
 //------------------------------------------------------------------------------------//
 
-/// CloneMut is a generic wrapper to break the mutability rules.
-/// CloneMut stores a raw pointer to its content and copies the pointer
-/// on call to `clone()`. CloneMut keeps track of the count of clones
+/// CloneCell is a generic wrapper to break the mutability rules.
+/// CloneCell stores a raw pointer to its content and copies the pointer
+/// on call to `clone()`. CloneCell keeps track of the count of clones
 /// inside a [RWLock](../lock/struct.RWLock.html) and destroyes its content
 /// when all the clones have gone out of scope.
-/// CloneMut implements the [Containers](../container/trait.Container.html)
+/// CloneCell implements the [Containers](../container/trait.Container.html)
 /// when it wraps a container. This allows for instance to clone a concurrent
 /// container and perform concurrent mutable access to it.
-/// Content inside a CloneMut struct can be accessed via `Deref` and `DerefMut`
+/// Content inside a CloneCell struct can be accessed via `Deref` and `DerefMut`
 /// traits.
 ///
 /// # Example
 /// ```ignore
-/// use cache::utils::clone::CloneMut;
+/// use cache::utils::clone::CloneCell;
 ///
-/// let mut v = CloneMut::new(4u32);
+/// let mut v = CloneCell::new(4u32);
 /// assert!(*v == 4u32);
 ///
 /// let v2 = v.clone();
@@ -78,63 +78,63 @@ impl<V> CloneCell<V> {
 /// *v = 5u32;
 /// assert!(*v2 == 5u32);
 /// ```
-pub struct CloneMut<V> {
-    ptr: *mut CloneCell<V>,
+pub struct CloneCell<V> {
+    ptr: *mut InnerClone<V>,
 }
 
-impl<V> CloneMut<V> {
-    /// CloneMut constructor.
-    /// Wraps a value into a `CloneCell`.
+impl<V> CloneCell<V> {
+    /// CloneCell constructor.
+    /// Wraps a value into a `InnerClone`.
     ///
     pub fn new(value: V) -> Self {
-        CloneMut {
-            ptr: Box::into_raw(Box::new(CloneCell::new(value))),
+        CloneCell {
+            ptr: Box::into_raw(Box::new(InnerClone::new(value))),
         }
     }
 }
 
-impl<V> Clone for CloneMut<V> {
-    /// Acquire shared lock on the `CloneCell` then
-    /// copy `CloneCell=` pointer.
+impl<V> Clone for CloneCell<V> {
+    /// Acquire shared lock on the `InnerClone` then
+    /// copy `InnerClone=` pointer.
     fn clone(&self) -> Self {
         unsafe { (*self.ptr).clone() }
-        CloneMut {
+        CloneCell {
             ptr: self.ptr.clone(),
         }
     }
 }
 
-impl<V> Drop for CloneMut<V> {
-    /// Acquire exclusive ownership of the `CloneCell`, then
-    /// destroy the CloneMut and its content.
+impl<V> Drop for CloneCell<V> {
+    /// Acquire exclusive ownership of the `InnerClone`, then
+    /// destroy the CloneCell and its content.
     fn drop(&mut self) {
-        if CloneCell::drop(unsafe { &mut *self.ptr }) {
+        if InnerClone::drop(unsafe { &mut *self.ptr }) {
             drop(unsafe { Box::from_raw(self.ptr) })
         }
     }
 }
 
-impl<V> Deref for CloneMut<V> {
+impl<V> Deref for CloneCell<V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
         unsafe { (*self.ptr).deref() }
     }
 }
 
-impl<V> DerefMut for CloneMut<V> {
+impl<V> DerefMut for CloneCell<V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { (*self.ptr).deref_mut() }
     }
 }
 
-unsafe impl<V: Send> Send for CloneMut<V> {}
-unsafe impl<V: Sync> Sync for CloneMut<V> {}
+unsafe impl<V: Send> Send for CloneCell<V> {}
+unsafe impl<V: Sync> Sync for CloneCell<V> {}
 
 //------------------------------------------------------------------------------------//
 //                                 Container implementation                           //
 //------------------------------------------------------------------------------------//
 
-impl<'a, K, V, R, C> Container<K, V, R> for CloneMut<C>
+impl<'a, K, V, R, C> Container<K, V, R> for CloneCell<C>
 where
     K: Ord,
     R: Reference<V>,
@@ -169,7 +169,7 @@ where
     }
 }
 
-impl<'a, K, V, R, C> Concurrent<K, V, R> for CloneMut<C>
+impl<'a, K, V, R, C> Concurrent<K, V, R> for CloneCell<C>
 where
     K: Ord,
     R: Reference<V>,
@@ -184,7 +184,7 @@ where
     }
 }
 
-impl<'a, K, V, R, C> Sequential<K, V, R> for CloneMut<C>
+impl<'a, K, V, R, C> Sequential<K, V, R> for CloneCell<C>
 where
     K: Ord,
     R: Reference<V>,
@@ -198,7 +198,7 @@ where
     }
 }
 
-impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for CloneMut<C>
+impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for CloneCell<C>
 where
     K: 'a + Ord,
     V: 'a,
@@ -212,7 +212,7 @@ where
     }
 }
 
-impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for CloneMut<C>
+impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for CloneCell<C>
 where
     K: 'a + Ord,
     V: 'a,
@@ -232,12 +232,12 @@ where
 
 #[cfg(tests)]
 mod tests {
-    use super::CloneMut;
+    use super::CloneCell;
     use std::thread;
 
     #[test]
     fn test_clone() {
-        let v = CloneMut::new(96u32);
+        let v = CloneCell::new(96u32);
 
         for i in 0..64 {
             let mut vc = v.clone();

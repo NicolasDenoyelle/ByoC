@@ -1,5 +1,6 @@
 use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
+use std::marker::{Send, Sync};
 
 /// Container trait.
 ///
@@ -148,7 +149,8 @@ where
 /// This version returns the content of a reference wrapped into a
 /// [RWLockGuard](../lock/struct.RWLockGuard.html) that will release a lock once
 /// out of scope
-pub trait Concurrent<K, V, R>: Container<K, V, R> + Sync + Send
+pub trait Concurrent<K, V, R>:
+    Container<K, V, R> + Clone + Send + Sync
 where
     R: Reference<V>,
 {

@@ -3,12 +3,15 @@ use crate::container::{
 };
 use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
-use crate::utils::stats::SyncOnlineStats;
+use crate::utils::{clone::CloneCell, stats::SyncOnlineStats};
 use std::fs::{File, OpenOptions};
 use std::io::{Seek, SeekFrom, Write};
 use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{
+    atomic::{AtomicU64, Ordering},
+    Arc,
+};
 use std::time::Instant;
 
 /// [`Container`](../trait.Container.html) wrapper to collect access, misses, hits and
@@ -67,22 +70,42 @@ use std::time::Instant;
 /// // pretty print statistics.
 /// println!("{}", p);
 /// ```
+
+struct Stats {
+    access: AtomicU64,
+    miss: AtomicU64,
+    hit: AtomicU64,
+    tot_millis: AtomicU64,
+    take_fn: SyncOnlineStats,
+    pop_fn: SyncOnlineStats,
+    push_fn: SyncOnlineStats,
+    get_fn: SyncOnlineStats,
+}
+
+impl Stats {
+    pub fn new() -> Self {
+        Stats {
+            access: AtomicU64::new(0u64),
+            miss: AtomicU64::new(0u64),
+            hit: AtomicU64::new(0u64),
+            tot_millis: AtomicU64::new(0u64),
+            take_fn: SyncOnlineStats::new(),
+            pop_fn: SyncOnlineStats::new(),
+            push_fn: SyncOnlineStats::new(),
+            get_fn: SyncOnlineStats::new(),
+        }
+    }
+}
+
 pub struct Profiler<K, V, R, C>
 where
     K: Ord,
     R: Reference<V>,
     C: Container<K, V, R>,
 {
-    cache: C,
-    _access: AtomicU64,
-    _miss: AtomicU64,
-    _hit: AtomicU64,
-    _tot_millis: AtomicU64,
-    take_fn: SyncOnlineStats,
-    pop_fn: SyncOnlineStats,
-    push_fn: SyncOnlineStats,
-    get_fn: SyncOnlineStats,
-    path: Option<PathBuf>,
+    cache: CloneCell<C>,
+    stats: CloneCell<Stats>,
+    path: Arc<Option<PathBuf>>,
     unused_k: PhantomData<K>,
     unused_r: PhantomData<R>,
     unused_v: PhantomData<V>,
@@ -97,16 +120,9 @@ where
     /// Wrap a `cache` into a "cache profiler" cache.
     pub fn new(cache: C) -> Self {
         Profiler {
-            cache: cache,
-            _access: AtomicU64::new(0u64),
-            _miss: AtomicU64::new(0u64),
-            _hit: AtomicU64::new(0u64),
-            _tot_millis: AtomicU64::new(0u64),
-            take_fn: SyncOnlineStats::new(),
-            pop_fn: SyncOnlineStats::new(),
-            push_fn: SyncOnlineStats::new(),
-            get_fn: SyncOnlineStats::new(),
-            path: None,
+            cache: CloneCell::new(cache),
+            stats: CloneCell::new(Stats::new()),
+            path: Arc::new(None),
             unused_k: PhantomData,
             unused_r: PhantomData,
             unused_v: PhantomData,
@@ -117,16 +133,9 @@ where
     /// a file pointed by `path` when it is dropped.
     pub fn with_path(cache: C, path: &Path) -> Self {
         Profiler {
-            cache: cache,
-            _access: AtomicU64::new(0u64),
-            _miss: AtomicU64::new(0u64),
-            _hit: AtomicU64::new(0u64),
-            _tot_millis: AtomicU64::new(0u64),
-            take_fn: SyncOnlineStats::new(),
-            pop_fn: SyncOnlineStats::new(),
-            push_fn: SyncOnlineStats::new(),
-            get_fn: SyncOnlineStats::new(),
-            path: Some(path.to_path_buf()),
+            cache: CloneCell::new(cache),
+            stats: CloneCell::new(Stats::new()),
+            path: Arc::new(Some(path.to_path_buf())),
             unused_k: PhantomData,
             unused_r: PhantomData,
             unused_v: PhantomData,
@@ -135,19 +144,19 @@ where
 
     /// Amount of cache access
     pub fn access(&self) -> u64 {
-        self._access.load(Ordering::Relaxed)
+        self.stats.access.load(Ordering::Relaxed)
     }
     /// Amount of cache misses
     pub fn miss(&self) -> u64 {
-        self._miss.load(Ordering::Relaxed)
+        self.stats.miss.load(Ordering::Relaxed)
     }
     /// Amount of cache hit
     pub fn hit(&self) -> u64 {
-        self._hit.load(Ordering::Relaxed)
+        self.stats.hit.load(Ordering::Relaxed)
     }
     /// Amount of cache hit
     pub fn millis(&self) -> u64 {
-        self._tot_millis.load(Ordering::Relaxed)
+        self.stats.tot_millis.load(Ordering::Relaxed)
     }
 
     /// Write profiler header.
@@ -206,25 +215,25 @@ where
 {pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max} 
 {push_fn_mean} {push_fn_var} {push_fn_min} {push_fn_max} 
 {get_fn_mean} {get_fn_var} {get_fn_min} {get_fn_max}",
-            access = self._access.load(Ordering::Relaxed),
-            miss = self._miss.load(Ordering::Relaxed),
-            hit = self._hit.load(Ordering::Relaxed),
-            take_fn_mean = self.take_fn.mean(),
-            take_fn_var = self.take_fn.var(),
-            take_fn_min = self.take_fn.min(),
-            take_fn_max = self.take_fn.max(),
-            pop_fn_mean = self.pop_fn.mean(),
-            pop_fn_var = self.pop_fn.var(),
-            pop_fn_min = self.pop_fn.min(),
-            pop_fn_max = self.pop_fn.max(),
-            push_fn_mean = self.push_fn.mean(),
-            push_fn_var = self.push_fn.var(),
-            push_fn_min = self.push_fn.min(),
-            push_fn_max = self.push_fn.max(),
-            get_fn_mean = self.get_fn.mean(),
-            get_fn_var = self.get_fn.var(),
-            get_fn_min = self.get_fn.min(),
-            get_fn_max = self.get_fn.max()
+            access = self.stats.access.load(Ordering::Relaxed),
+            miss = self.stats.miss.load(Ordering::Relaxed),
+            hit = self.stats.hit.load(Ordering::Relaxed),
+            take_fn_mean = self.stats.take_fn.mean(),
+            take_fn_var = self.stats.take_fn.var(),
+            take_fn_min = self.stats.take_fn.min(),
+            take_fn_max = self.stats.take_fn.max(),
+            pop_fn_mean = self.stats.pop_fn.mean(),
+            pop_fn_var = self.stats.pop_fn.var(),
+            pop_fn_min = self.stats.pop_fn.min(),
+            pop_fn_max = self.stats.pop_fn.max(),
+            push_fn_mean = self.stats.push_fn.mean(),
+            push_fn_var = self.stats.push_fn.var(),
+            push_fn_min = self.stats.push_fn.min(),
+            push_fn_max = self.stats.push_fn.max(),
+            get_fn_mean = self.stats.get_fn.mean(),
+            get_fn_var = self.stats.get_fn.var(),
+            get_fn_min = self.stats.get_fn.min(),
+            get_fn_max = self.stats.get_fn.max()
         )
     }
 }
@@ -236,13 +245,31 @@ where
     C: Container<K, V, R>,
 {
     fn drop(&mut self) {
-        if let Some(pathbuf) = &self.path {
+        if let Some(pathbuf) = &*self.path {
             let mut file = OpenOptions::new()
                 .write(true)
                 .create(true)
                 .open(pathbuf)
                 .expect("Profiler cache open output:");
             self.fprint(&mut file).expect("Profiler cache dump output:");
+        }
+    }
+}
+
+impl<K, V, R, C> Clone for Profiler<K, V, R, C>
+where
+    K: Ord,
+    R: Reference<V>,
+    C: Container<K, V, R>,
+{
+    fn clone(&self) -> Self {
+        Profiler {
+            cache: self.cache.clone(),
+            stats: self.stats.clone(),
+            path: self.path.clone(),
+            unused_k: PhantomData,
+            unused_r: PhantomData,
+            unused_v: PhantomData,
         }
     }
 }
@@ -303,37 +330,37 @@ where
         write!(
             f,
             "* fn take (ns):  {:.2} (mean) | {:.2} (var) | {:.2} (min) | {:.2} (max)",
-            self.take_fn.mean(),
-            self.take_fn.var(),
-            self.take_fn.min(),
-            self.take_fn.max()
+            self.stats.take_fn.mean(),
+            self.stats.take_fn.var(),
+            self.stats.take_fn.min(),
+            self.stats.take_fn.max()
         )?;
 
         write!(
             f,
             "* fn pop (ns):   {:.2} (mean) | {:.2} (var) | {:.2} (min) | {:.2} (max)",
-            self.pop_fn.mean(),
-            self.pop_fn.var(),
-            self.pop_fn.min(),
-            self.pop_fn.max()
+            self.stats.pop_fn.mean(),
+            self.stats.pop_fn.var(),
+            self.stats.pop_fn.min(),
+            self.stats.pop_fn.max()
         )?;
 
         write!(
             f,
             "* fn push (ns):  {:.2} (mean) | {:.2} (var) | {:.2} (min) | {:.2} (max),",
-            self.push_fn.mean(),
-            self.push_fn.var(),
-            self.push_fn.min(),
-            self.push_fn.max()
+            self.stats.push_fn.mean(),
+            self.stats.push_fn.var(),
+            self.stats.push_fn.min(),
+            self.stats.push_fn.max()
         )?;
 
         write!(
             f,
             "* fn get (ns):   {:.2} (mean) | {:.2} (var) | {:.2} (min) | {:.2} (max)",
-            self.get_fn.mean(),
-            self.get_fn.var(),
-            self.get_fn.min(),
-            self.get_fn.max()
+            self.stats.get_fn.mean(),
+            self.stats.get_fn.var(),
+            self.stats.get_fn.min(),
+            self.stats.get_fn.max()
         )
     }
 }
@@ -373,20 +400,20 @@ where
     /// If key is found, count a hit else count a miss.
     /// See [`take` function](../trait.Container.html)
     fn take(&mut self, key: &K) -> Option<R> {
-        self._access.fetch_add(1, Ordering::SeqCst);
+        self.stats.access.fetch_add(1, Ordering::SeqCst);
         let t0 = Instant::now();
         let out = self.cache.take(key);
         let tf = t0.elapsed().as_millis();
-        self._tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.take_fn.push(tf as f64);
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.take_fn.push(tf as f64);
 
         match out {
             None => {
-                self._miss.fetch_add(1, Ordering::SeqCst);
+                self.stats.miss.fetch_add(1, Ordering::SeqCst);
                 None
             }
             Some(v) => {
-                self._hit.fetch_add(1, Ordering::SeqCst);
+                self.stats.hit.fetch_add(1, Ordering::SeqCst);
                 Some(v)
             }
         }
@@ -395,31 +422,31 @@ where
     /// Counts for one cache access and one hit.
     /// See [`pop` function](../trait.Container.html)
     fn pop(&mut self) -> Option<(K, R)> {
-        self._access.fetch_add(1, Ordering::SeqCst);
-        self._hit.fetch_add(1, Ordering::SeqCst);
+        self.stats.access.fetch_add(1, Ordering::SeqCst);
+        self.stats.hit.fetch_add(1, Ordering::SeqCst);
         let t0 = Instant::now();
         let out = self.cache.pop();
         let tf = t0.elapsed().as_millis();
-        self._tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.pop_fn.push(tf as f64);
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.pop_fn.push(tf as f64);
         out
     }
 
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
-        self._access.fetch_add(1, Ordering::SeqCst);
+        self.stats.access.fetch_add(1, Ordering::SeqCst);
         let t0 = Instant::now();
         let out = self.cache.push(key, reference);
         let tf = t0.elapsed().as_millis();
-        self._tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.push_fn.push(tf as f64);
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.push_fn.push(tf as f64);
 
         match out {
             None => {
-                self._miss.fetch_add(1, Ordering::SeqCst);
+                self.stats.miss.fetch_add(1, Ordering::SeqCst);
                 None
             }
             Some(v) => {
-                self._hit.fetch_add(1, Ordering::SeqCst);
+                self.stats.hit.fetch_add(1, Ordering::SeqCst);
                 Some(v)
             }
         }
@@ -437,20 +464,20 @@ where
     C: Container<K, V, R> + Sequential<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
-        self._access.fetch_add(1, Ordering::SeqCst);
+        self.stats.access.fetch_add(1, Ordering::SeqCst);
         let t0 = Instant::now();
 
         let out = self.cache.get(key);
         let tf = t0.elapsed().as_millis();
-        self._tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.get_fn.push(tf as f64);
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.get_fn.push(tf as f64);
         match out {
             None => {
-                self._miss.fetch_add(1, Ordering::SeqCst);
+                self.stats.miss.fetch_add(1, Ordering::SeqCst);
                 None
             }
             Some(v) => {
-                self._hit.fetch_add(1, Ordering::SeqCst);
+                self.stats.hit.fetch_add(1, Ordering::SeqCst);
                 Some(v)
             }
         }
@@ -460,19 +487,19 @@ where
     /// If key is found, count a hit else count a miss.
     /// See [`get_mut` function](../trait.Container.html)
     fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        self._access.fetch_add(1, Ordering::SeqCst);
+        self.stats.access.fetch_add(1, Ordering::SeqCst);
         let t0 = Instant::now();
         let out = self.cache.get_mut(key);
         let tf = t0.elapsed().as_millis();
-        self._tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.get_fn.push(tf as f64);
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.get_fn.push(tf as f64);
         match out {
             None => {
-                self._miss.fetch_add(1, Ordering::SeqCst);
+                self.stats.miss.fetch_add(1, Ordering::SeqCst);
                 None
             }
             Some(v) => {
-                self._hit.fetch_add(1, Ordering::SeqCst);
+                self.stats.hit.fetch_add(1, Ordering::SeqCst);
                 Some(v)
             }
         }
@@ -506,39 +533,39 @@ where
     C: Container<K, V, R> + Concurrent<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
-        self._access.fetch_add(1, Ordering::SeqCst);
+        self.stats.access.fetch_add(1, Ordering::SeqCst);
         let t0 = Instant::now();
 
         let out = self.cache.get(key);
         let tf = t0.elapsed().as_millis();
-        self._tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.get_fn.push(tf as f64);
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.get_fn.push(tf as f64);
         match out {
             None => {
-                self._miss.fetch_add(1, Ordering::SeqCst);
+                self.stats.miss.fetch_add(1, Ordering::SeqCst);
                 None
             }
             Some(v) => {
-                self._hit.fetch_add(1, Ordering::SeqCst);
+                self.stats.hit.fetch_add(1, Ordering::SeqCst);
                 Some(v)
             }
         }
     }
 
     fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>> {
-        self._access.fetch_add(1, Ordering::SeqCst);
+        self.stats.access.fetch_add(1, Ordering::SeqCst);
         let t0 = Instant::now();
         let out = self.cache.get_mut(key);
         let tf = t0.elapsed().as_millis();
-        self._tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.get_fn.push(tf as f64);
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.get_fn.push(tf as f64);
         match out {
             None => {
-                self._miss.fetch_add(1, Ordering::SeqCst);
+                self.stats.miss.fetch_add(1, Ordering::SeqCst);
                 None
             }
             Some(v) => {
-                self._hit.fetch_add(1, Ordering::SeqCst);
+                self.stats.hit.fetch_add(1, Ordering::SeqCst);
                 Some(v)
             }
         }
@@ -566,16 +593,15 @@ where
 // }
 
 /// Iterator of [Profiler](struct.Profiler.html) [container](../trait.Container.html).
-pub struct ProfilerIter<'a, I>
+pub struct ProfilerIter<I>
 where
     I: Iterator,
 {
-    access: &'a mut AtomicU64,
-    hit: &'a mut AtomicU64,
+    stats: CloneCell<Stats>,
     container_iterator: I,
 }
 
-impl<'a, I> Iterator for ProfilerIter<'a, I>
+impl<I> Iterator for ProfilerIter<I>
 where
     I: Iterator,
 {
@@ -584,8 +610,8 @@ where
         match self.container_iterator.next() {
             None => None,
             Some(item) => {
-                self.access.fetch_add(1, Ordering::SeqCst);
-                self.hit.fetch_add(1, Ordering::SeqCst);
+                self.stats.access.fetch_add(1, Ordering::SeqCst);
+                self.stats.hit.fetch_add(1, Ordering::SeqCst);
                 Some(item)
             }
         }
@@ -600,12 +626,11 @@ where
     I: Iterator<Item = (&'a K, &'a mut V)>,
     C: Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I>,
 {
-    type Iterator = ProfilerIter<'a, I>;
+    type Iterator = ProfilerIter<I>;
 
     fn iter_mut(&'a mut self) -> Self::Iterator {
         ProfilerIter {
-            access: &mut self._access,
-            hit: &mut self._hit,
+            stats: self.stats.clone(),
             container_iterator: self.cache.iter_mut(),
         }
     }
@@ -619,12 +644,11 @@ where
     I: Iterator<Item = (&'a K, &'a V)>,
     C: Container<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
 {
-    type Iterator = ProfilerIter<'a, I>;
+    type Iterator = ProfilerIter<I>;
 
     fn iter(&'a mut self) -> Self::Iterator {
         ProfilerIter {
-            access: &mut self._access,
-            hit: &mut self._hit,
+            stats: self.stats.clone(),
             container_iterator: self.cache.iter(),
         }
     }

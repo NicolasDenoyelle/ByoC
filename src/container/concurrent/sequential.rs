@@ -3,11 +3,12 @@ use crate::container::{
 };
 use crate::lock::{RWLock, RWLockGuard};
 use crate::reference::{FromValue, Reference};
+use crate::utils::clone::CloneCell;
 use std::marker::{PhantomData, Sync};
 
-//----------------------------------------------------------------------------//
-// Concurrent cache                                                           //
-//----------------------------------------------------------------------------//
+//---------------------------------------------------------------------------//
+// Concurrent cache                                                          //
+//---------------------------------------------------------------------------//
 
 /// Concurrent [`container`](trait.Container.html) wrapper with a lock.
 /// Makes a container thread safe by sequentializing its access.
@@ -43,7 +44,7 @@ where
     R: Reference<V>,
     C: Container<K, V, R>,
 {
-    container: C,
+    container: CloneCell<C>,
     lock: RWLock,
     unused_k: PhantomData<K>,
     unused_v: PhantomData<V>,
@@ -68,7 +69,7 @@ where
     /// to build a container of the same capacity.
     pub fn new(container: C) -> Self {
         Sequential {
-            container: container,
+            container: CloneCell::new(container),
             lock: RWLock::new(),
             unused_k: PhantomData,
             unused_v: PhantomData,
@@ -82,7 +83,7 @@ where
     /// is not thread safe. Management of thread safety
     /// is left to the carefull user.
     pub unsafe fn deref(&self) -> &C {
-        &self.container
+        &*self.container
     }
 
     /// Get mutable access to wrapped container.
@@ -91,13 +92,7 @@ where
     /// is not thread safe. Management of thread safety
     /// is left to the carefull user.
     pub unsafe fn deref_mut(&mut self) -> &mut C {
-        &mut self.container
-    }
-
-    /// Unwrap concurrent sequential and return wrapped container.
-    pub fn unwrap(self) -> C {
-        let _ = self.lock.lock_mut_for(()).unwrap();
-        self.container
+        &mut *self.container
     }
 
     /// Lock the container for shared access.
@@ -155,6 +150,23 @@ where
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
         let _ = self.lock.lock_mut_for(()).unwrap();
         self.container.push(key, reference)
+    }
+}
+
+impl<K, V, R, C> Clone for Sequential<K, V, R, C>
+where
+    K: Ord + Clone,
+    R: Reference<V>,
+    C: Container<K, V, R>,
+{
+    fn clone(&self) -> Self {
+        Sequential {
+            container: self.container.clone(),
+            lock: self.lock.clone(),
+            unused_k: PhantomData,
+            unused_v: PhantomData,
+            unused_r: PhantomData,
+        }
     }
 }
 
@@ -219,21 +231,6 @@ where
 //----------------------------------------------------------------------------//
 // iterator for concurrent cache                                              //
 //----------------------------------------------------------------------------//
-
-impl<'a, K, V, R, C, I> IntoIterator for Sequential<K, V, R, C>
-where
-    K: Ord + Clone,
-    R: Reference<V>,
-    C: Container<K, V, R> + IntoIterator<Item = (K, V), IntoIter = I>,
-    I: Iterator<Item = (K, V)>,
-{
-    type Item = (K, V);
-    type IntoIter = I;
-    fn into_iter(self) -> Self::IntoIter {
-        self.lock.lock_mut_for(()).unwrap();
-        self.container.into_iter()
-    }
-}
 
 pub struct SequentialIter<'a, I: Iterator> {
     it: I,

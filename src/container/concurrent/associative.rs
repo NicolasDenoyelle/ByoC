@@ -4,6 +4,7 @@ use crate::container::{
 };
 use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
+use crate::utils::clone::CloneCell;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
 
@@ -69,7 +70,7 @@ where
 {
     n_sets: usize,
     set_size: usize,
-    containers: Vec<Sequential<K, V, R, C>>,
+    containers: CloneCell<Vec<Sequential<K, V, R, C>>>,
     hasher: H,
 }
 
@@ -97,7 +98,7 @@ where
         let mut a = Associative {
             n_sets: n_sets,
             set_size: set_size,
-            containers: Vec::with_capacity(n_sets),
+            containers: CloneCell::new(Vec::with_capacity(n_sets)),
             hasher: set_hasher,
         };
         for _ in 0..n_sets {
@@ -265,33 +266,26 @@ where
     }
 }
 
-//----------------------------------------------------------------------------//
-// iterator for associative concurrent cache                                  //
-//----------------------------------------------------------------------------//
-
-impl<'a, K, V, R, C, I, H> IntoIterator for Associative<K, V, R, C, H>
+impl<K, V, R, C, H> Clone for Associative<K, V, R, C, H>
 where
     K: Ord + Clone + Hash,
     R: Reference<V>,
-    C: Container<K, V, R> + IntoIterator<Item = (K, V), IntoIter = I>,
-    I: Iterator<Item = (K, V)>,
+    C: Container<K, V, R> + Seq<K, V, R>,
     H: Hasher + Clone,
 {
-    type Item = (K, V);
-    type IntoIter = std::iter::FlatMap<
-        std::vec::IntoIter<Sequential<K, V, R, C>>,
-        I,
-        fn(Sequential<K, V, R, C>) -> I,
-    >;
-    fn into_iter(self) -> Self::IntoIter {
-        for c in self.containers.iter() {
-            c.lock_mut()
+    fn clone(&self) -> Self {
+        Associative {
+            n_sets: self.n_sets,
+            set_size: self.set_size,
+            containers: self.containers.clone(),
+            hasher: self.hasher.clone(),
         }
-        self.containers
-            .into_iter()
-            .flat_map(|x| x.unwrap().into_iter())
     }
 }
+
+//----------------------------------------------------------------------------//
+// iterator for associative concurrent cache                                  //
+//----------------------------------------------------------------------------//
 
 pub struct AssociativeIter<'a, K, V, R, C, I>
 where
