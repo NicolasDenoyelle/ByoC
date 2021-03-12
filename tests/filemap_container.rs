@@ -12,7 +12,7 @@ fn filemap_container_test_0() {
 #[test]
 fn filemap_container_test_small() {
     packed::test_container(
-        FileMap::new("filemap_container_test_small", 100, false).unwrap(),
+        FileMap::new("filemap_container_test_small", 10, false).unwrap(),
     );
 }
 

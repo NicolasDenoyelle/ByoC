@@ -6,9 +6,7 @@ use std::hash::{Hash, Hasher};
 use std::vec::Vec;
 
 pub fn rand(a: u64, b: u64) -> u64 {
-    if a >= b {
-        panic!("Empty range for random number");
-    }
+    assert!(a < b);
     let n = Counter::new();
     let mut hasher = DefaultHasher::new();
     n.hash(&mut hasher);
@@ -17,7 +15,7 @@ pub fn rand(a: u64, b: u64) -> u64 {
 
 type Reference = Default<u32>;
 
-fn test_is_max<C>(c: &mut C, value: &Default<u32>)
+fn test_is_max<C>(c: &mut C, value: &Default<u32>, inserted_key: u16)
 where
     C: Container<u16, Reference> + Packed<u16, Reference>,
 {
@@ -27,7 +25,11 @@ where
         match c.pop() {
             None => break,
             Some((k, v)) => {
-                assert!(value >= &v);
+                // If k is the key that just got inserted,
+                // then v might greater than popped reference.
+                if k != inserted_key {
+                    assert!(value >= &v);
+                }
                 elements.push((k, v));
             }
         }
@@ -45,10 +47,24 @@ where
     let count = c.count();
     let reference = Default::new(value);
 
-    if c.contains(&key) || count == c.capacity() {
-        let out = c.push(key, reference).unwrap();
-        if out.0 != key && out.1 < Default::new(value) {
-            test_is_max(c, &out.1);
+    if c.contains(&key) {
+        match c.push(key, reference) {
+            None => panic!("Pushing existing key does not pop."),
+            Some((k, _)) => {
+                if k != key {
+                    panic!("Pushing existing key does not pop same key.")
+                }
+            }
+        }
+        assert_eq!(c.count(), count);
+    } else if count == c.capacity() {
+        match c.push(key, reference) {
+            None => panic!("Pushing in full container does not pop."),
+            Some((k, v)) => {
+                if k != key {
+                    test_is_max(c, &v, key);
+                }
+            }
         }
         assert_eq!(c.count(), count);
     } else {

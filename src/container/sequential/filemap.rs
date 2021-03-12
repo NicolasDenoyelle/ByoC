@@ -316,21 +316,20 @@ where
         let mut victim: Option<(u64, (K, R))> = None;
 
         for off in (0..file_size).step_by(FileMap::<K, R>::ELEMENT_SIZE) {
-            match FileMapElement::<K, R>::read(&mut self.file) {
-                Err(_) => break,
-                Ok(None) => {}
-                Ok(Some(e)) => {
-                    let (k, r) = e.into_kv();
-                    match &victim {
-                        None => victim = Some((off, (k, r))),
-                        Some((_, (_, rv))) => {
-                            if rv < &r {
-                                victim = Some((off, (k, r)));
-                            }
+            victim =
+                match (&victim, FileMapElement::<K, R>::read(&mut self.file)) {
+                    (_, Err(_)) => victim,
+                    (_, Ok(None)) => victim,
+                    (None, Ok(Some(e))) => Some((off, e.into_kv())),
+                    (Some((_, (_, rv))), Ok(Some(e))) => {
+                        let (k, r) = e.into_kv();
+                        if rv < &r {
+                            Some((off, (k, r)))
+                        } else {
+                            victim
                         }
                     }
                 }
-            }
         }
 
         match victim {
@@ -352,15 +351,6 @@ where
         let max_size =
             self.capacity as u64 * (FileMap::<K, R>::ELEMENT_SIZE) as u64;
 
-        // If this is the first push, we have to grow file and
-        // insert at the begining.
-        if file_size == 0 {
-            FileMapElement::new(key, reference)
-                .write(&mut self.file)
-                .unwrap();
-            return None;
-        }
-
         // Find a victim to evict: Either an element with the same key
         // or the minimum element.
         let mut victim: Option<(u64, (K, R))> = None;
@@ -379,7 +369,7 @@ where
                 Err(_) => break,
                 // There is a hole, a potential spot for insertion.
                 Ok(None) => {
-                    spot = if spot.is_none() { Some(off) } else { spot };
+                    spot = Some(off);
                 }
                 // There is an element. Does it have the same key or is it
                 // a better victim?
@@ -392,17 +382,17 @@ where
                         break;
                     } else {
                         victim = match (spot, victim) {
-                            // There is a hole, we don't care about victims then.
+                            // There is a hole, then we don't care about victims.
                             (Some(_), vict) => vict,
                             // There is no current victim and no hole then,
                             // This is the current victim.
                             (None, None) => Some((off, (k, v))),
                             // Next victim is the element with max reference.
                             (None, Some((off1, (k1, v1)))) => {
-                                if v1 > v {
-                                    Some((off1, (k1, v1)))
-                                } else {
+                                if v > v1 {
                                     Some((off, (k, v)))
+                                } else {
+                                    Some((off1, (k1, v1)))
                                 }
                             }
                         }
@@ -412,54 +402,48 @@ where
         }
 
         match (victim, spot) {
-            // No victim and no spot... Then we have to extend the file
-            // To make space.
+            // No victim and no spot... It means the file is empty.
+            // Then we append element at the end of the file.
             (None, None) => {
+                let e = FileMapElement::new(key, reference);
                 self.file.seek(SeekFrom::End(0)).unwrap();
-                FileMapElement::new(key, reference)
-                    .write(&mut self.file)
-                    .unwrap();
+                e.write(&mut self.file).unwrap();
                 None
             }
             // No victim but a spot, then insert in the spot.
             (None, Some(offset)) => {
+                let e = FileMapElement::new(key, reference);
                 self.file.seek(SeekFrom::Start(offset)).unwrap();
-                FileMapElement::new(key, reference)
-                    .write(&mut self.file)
-                    .unwrap();
+                e.write(&mut self.file).unwrap();
                 None
             }
             // A victim and a spot! If the victim has the same key then
             // We evict the victim, else we fill the spot
             (Some((off, (k, v))), Some(offset)) => {
                 if k == key {
+                    let e = FileMapElement::new(key, reference);
                     self.file.seek(SeekFrom::Start(off)).unwrap();
-                    FileMapElement::new(key, reference)
-                        .write(&mut self.file)
-                        .unwrap();
+                    e.write(&mut self.file).unwrap();
                     Some((k, v))
                 } else {
+                    let e = FileMapElement::new(key, reference);
                     self.file.seek(SeekFrom::Start(offset)).unwrap();
-                    FileMapElement::new(key, reference)
-                        .write(&mut self.file)
-                        .unwrap();
+                    e.write(&mut self.file).unwrap();
                     None
                 }
             }
             // A victim and no spot.
-            // if the container is full, then we replace the victim.
+            // If the container is full, then we replace the victim else
+            // we append at the end of the file.
             (Some((off, (k, v))), None) => {
+                let e = FileMapElement::new(key, reference);
                 if file_size >= max_size {
                     self.file.seek(SeekFrom::Start(off)).unwrap();
-                    FileMapElement::new(key, reference)
-                        .write(&mut self.file)
-                        .unwrap();
+                    e.write(&mut self.file).unwrap();
                     Some((k, v))
                 } else {
                     self.file.seek(SeekFrom::End(0)).unwrap();
-                    FileMapElement::new(key, reference)
-                        .write(&mut self.file)
-                        .unwrap();
+                    e.write(&mut self.file).unwrap();
                     None
                 }
             }
