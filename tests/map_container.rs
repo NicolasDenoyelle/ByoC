@@ -14,7 +14,7 @@ fn map_container_test_small() {
 
 #[test]
 fn map_container_test_large() {
-    packed::test_container(Map::new(1000));
+    packed::test_container(Map::new(100));
 }
 
 #[test]

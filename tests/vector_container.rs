@@ -14,7 +14,7 @@ fn filemap_container_test_small() {
 
 #[test]
 fn vector_container_test_large() {
-    packed::test_container(Vector::new(1000));
+    packed::test_container(Vector::new(100));
 }
 
 #[test]
