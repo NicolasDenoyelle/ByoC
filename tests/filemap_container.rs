@@ -9,12 +9,12 @@ fn filemap_container_test_0() {
     );
 }
 
-// #[test]
-// fn filemap_container_test_small() {
-//     packed::test_container(
-//         FileMap::new("filemap_container_test_small", 100, false).unwrap(),
-//     );
-// }
+#[test]
+fn filemap_container_test_small() {
+    packed::test_container(
+        FileMap::new("filemap_container_test_small", 100, false).unwrap(),
+    );
+}
 
 // #[test]
 // fn vector_container_test_large() {

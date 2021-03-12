@@ -3,9 +3,9 @@ use crate::{
     reference::Reference,
 };
 use std::{
-    cmp::{min, Eq},
+    cmp::Eq,
     fs::{remove_file, File, OpenOptions},
-    io::{Error as IOError, ErrorKind, Read, Result, Seek, SeekFrom, Write},
+    io::{Read, Result, Seek, SeekFrom, Write},
     marker::PhantomData,
     mem::{size_of, MaybeUninit},
     ops::Drop,
@@ -42,15 +42,6 @@ where
         (self.key, self.value)
     }
 
-    // pub fn from_bytes(b: NonNull<u8>) -> Option<Self> {
-    //     let e: Self = unsafe { read(transmute::<_, *const Self>(b.as_ptr())) };
-
-    //     match e.set() {
-    //         false => None,
-    //         true => Some(e),
-    //     }
-    // }
-
     pub fn read(f: &mut File) -> Result<Option<Self>> {
         let mut uninit = MaybeUninit::<Self>::uninit();
         // SAFETY: Fully initialize on reading file.
@@ -67,12 +58,19 @@ where
         };
 
         match f.read(s) {
-            Ok(_) => {
-                let ret = unsafe { uninit.assume_init() };
-                if ret.set {
-                    Ok(Some(ret))
+            Ok(s) => {
+                if s < size_of::<Self>() {
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::UnexpectedEof,
+                        "End of File",
+                    ))
                 } else {
-                    Ok(None)
+                    let ret = unsafe { uninit.assume_init() };
+                    if ret.set {
+                        Ok(Some(ret))
+                    } else {
+                        Ok(None)
+                    }
                 }
             }
             Err(e) => Err(e),
@@ -96,7 +94,7 @@ impl<K, V, R> Packed<K, V, R> for FileMap<K, R>
 where
     K: Sized + Eq,
     V: Sized,
-    R: Reference<V>,
+    R: Reference<V> + Sized,
 {
 }
 
@@ -134,40 +132,9 @@ where
 {
     const ELEMENT_SIZE: usize = size_of::<FileMapElement<K, V>>();
 
-    fn zero(file: &mut File, len: u64) -> Result<usize> {
-        let zero: [u8; 512] = [0; 512];
-        let n = len / 4096;
-        for _ in 0..n {
-            file.write(&zero)?;
-        }
-
-        let rem = (len % 4096) / size_of::<u8>() as u64;
-        file.write(&zero[..rem as usize])
-    }
-
-    fn extend(&mut self, len: u64) -> Result<u64> {
-        let new_size = (self.file.metadata().unwrap().len())
-            .checked_add(len)
-            .expect("u64 overflow when computing new file size.");
-        let max_size = (self.capacity as u64)
-            .checked_mul(FileMap::<K, V>::ELEMENT_SIZE as u64)
-            .unwrap();
-
-        if new_size > max_size {
-            Result::Err(IOError::new(
-                ErrorKind::UnexpectedEof,
-                format!(
-                    "Cannot extend past FileMap past capcacity {}",
-                    &self.capacity
-                ),
-            ))
-        } else {
-            self.file.seek(SeekFrom::End(0))?;
-            match FileMap::<K, V>::zero(&mut self.file, len) {
-                Err(e) => Err(e),
-                Ok(i) => Ok(i as u64),
-            }
-        }
+    fn zero(file: &mut File) -> Result<usize> {
+        let s: u8 = 0;
+        file.write(slice::from_ref(&s))
     }
 
     pub fn get(&self, key: &K) -> Option<V> {
@@ -297,7 +264,7 @@ impl<K, V, R> Container<K, V, R> for FileMap<K, R>
 where
     K: Sized + Eq,
     V: Sized,
-    R: Reference<V>,
+    R: Reference<V> + Sized,
 {
     fn capacity(&self) -> usize {
         self.capacity
@@ -329,11 +296,7 @@ where
                                 -1 * (FileMap::<K, R>::ELEMENT_SIZE as i64),
                             ))
                             .unwrap();
-                        FileMap::<K, R>::zero(
-                            &mut self.file,
-                            FileMap::<K, R>::ELEMENT_SIZE as u64,
-                        )
-                        .unwrap();
+                        FileMap::<K, R>::zero(&mut self.file).unwrap();
                         break Some(v);
                     }
                 }
@@ -347,38 +310,56 @@ where
 
     fn pop(&mut self) -> Option<(K, R)> {
         self.file.flush().unwrap();
+        self.file.seek(SeekFrom::Start(0)).unwrap();
 
-        match self.into_iter().max_by(|a, b| (&a.1).cmp(&b.1)) {
+        let file_size = self.file.metadata().unwrap().len();
+        let mut victim: Option<(u64, (K, R))> = None;
+
+        for off in (0..file_size).step_by(FileMap::<K, R>::ELEMENT_SIZE) {
+            match FileMapElement::<K, R>::read(&mut self.file) {
+                Err(_) => break,
+                Ok(None) => {}
+                Ok(Some(e)) => {
+                    let (k, r) = e.into_kv();
+                    match &victim {
+                        None => victim = Some((off, (k, r))),
+                        Some((_, (_, rv))) => {
+                            if rv < &r {
+                                victim = Some((off, (k, r)));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        match victim {
             None => None,
-            Some((k, v)) => {
-                self.take(&k).unwrap();
-                Some((k, v))
+            Some((off, (k, r))) => {
+                self.file.seek(SeekFrom::Start(off)).unwrap();
+                FileMap::<K, R>::zero(&mut self.file).unwrap();
+                Some((k, r))
             }
         }
     }
 
     fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+        // Flush any outstanding write because we want to read the whole
+        // file.
+        self.file.flush().unwrap();
+
         let file_size = self.file.metadata().unwrap().len();
-        let max_size = self.capacity * (FileMap::<K, R>::ELEMENT_SIZE);
+        let max_size =
+            self.capacity as u64 * (FileMap::<K, R>::ELEMENT_SIZE) as u64;
 
         // If this is the first push, we have to grow file and
         // insert at the begining.
         if file_size == 0 {
-            let desired_size = FileMap::<K, R>::ELEMENT_SIZE * 64;
-            let size = min(max_size, desired_size) as u64;
-            match self.extend(size) {
-                Err(_) => panic!("Cannot grow file size."),
-                Ok(_) => {
-                    self.file.seek(SeekFrom::Start(0)).unwrap();
-                    FileMapElement::new(key, reference)
-                        .write(&mut self.file)
-                        .unwrap();
-                    return None;
-                }
-            }
+            FileMapElement::new(key, reference)
+                .write(&mut self.file)
+                .unwrap();
+            return None;
         }
-
-        self.file.flush().unwrap();
 
         // Find a victim to evict: Either an element with the same key
         // or the minimum element.
@@ -389,6 +370,9 @@ where
 
         // We start walking the file in search for the same key, holes and
         // potential victims.
+        // Everything is done in one pass.
+        self.file.flush().unwrap();
+        self.file.seek(SeekFrom::Start(0)).unwrap();
         for off in (0..file_size).step_by(FileMap::<K, R>::ELEMENT_SIZE) {
             match FileMapElement::<K, R>::read(&mut self.file) {
                 // We can't look further in the file.
@@ -431,16 +415,11 @@ where
             // No victim and no spot... Then we have to extend the file
             // To make space.
             (None, None) => {
-                match self.extend(min(file_size * 2, max_size as u64)) {
-                    Err(_) => panic!("Cannot grow file size."),
-                    Ok(_) => {
-                        self.file.seek(SeekFrom::Start(file_size)).unwrap();
-                        FileMapElement::new(key, reference)
-                            .write(&mut self.file)
-                            .unwrap();
-                        None
-                    }
-                }
+                self.file.seek(SeekFrom::End(0)).unwrap();
+                FileMapElement::new(key, reference)
+                    .write(&mut self.file)
+                    .unwrap();
+                None
             }
             // No victim but a spot, then insert in the spot.
             (None, Some(offset)) => {
@@ -467,13 +446,22 @@ where
                     None
                 }
             }
-            // A victim and no spot. We replace the victim.
+            // A victim and no spot.
+            // if the container is full, then we replace the victim.
             (Some((off, (k, v))), None) => {
-                self.file.seek(SeekFrom::Start(off)).unwrap();
-                FileMapElement::new(key, reference)
-                    .write(&mut self.file)
-                    .unwrap();
-                Some((k, v))
+                if file_size >= max_size {
+                    self.file.seek(SeekFrom::Start(off)).unwrap();
+                    FileMapElement::new(key, reference)
+                        .write(&mut self.file)
+                        .unwrap();
+                    Some((k, v))
+                } else {
+                    self.file.seek(SeekFrom::End(0)).unwrap();
+                    FileMapElement::new(key, reference)
+                        .write(&mut self.file)
+                        .unwrap();
+                    None
+                }
             }
         }
     }
@@ -485,7 +473,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::FileMapElement;
+    use super::{FileMap, FileMapElement};
+    use crate::container::Container;
+    use crate::reference::Default;
     use std::fs::{remove_file, File, OpenOptions};
     use std::io::{Seek, SeekFrom, Write};
 
@@ -505,7 +495,7 @@ mod tests {
 
     fn write_filemap_element(file: &mut File) {
         file.seek(SeekFrom::Start(0)).unwrap();
-        for i in 0..16 {
+        for i in 0usize..16usize {
             FileMapElement::new(i.clone(), i.clone())
                 .write(file)
                 .unwrap();
@@ -534,5 +524,61 @@ mod tests {
             assert_eq!(v, i);
         }
         teardown(filename);
+    }
+
+    #[test]
+    fn test_filemap() {
+        let mut fm =
+            FileMap::<usize, Default<usize>>::new("test_filemap", 10, false)
+                .unwrap();
+        // Push test
+        for i in (0usize..10usize).rev() {
+            assert!(fm.push(i, Default::new(i)).is_none());
+        }
+        // Pop test
+        assert_eq!(fm.pop().unwrap().0, 9usize);
+        // Contains test
+        for i in 0usize..9usize {
+            assert!(fm.contains(&i));
+        }
+        let i = 9usize;
+        assert!(!fm.contains(&i));
+
+        // Iteration test
+        let mut it = fm.into_iter();
+        for i in (0usize..9usize).rev() {
+            match it.next() {
+                None => panic!("Premature end of iteration"),
+                Some((k, _)) => {
+                    assert_eq!(k, i);
+                }
+            }
+        }
+        assert!(it.next().is_none());
+
+        // Test pop on push when full.
+        assert!(fm.push(9usize, Default::new(9usize)).is_none());
+        match fm.push(11usize, Default::new(11usize)) {
+            None => panic!("Full filemap not popping."),
+            Some((k, _)) => {
+                assert_eq!(k, 9usize);
+            }
+        }
+
+        // Test pop on push of an existing key.
+        match fm.push(4usize, Default::new(4usize)) {
+            None => panic!("Full filemap not popping."),
+            Some((k, _)) => {
+                assert_eq!(k, 4usize);
+            }
+        }
+
+        // Test empty container.
+        assert_eq!(fm.pop().unwrap().0, 11usize);
+        for i in (0usize..9usize).rev() {
+            assert_eq!(fm.pop().unwrap().0, i);
+        }
+        assert!(fm.pop().is_none());
+        assert_eq!(fm.count(), 0);
     }
 }

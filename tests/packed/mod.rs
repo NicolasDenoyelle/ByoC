@@ -17,7 +17,7 @@ pub fn rand(a: u64, b: u64) -> u64 {
 
 type Reference = Default<u32>;
 
-fn test_is_min<C>(c: &mut C, value: &Default<u32>)
+fn test_is_max<C>(c: &mut C, value: &Default<u32>)
 where
     C: Container<u16, Reference> + Packed<u16, Reference>,
 {
@@ -27,7 +27,7 @@ where
         match c.pop() {
             None => break,
             Some((k, v)) => {
-                assert!(value <= &v);
+                assert!(value >= &v);
                 elements.push((k, v));
             }
         }
@@ -48,7 +48,7 @@ where
     if c.contains(&key) || count == c.capacity() {
         let out = c.push(key, reference).unwrap();
         if out.0 != key && out.1 < Default::new(value) {
-            test_is_min(c, &out.1);
+            test_is_max(c, &out.1);
         }
         assert_eq!(c.count(), count);
     } else {
