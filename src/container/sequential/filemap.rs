@@ -14,6 +14,10 @@ use std::{
     string::String,
 };
 
+/// Structure with specified contiguous memory layout
+/// representing an element key / value.
+/// The struct also contains a boolean specifying weather this
+/// element is a valid initialized element or not.
 #[repr(C, packed)]
 struct FileMapElement<K, V>
 where
@@ -30,6 +34,7 @@ where
     K: Sized,
     V: Sized,
 {
+    /// Create a new valid initialized element.
     fn new(key: K, value: V) -> Self {
         FileMapElement {
             set: true,
@@ -38,17 +43,27 @@ where
         }
     }
 
+    /// Discard this element and output its key
+    /// and value.
     pub fn into_kv(self) -> (K, V) {
         (self.key, self.value)
     }
 
+    /// Read a file at current position and output
+    /// the element contained at this position.
+    /// If the boolean flag `set` from the byte
+    /// stream read is not set then the function returns None
+    /// to denote that it read an invalid representation.
+    /// SAFETY:
+    /// 1. Reading a stream of bytes that does not represent an
+    /// actual FileMapElement of the same type will result in undefined
+    /// behaviour.
+    /// 2. If the key type `K` or value type `V` of this element
+    /// contains pointers that do not point to a valid initialized
+    /// memory area then the behaviour of this function is also undefined.
     pub fn read(f: &mut File) -> Result<Option<Self>> {
         let mut uninit = MaybeUninit::<Self>::uninit();
-        // SAFETY: Fully initialize on reading file.
-        // If file reading fails, ret is not used.
-        // If file reading succeeded and ret is not initialized in file,
-        // then field (set) is set to false because file is zero
-        // initialized.
+
         // SAFETY: uninit as enough space to fit Self bytes
         let s = unsafe {
             slice::from_raw_parts_mut(
@@ -65,6 +80,10 @@ where
                         "End of File",
                     ))
                 } else {
+                    // This the unsafe part.
+                    // What is read in file must be absolutely
+                    // initialized either with `set` flag to false
+                    // or with a valid file element.
                     let ret = unsafe { uninit.assume_init() };
                     if ret.set {
                         Ok(Some(ret))
@@ -77,6 +96,7 @@ where
         }
     }
 
+    /// Write initialized FileMapElement to file.
     pub fn write(self, f: &mut File) -> Result<usize> {
         // SAFETY: slice representation is safe because self is
         // initialized.
@@ -90,14 +110,32 @@ where
     }
 }
 
-impl<K, V, R> Packed<K, V, R> for FileMap<K, R>
-where
-    K: Sized + Eq,
-    V: Sized,
-    R: Reference<V> + Sized,
-{
-}
-
+/// A [`Container`](../trait.Container.html) for key value store with a
+/// maximum size stored into a file. The container has tiny memory
+/// footprint. However, it is not optimized to limit IO operations.
+/// Elements are stored to fit any hole in the file so that the
+/// container does not pop until the file is filled with elements.
+/// This container is extremely slow, i.e almost all methods will
+/// require to cross the entire file.
+/// This container is intended to be optimized by combining it with:
+/// in-memory cache multiple files/sets in concurrent associative container,
+/// optimized replacement policy, and so on...
+///
+/// SAFETY:
+/// Keys and values must be safely writable and readable in place, i.e.
+/// they do not contain pointers that would be invalid to read from a file
+/// and they have a fixed size, e.g they are not dynamically sized strings
+/// or vectors.
+///
+/// ## Generics:
+///
+/// * `K`: The type of key to use.
+/// Keys must have a set size known at compile time and must not contain
+/// pointers that would be invalid to read later from a file.
+/// Keys must be comparable with `Eq` trait.
+/// * `V`: The value type stored.
+/// Values must have a set size known at compile time and must not contain
+/// pointers that would be invalid to read later from a file.
 pub struct FileMap<K, V>
 where
     K: Sized + Eq,
@@ -449,6 +487,14 @@ where
             }
         }
     }
+}
+
+impl<K, V, R> Packed<K, V, R> for FileMap<K, R>
+where
+    K: Sized + Eq,
+    V: Sized,
+    R: Reference<V> + Sized,
+{
 }
 
 //----------------------------------------------------------------------------//
