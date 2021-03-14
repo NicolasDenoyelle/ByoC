@@ -46,7 +46,7 @@ use std::marker::Sync;
 /// use cache::reference::Default;
 ///
 /// // Build a Map cache of 2 sets. Each set hold one element.
-/// let mut c = Associative::<_,_,Default<_>,_,_>::new(2, 2, |n|{Map::new(n)}, DefaultHasher::new());
+/// let mut c = Associative::<_,Default<_>,_,_>::new(2, 2, |n|{Map::new(n)}, DefaultHasher::new());
 ///
 /// // Container as room for first and second element and returns None.
 /// assert!(c.insert(0u16, 4).is_none());
@@ -61,24 +61,24 @@ use std::marker::Sync;
 ///       }
 /// }
 ///```
-pub struct Associative<K, V, R, C, H>
+pub struct Associative<K, V, C, H>
 where
-    K: Ord + Clone + Hash,
-    R: Reference<V>,
-    C: Container<K, V, R>,
+    K: Clone + Hash,
+    V: Ord,
+    C: Container<K, V>,
     H: Hasher + Clone,
 {
     n_sets: usize,
     set_size: usize,
-    containers: CloneCell<Vec<Sequential<K, V, R, C>>>,
+    containers: CloneCell<Vec<Sequential<K, V, C>>>,
     hasher: H,
 }
 
-impl<K, V, R, C, H> Associative<K, V, R, C, H>
+impl<K, V, C, H> Associative<K, V, C, H>
 where
-    K: Ord + Clone + Hash,
-    R: Reference<V>,
-    C: Container<K, V, R> + Seq<K, V, R>,
+    K: Clone + Hash,
+    V: Ord,
+    C: Container<K, V>,
     H: Hasher + Clone,
 {
     /// Construct a new associative container from a list of containers.
@@ -118,38 +118,38 @@ where
     }
 }
 
-impl<K, V, R, C, H> Insert<K, V, R> for Associative<K, V, R, C, H>
+impl<K, V, R, C, H> Insert<K, V, R> for Associative<K, R, C, H>
 where
-    K: Ord + Clone + Hash,
+    K: Clone + Hash,
     R: Reference<V> + FromValue<V>,
-    C: Container<K, V, R> + Seq<K, V, R>,
+    C: Container<K, R>,
     H: Hasher + Clone,
 {
 }
 
-unsafe impl<K, V, R, C, H> Send for Associative<K, V, R, C, H>
+unsafe impl<K, V, C, H> Send for Associative<K, V, C, H>
 where
-    K: Ord + Clone + Hash,
-    R: Reference<V>,
-    C: Container<K, V, R> + Seq<K, V, R>,
+    K: Clone + Hash,
+    V: Ord,
+    C: Container<K, V>,
     H: Hasher + Clone,
 {
 }
 
-unsafe impl<K, V, R, C, H> Sync for Associative<K, V, R, C, H>
+unsafe impl<K, V, C, H> Sync for Associative<K, V, C, H>
 where
-    K: Ord + Clone + Hash,
-    R: Reference<V>,
-    C: Container<K, V, R> + Seq<K, V, R>,
+    K: Clone + Hash,
+    V: Ord,
+    C: Container<K, V>,
     H: Hasher + Clone,
 {
 }
 
-impl<K, V, R, C, H> Container<K, V, R> for Associative<K, V, R, C, H>
+impl<K, V, C, H> Container<K, V> for Associative<K, V, C, H>
 where
-    K: Ord + Clone + Hash,
-    R: Reference<V>,
-    C: Container<K, V, R> + Seq<K, V, R>,
+    K: Clone + Hash,
+    V: Ord,
+    C: Container<K, V>,
     H: Hasher + Clone,
 {
     fn capacity(&self) -> usize {
@@ -171,13 +171,13 @@ where
         }
     }
 
-    fn take(&mut self, key: &K) -> Option<R> {
+    fn take(&mut self, key: &K) -> Option<V> {
         let i = self.set(key.clone());
         self.containers[i].take(key)
     }
 
-    fn pop(&mut self) -> Option<(K, R)> {
-        let mut victims: Vec<Option<(K, R)>> = (0..self.n_sets)
+    fn pop(&mut self) -> Option<(K, V)> {
+        let mut victims: Vec<Option<(K, V)>> = (0..self.n_sets)
             .map(|i| {
                 self.containers[i].lock_mut();
                 unsafe { self.containers[i].deref_mut().pop() }
@@ -232,7 +232,7 @@ where
         ret
     }
 
-    fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
         if self.n_sets == 0 || self.set_size == 0 {
             return Some((key, reference));
         };
@@ -242,11 +242,11 @@ where
     }
 }
 
-impl<K, V, R, C, H> Concurrent<K, V, R> for Associative<K, V, R, C, H>
+impl<K, V, R, C, H> Concurrent<K, V, R> for Associative<K, R, C, H>
 where
-    K: Ord + Clone + Hash,
+    K: Clone + Hash,
     R: Reference<V>,
-    C: Container<K, V, R> + Seq<K, V, R>,
+    C: Container<K, R> + Seq<K, V, R>,
     H: Hasher + Clone,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
@@ -266,11 +266,11 @@ where
     }
 }
 
-impl<K, V, R, C, H> Clone for Associative<K, V, R, C, H>
+impl<K, V, C, H> Clone for Associative<K, V, C, H>
 where
-    K: Ord + Clone + Hash,
-    R: Reference<V>,
-    C: Container<K, V, R> + Seq<K, V, R>,
+    K: Clone + Hash,
+    V: Ord,
+    C: Container<K, V>,
     H: Hasher + Clone,
 {
     fn clone(&self) -> Self {
@@ -289,22 +289,22 @@ where
 
 pub struct AssociativeIter<'a, K, V, R, C, I>
 where
-    K: 'a + Ord + Clone + Hash,
+    K: 'a + Clone + Hash,
     V: 'a,
     R: 'a + Reference<V>,
-    C: 'a + Container<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
+    C: 'a + Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a V)>,
 {
-    containers: std::slice::IterMut<'a, Sequential<K, V, R, C>>,
+    containers: std::slice::IterMut<'a, Sequential<K, R, C>>,
     it: Option<SequentialIter<'a, I>>,
 }
 
 impl<'a, K, V, R, C, I> Iterator for AssociativeIter<'a, K, V, R, C, I>
 where
-    K: 'a + Ord + Clone + Hash,
+    K: 'a + Clone + Hash,
     V: 'a,
     R: 'a + Reference<V>,
-    C: 'a + Container<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
+    C: 'a + Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a V)>,
 {
     type Item = (&'a K, &'a V);
@@ -328,12 +328,12 @@ where
     }
 }
 
-impl<'a, K, V, R, C, I, H> Iter<'a, K, V, R> for Associative<K, V, R, C, H>
+impl<'a, K, V, R, C, I, H> Iter<'a, K, V, R> for Associative<K, R, C, H>
 where
-    K: 'a + Ord + Clone + Hash,
+    K: 'a + Clone + Hash,
     V: 'a,
     R: 'a + Reference<V>,
-    C: 'a + Container<K, V, R> + Seq<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
+    C: 'a + Container<K, R> + Seq<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a V)>,
     H: Hasher + Clone,
 {
@@ -349,22 +349,22 @@ where
 
 pub struct AssociativeIterMut<'a, K, V, R, C, I>
 where
-    K: 'a + Ord + Clone + Hash,
+    K: 'a + Clone + Hash,
     V: 'a,
     R: 'a + Reference<V>,
-    C: 'a + Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I>,
+    C: 'a + Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a mut V)>,
 {
-    containers: std::slice::IterMut<'a, Sequential<K, V, R, C>>,
+    containers: std::slice::IterMut<'a, Sequential<K, R, C>>,
     it: Option<SequentialIter<'a, I>>,
 }
 
 impl<'a, K, V, R, C, I> Iterator for AssociativeIterMut<'a, K, V, R, C, I>
 where
-    K: 'a + Ord + Clone + Hash,
+    K: 'a + Clone + Hash,
     V: 'a,
     R: 'a + Reference<V>,
-    C: 'a + Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I>,
+    C: 'a + Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a mut V)>,
 {
     type Item = (&'a K, &'a mut V);
@@ -388,15 +388,12 @@ where
     }
 }
 
-impl<'a, K, V, R, C, I, H> IterMut<'a, K, V, R> for Associative<K, V, R, C, H>
+impl<'a, K, V, R, C, I, H> IterMut<'a, K, V, R> for Associative<K, R, C, H>
 where
     K: 'a + Ord + Clone + Hash,
     V: 'a,
     R: 'a + Reference<V>,
-    C: 'a
-        + Container<K, V, R>
-        + Seq<K, V, R>
-        + IterMut<'a, K, V, R, Iterator = I>,
+    C: 'a + Container<K, R> + Seq<K, V, R> + IterMut<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a mut V)>,
     H: Hasher + Clone,
 {

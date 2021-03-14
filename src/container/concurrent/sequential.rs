@@ -30,7 +30,7 @@ use std::marker::{PhantomData, Sync};
 /// use cache::reference::Default;
 ///
 /// // Build a Map cache of 2 sets. Each set hold one element.
-/// let mut c = Sequential::<_,_,Default<_>,_>::new(Map::new(1));
+/// let mut c = Sequential::<_,Default<_>,_>::new(Map::new(1));
 ///
 /// // Container as room for first and second element and returns None.
 /// assert!(c.insert(0u16, 4).is_none());
@@ -38,24 +38,21 @@ use std::marker::{PhantomData, Sync};
 /// assert!(c.get(&0u16).is_some());
 /// assert!(c.get(&1u16).is_none());
 ///```
-pub struct Sequential<K, V, R, C>
+pub struct Sequential<K, V, C>
 where
-    K: Ord + Clone,
-    R: Reference<V>,
-    C: Container<K, V, R>,
+    V: Ord,
+    C: Container<K, V>,
 {
     container: CloneCell<C>,
     lock: RWLock,
     unused_k: PhantomData<K>,
     unused_v: PhantomData<V>,
-    unused_r: PhantomData<R>,
 }
 
-impl<K, V, R, C> Sequential<K, V, R, C>
+impl<K, V, C> Sequential<K, V, C>
 where
-    K: Ord + Clone,
-    R: Reference<V>,
-    C: Container<K, V, R>,
+    V: Ord,
+    C: Container<K, V>,
 {
     /// Construct a new concurrent container from a list of containers.
     ///
@@ -73,7 +70,6 @@ where
             lock: RWLock::new(),
             unused_k: PhantomData,
             unused_v: PhantomData,
-            unused_r: PhantomData,
         }
     }
 
@@ -111,11 +107,10 @@ where
     }
 }
 
-impl<K, V, R, C> Container<K, V, R> for Sequential<K, V, R, C>
+impl<K, V, C> Container<K, V> for Sequential<K, V, C>
 where
-    K: Ord + Clone,
-    R: Reference<V>,
-    C: Container<K, V, R>,
+    V: Ord,
+    C: Container<K, V>,
 {
     fn capacity(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
@@ -137,27 +132,26 @@ where
         self.container.clear()
     }
 
-    fn take(&mut self, key: &K) -> Option<R> {
+    fn take(&mut self, key: &K) -> Option<V> {
         let _ = self.lock.lock_mut_for(()).unwrap();
         self.container.take(key)
     }
 
-    fn pop(&mut self) -> Option<(K, R)> {
+    fn pop(&mut self) -> Option<(K, V)> {
         let _ = self.lock.lock_mut_for(()).unwrap();
         self.container.pop()
     }
 
-    fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
         let _ = self.lock.lock_mut_for(()).unwrap();
         self.container.push(key, reference)
     }
 }
 
-impl<K, V, R, C> Clone for Sequential<K, V, R, C>
+impl<K, V, C> Clone for Sequential<K, V, C>
 where
-    K: Ord + Clone,
-    R: Reference<V>,
-    C: Container<K, V, R>,
+    V: Ord,
+    C: Container<K, V>,
 {
     fn clone(&self) -> Self {
         Sequential {
@@ -165,48 +159,42 @@ where
             lock: self.lock.clone(),
             unused_k: PhantomData,
             unused_v: PhantomData,
-            unused_r: PhantomData,
         }
     }
 }
 
-impl<K, V, R, C> Packed<K, V, R> for Sequential<K, V, R, C>
+impl<K, V, C> Packed<K, V> for Sequential<K, V, C>
 where
-    K: Ord + Clone,
-    R: Reference<V>,
-    C: Container<K, V, R> + Packed<K, V, R>,
+    V: Ord,
+    C: Container<K, V> + Packed<K, V>,
 {
 }
 
-impl<K, V, R, C> Insert<K, V, R> for Sequential<K, V, R, C>
+impl<K, V, R, C> Insert<K, V, R> for Sequential<K, R, C>
 where
-    K: Ord + Clone,
     R: Reference<V> + FromValue<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
 }
 
-unsafe impl<K, V, R, C> Send for Sequential<K, V, R, C>
+unsafe impl<K, V, C> Send for Sequential<K, V, C>
 where
-    K: Ord + Clone,
-    R: Reference<V>,
-    C: Container<K, V, R>,
+    V: Ord,
+    C: Container<K, V>,
 {
 }
 
-unsafe impl<K, V, R, C> Sync for Sequential<K, V, R, C>
+unsafe impl<K, V, C> Sync for Sequential<K, V, C>
 where
-    K: Ord + Clone,
-    R: Reference<V>,
-    C: Container<K, V, R>,
+    V: Ord,
+    C: Container<K, V>,
 {
 }
 
-impl<K, V, R, C> Concurrent<K, V, R> for Sequential<K, V, R, C>
+impl<K, V, R, C> Concurrent<K, V, R> for Sequential<K, R, C>
 where
-    K: Ord + Clone,
     R: Reference<V>,
-    C: Container<K, V, R> + Seq<K, V, R>,
+    C: Container<K, R> + Seq<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
         let _ = self.lock.lock_mut_for(()).unwrap();
@@ -244,12 +232,12 @@ impl<'a, I: Iterator> Iterator for SequentialIter<'a, I> {
     }
 }
 
-impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for Sequential<K, V, R, C>
+impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for Sequential<K, R, C>
 where
-    K: 'a + Ord + Clone,
+    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
-    C: Container<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
+    C: Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a V)>,
 {
     type Iterator = SequentialIter<'a, I>;
@@ -263,12 +251,12 @@ where
     }
 }
 
-impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for Sequential<K, V, R, C>
+impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for Sequential<K, R, C>
 where
-    K: 'a + Ord + Clone,
+    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
-    C: Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I>,
+    C: Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a mut V)>,
 {
     type Iterator = SequentialIter<'a, I>;

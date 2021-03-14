@@ -31,8 +31,8 @@ use std::marker::PhantomData;
 /// use cache::reference::Default;
 ///
 /// // Create cache
-/// let mut l1 = Vector::<_,_,Default<_>>::new(1);
-/// let mut stack = Map::<_,_,Default<_>>::new(1);
+/// let mut l1 = Vector::<_,Default<_>>::new(1);
+/// let mut stack = Map::<_,Default<_>>::new(1);
 /// let mut cache = Stack::new(l1, stack);
 /// assert_eq!(cache.capacity(), 2);
 ///
@@ -45,35 +45,34 @@ use std::marker::PhantomData;
 /// let victim = cache.insert("third", 2).unwrap();
 /// assert_eq!(victim.0, "second");
 /// ```
-pub struct Stack<K, V, R, C1, C2>
+pub struct Stack<K, V, C1, C2>
 where
     K: Clone + Eq,
-    R: Reference<V>,
-    C1: Container<K, V, R>,
-    C2: Container<K, V, R>,
+    V: Ord,
+    C1: Container<K, V>,
+    C2: Container<K, V>,
 {
     l1: C1,
     l2: C2,
     unused_k: PhantomData<K>,
-    unused_r: PhantomData<R>,
     unused_v: PhantomData<V>,
 }
 
-impl<K, V, R, C1, C2> Insert<K, V, R> for Stack<K, V, R, C1, C2>
+impl<K, V, R, C1, C2> Insert<K, V, R> for Stack<K, R, C1, C2>
 where
     K: Clone + Eq,
     R: Reference<V> + FromValue<V>,
-    C1: Container<K, V, R>,
-    C2: Container<K, V, R>,
+    C1: Container<K, R>,
+    C2: Container<K, R>,
 {
 }
 
-impl<K, V, R, C1, C2> Stack<K, V, R, C1, C2>
+impl<K, V, C1, C2> Stack<K, V, C1, C2>
 where
     K: Clone + Eq,
-    R: Reference<V>,
-    C1: Container<K, V, R>,
-    C2: Container<K, V, R>,
+    V: Ord,
+    C1: Container<K, V>,
+    C2: Container<K, V>,
 {
     /// Construct a Stack Cache.
     ///
@@ -81,23 +80,22 @@ where
     /// of the list of containers provided as input.
     ///
     /// * `containers`: The list of containers composing the stack.
-    pub fn new(l1: C1, l2: C2) -> Stack<K, V, R, C1, C2> {
+    pub fn new(l1: C1, l2: C2) -> Stack<K, V, C1, C2> {
         Stack {
             l1: l1,
             l2: l2,
             unused_k: PhantomData,
-            unused_r: PhantomData,
             unused_v: PhantomData,
         }
     }
 }
 
-impl<K, V, R, C1, C2> Container<K, V, R> for Stack<K, V, R, C1, C2>
+impl<K, V, C1, C2> Container<K, V> for Stack<K, V, C1, C2>
 where
     K: Clone + Eq,
-    R: Reference<V>,
-    C1: Container<K, V, R>,
-    C2: Container<K, V, R>,
+    V: Ord,
+    C1: Container<K, V>,
+    C2: Container<K, V>,
 {
     fn capacity(&self) -> usize {
         self.l1.capacity() + self.l2.capacity()
@@ -120,21 +118,21 @@ where
         self.l2.clear();
     }
 
-    fn take(&mut self, key: &K) -> Option<R> {
+    fn take(&mut self, key: &K) -> Option<V> {
         match self.l1.take(key) {
             None => self.l2.take(key),
             Some(r) => Some(r),
         }
     }
 
-    fn pop(&mut self) -> Option<(K, R)> {
+    fn pop(&mut self) -> Option<(K, V)> {
         match self.l2.pop() {
             None => self.l1.pop(),
             Some(r) => Some(r),
         }
     }
 
-    fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
         match (self.l1.push(key.clone(), reference), self.l2.take(&key)) {
             (None, None) => None,
             (None, Some(r)) => Some((key, r)),
@@ -153,21 +151,21 @@ where
     }
 }
 
-impl<K, V, R, C1, C2> Packed<K, V, R> for Stack<K, V, R, C1, C2>
+impl<K, V, C1, C2> Packed<K, V> for Stack<K, V, C1, C2>
 where
     K: Clone + Eq,
-    R: Reference<V>,
-    C1: Container<K, V, R> + Packed<K, V, R>,
-    C2: Container<K, V, R> + Packed<K, V, R>,
+    V: Ord,
+    C1: Container<K, V> + Packed<K, V>,
+    C2: Container<K, V> + Packed<K, V>,
 {
 }
 
-impl<K, V, R, C1, C2> Sequential<K, V, R> for Stack<K, V, R, C1, C2>
+impl<K, V, R, C1, C2> Sequential<K, V, R> for Stack<K, R, C1, C2>
 where
     K: Clone + Eq,
     R: Reference<V>,
-    C1: Container<K, V, R> + Sequential<K, V, R>,
-    C2: Container<K, V, R> + Sequential<K, V, R>,
+    C1: Container<K, R> + Sequential<K, V, R>,
+    C2: Container<K, R> + Sequential<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         match self.get_mut(key) {
@@ -202,30 +200,14 @@ where
 // iterator for associative cache                                             //
 //----------------------------------------------------------------------------//
 
-impl<K, V, R, C1, I1, C2, I2> IntoIterator for Stack<K, V, R, C1, C2>
-where
-    K: Clone + Eq,
-    R: Reference<V>,
-    C1: Container<K, V, R> + IntoIterator<Item = (K, V), IntoIter = I1>,
-    I1: Iterator<Item = (K, V)>,
-    C2: Container<K, V, R> + IntoIterator<Item = (K, V), IntoIter = I2>,
-    I2: Iterator<Item = (K, V)>,
-{
-    type Item = (K, V);
-    type IntoIter = std::iter::Chain<I1, I2>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.l1.into_iter().chain(self.l2.into_iter())
-    }
-}
-
-impl<'a, K, V, R, C1, I1, C2, I2> Iter<'a, K, V, R> for Stack<K, V, R, C1, C2>
+impl<'a, K, V, R, C1, I1, C2, I2> Iter<'a, K, V, R> for Stack<K, R, C1, C2>
 where
     K: 'a + Clone + Eq,
     V: 'a,
     R: 'a + Reference<V>,
-    C1: 'a + Container<K, V, R> + Iter<'a, K, V, R, Iterator = I1>,
+    C1: 'a + Container<K, R> + Iter<'a, K, V, R, Iterator = I1>,
     I1: 'a + Iterator<Item = (&'a K, &'a V)>,
-    C2: Container<K, V, R> + Iter<'a, K, V, R, Iterator = I2>,
+    C2: Container<K, R> + Iter<'a, K, V, R, Iterator = I2>,
     I2: 'a + Iterator<Item = (&'a K, &'a V)>,
 {
     type Iterator = std::iter::Chain<I1, I2>;
@@ -235,15 +217,14 @@ where
     }
 }
 
-impl<'a, K, V, R, C1, I1, C2, I2> IterMut<'a, K, V, R>
-    for Stack<K, V, R, C1, C2>
+impl<'a, K, V, R, C1, I1, C2, I2> IterMut<'a, K, V, R> for Stack<K, R, C1, C2>
 where
     K: 'a + Clone + Eq,
     V: 'a,
     R: 'a + Reference<V>,
-    C1: 'a + Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I1>,
+    C1: 'a + Container<K, R> + IterMut<'a, K, V, R, Iterator = I1>,
     I1: 'a + Iterator<Item = (&'a K, &'a mut V)>,
-    C2: Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I2>,
+    C2: Container<K, R> + IterMut<'a, K, V, R, Iterator = I2>,
     I2: 'a + Iterator<Item = (&'a K, &'a mut V)>,
 {
     type Iterator = std::iter::Chain<I1, I2>;

@@ -1,6 +1,5 @@
 use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
-use std::marker::PhantomData;
 
 //----------------------------------------------------------------------------//
 //  key value map container.                                                  //
@@ -41,28 +40,24 @@ use std::marker::PhantomData;
 /// assert!(key == "second");
 /// assert!(*value == 12);
 /// ```
-pub struct Map<K, V, R>
+pub struct Map<K, V>
 where
     K: Clone + Ord,
-    R: Reference<V>,
 {
     /// Container capacity
     capacity: usize,
     /// Map of references keys and values. Used for lookups.
-    map: std::collections::BTreeMap<K, R>,
-    unused: PhantomData<V>,
+    map: std::collections::BTreeMap<K, V>,
 }
 
-impl<K, V, R> Map<K, V, R>
+impl<K, V> Map<K, V>
 where
     K: Clone + Ord,
-    R: Reference<V>,
 {
     pub fn new(n: usize) -> Self {
         Map {
             capacity: n,
             map: std::collections::BTreeMap::new(),
-            unused: PhantomData,
         }
     }
 }
@@ -72,14 +67,14 @@ where
 //----------------------------------------------------------------------------//
 
 impl<K: Clone + Ord, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
-    for Map<K, V, R>
+    for Map<K, R>
 {
 }
 
-impl<K, V, R> Container<K, V, R> for Map<K, V, R>
+impl<K, V> Container<K, V> for Map<K, V>
 where
     K: Clone + Ord,
-    R: Reference<V>,
+    V: Ord,
 {
     fn capacity(&self) -> usize {
         return self.capacity.clone();
@@ -97,11 +92,11 @@ where
         self.map.clear()
     }
 
-    fn take(&mut self, key: &K) -> Option<R> {
+    fn take(&mut self, key: &K) -> Option<V> {
         self.map.remove(key)
     }
 
-    fn pop(&mut self) -> Option<(K, R)> {
+    fn pop(&mut self) -> Option<(K, V)> {
         let key = match self.map.iter().max_by(|x, y| x.1.cmp(&y.1)) {
             None => return None,
             Some((k, _)) => k.clone(),
@@ -109,7 +104,7 @@ where
         Some((key.clone(), self.map.remove(&key).unwrap()))
     }
 
-    fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
         if self.capacity == 0 {
             return Some((key, reference));
         }
@@ -127,7 +122,7 @@ where
     }
 }
 
-impl<K, V, R> Sequential<K, V, R> for Map<K, V, R>
+impl<K, V, R> Sequential<K, V, R> for Map<K, R>
 where
     K: Clone + Ord,
     R: Reference<V>,
@@ -150,33 +145,13 @@ where
     }
 }
 
-impl<K, V, R> Packed<K, V, R> for Map<K, V, R>
-where
-    K: Ord + Copy,
-    R: Reference<V>,
-{
-}
+impl<K, V: Ord> Packed<K, V> for Map<K, V> where K: Ord + Copy {}
 
 //----------------------------------------------------------------------------//
 //  Map iterators                                                             //
 //----------------------------------------------------------------------------//
 
-impl<K, V, R> IntoIterator for Map<K, V, R>
-where
-    K: Ord + Clone,
-    R: Reference<V>,
-{
-    type Item = (K, V);
-    type IntoIter = std::iter::Map<
-        std::collections::btree_map::IntoIter<K, R>,
-        fn((K, R)) -> (K, V),
-    >;
-    fn into_iter(self) -> Self::IntoIter {
-        self.map.into_iter().map(|(k, r)| (k, r.unwrap()))
-    }
-}
-
-impl<'a, K, V, R> Iter<'a, K, V, R> for Map<K, V, R>
+impl<'a, K, V, R> Iter<'a, K, V, R> for Map<K, R>
 where
     K: 'a + Ord + Clone,
     V: 'a,
@@ -194,7 +169,7 @@ where
     }
 }
 
-impl<'a, K, V, R> IterMut<'a, K, V, R> for Map<K, V, R>
+impl<'a, K, V, R> IterMut<'a, K, V, R> for Map<K, R>
 where
     K: 'a + Ord + Clone,
     V: 'a,

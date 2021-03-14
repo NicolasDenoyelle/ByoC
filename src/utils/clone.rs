@@ -134,11 +134,10 @@ unsafe impl<V: Sync> Sync for CloneCell<V> {}
 //                                 Container implementation                           //
 //------------------------------------------------------------------------------------//
 
-impl<'a, K, V, R, C> Container<K, V, R> for CloneCell<C>
+impl<'a, K, V, C> Container<K, V> for CloneCell<C>
 where
-    K: Ord,
-    R: Reference<V>,
-    C: Container<K, V, R>,
+    V: Ord,
+    C: Container<K, V>,
 {
     fn capacity(&self) -> usize {
         self.deref().capacity()
@@ -152,11 +151,11 @@ where
         self.deref().contains(key)
     }
 
-    fn take(&mut self, key: &K) -> Option<R> {
+    fn take(&mut self, key: &K) -> Option<V> {
         self.deref_mut().take(key)
     }
 
-    fn pop(&mut self) -> Option<(K, R)> {
+    fn pop(&mut self) -> Option<(K, V)> {
         self.deref_mut().pop()
     }
 
@@ -164,16 +163,15 @@ where
         self.deref_mut().clear()
     }
 
-    fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
         self.deref_mut().push(key, reference)
     }
 }
 
 impl<'a, K, V, R, C> Concurrent<K, V, R> for CloneCell<C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R> + Concurrent<K, V, R>,
+    C: Container<K, R> + Concurrent<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
         unsafe { (*self.ptr).get(key) }
@@ -186,9 +184,8 @@ where
 
 impl<'a, K, V, R, C> Sequential<K, V, R> for CloneCell<C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R> + Sequential<K, V, R>,
+    C: Container<K, R> + Sequential<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         unsafe { (*self.ptr).get(key) }
@@ -200,10 +197,10 @@ where
 
 impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for CloneCell<C>
 where
-    K: 'a + Ord,
+    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
-    C: Container<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
+    C: Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a V)>,
 {
     type Iterator = I;
@@ -214,10 +211,10 @@ where
 
 impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for CloneCell<C>
 where
-    K: 'a + Ord,
+    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
-    C: Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I>,
+    C: Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a mut V)>,
 {
     type Iterator = I;

@@ -19,7 +19,7 @@ type Reference = Default<u32>;
 
 fn test_push<C>(c: &mut C, key: u16, value: u32)
 where
-    C: Container<u16, u32, Reference> + Sequential<u16, u32, Reference>,
+    C: Container<u16, Reference> + Sequential<u16, u32, Reference>,
 {
     let reference = Default::new(value);
 
@@ -38,7 +38,7 @@ where
 
 fn test_n_sequential<C>(c: &mut C, n: usize)
 where
-    C: Container<u16, u32, Reference> + Sequential<u16, u32, Reference>,
+    C: Container<u16, Reference> + Sequential<u16, u32, Reference>,
 {
     let elements: Vec<(u16, u32)> = (0..n as u64)
         .map(|i| (i as u16, rand(0, n as u64) as u32))
@@ -51,7 +51,7 @@ where
 
 pub fn test_sequential<C>(mut c: C)
 where
-    C: Container<u16, u32, Reference> + Sequential<u16, u32, Reference>,
+    C: Container<u16, Reference> + Sequential<u16, u32, Reference>,
 {
     let mut n = 0;
     test_n_sequential(&mut c, n);

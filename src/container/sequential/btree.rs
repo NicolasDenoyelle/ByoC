@@ -47,26 +47,25 @@ use std::marker::PhantomData;
 /// assert!(key == "second");
 /// assert!(*value == 12u32);
 /// ```
-pub struct BTree<K, V, R>
+pub struct BTree<K, V>
 where
     K: Copy + Ord,
-    R: Reference<V>,
+    V: Ord,
 {
     /// Container capacity
     capacity: usize,
     /// Sparse vector of references.
-    references: Vec<(K, R)>,
+    references: Vec<(K, V)>,
     /// Ordered set of references. Used for eviction.
-    set: BTreeSet<(OrdPtr<R>, K)>,
+    set: BTreeSet<(OrdPtr<V>, K)>,
     /// Map of references keys and index.
     map: BTreeMap<K, usize>,
-    unused: PhantomData<V>,
 }
 
-impl<K, V, R> BTree<K, V, R>
+impl<K, V> BTree<K, V>
 where
     K: Copy + Ord,
-    R: Reference<V>,
+    V: Ord,
 {
     pub fn new(n: usize) -> Self {
         BTree {
@@ -74,7 +73,6 @@ where
             references: Vec::with_capacity(n + 1),
             set: BTreeSet::new(),
             map: BTreeMap::new(),
-            unused: PhantomData,
         }
     }
 }
@@ -84,14 +82,14 @@ where
 //----------------------------------------------------------------------------//
 
 impl<K: Copy + Ord, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
-    for BTree<K, V, R>
+    for BTree<K, R>
 {
 }
 
-impl<K, V, R> Container<K, V, R> for BTree<K, V, R>
+impl<K, V> Container<K, V> for BTree<K, V>
 where
     K: Copy + Ord,
-    R: Reference<V>,
+    V: Ord,
 {
     fn capacity(&self) -> usize {
         return self.capacity;
@@ -111,7 +109,7 @@ where
         self.references.clear();
     }
 
-    fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
         if self.capacity == 0 {
             return Some((key, reference));
         }
@@ -144,7 +142,7 @@ where
         }
     }
 
-    fn pop(&mut self) -> Option<(K, R)> {
+    fn pop(&mut self) -> Option<(K, V)> {
         let k = match self.set.iter().rev().next() {
             None => return None,
             Some((_, k)) => k.clone(),
@@ -171,7 +169,7 @@ where
         }
     }
 
-    fn take(&mut self, key: &K) -> Option<R> {
+    fn take(&mut self, key: &K) -> Option<V> {
         match self.map.remove(key) {
             None => None,
             Some(i) => {
@@ -201,7 +199,7 @@ where
     }
 }
 
-impl<K, V, R> Sequential<K, V, R> for BTree<K, V, R>
+impl<K, V, R> Sequential<K, V, R> for BTree<K, R>
 where
     K: Copy + Ord,
     R: Reference<V>,
@@ -230,29 +228,16 @@ where
     }
 }
 
-impl<K, V, R> Packed<K, V, R> for BTree<K, V, R>
+impl<K, V> Packed<K, V> for BTree<K, V>
 where
     K: Ord + Copy,
-    R: Reference<V>,
+    V: Ord,
 {
 }
 
 //----------------------------------------------------------------------------//
 // BTree iterator                                                             //
 //----------------------------------------------------------------------------//
-
-impl<K, V, R> IntoIterator for BTree<K, V, R>
-where
-    K: Ord + Copy,
-    R: Reference<V>,
-{
-    type Item = (K, V);
-    type IntoIter =
-        std::iter::Map<std::vec::IntoIter<(K, R)>, fn((K, R)) -> (K, V)>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.references.into_iter().map(|(k, r)| (k, r.unwrap()))
-    }
-}
 
 /// Iterator of ref mut BTree [container](../trait.Container.html).
 pub struct BTreeIterator<'a, K, V, R>
@@ -286,7 +271,7 @@ where
     }
 }
 
-impl<'a, K, V, R> IterMut<'a, K, V, R> for BTree<K, V, R>
+impl<'a, K, V, R> IterMut<'a, K, V, R> for BTree<K, R>
 where
     K: 'a + Ord + Copy,
     V: 'a,
@@ -302,7 +287,7 @@ where
     }
 }
 
-impl<'a, K, V, R> Iter<'a, K, V, R> for BTree<K, V, R>
+impl<'a, K, V, R> Iter<'a, K, V, R> for BTree<K, R>
 where
     K: 'a + Ord + Copy,
     V: 'a,

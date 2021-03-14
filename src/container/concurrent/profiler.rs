@@ -43,7 +43,7 @@ use std::time::Instant;
 /// use cache::reference::Default;
 ///
 /// // Build a cache:
-/// let map = Map::<_,_,Default<_>>::new(2);
+/// let map = Map::<_,Default<_>>::new(2);
 ///
 /// // Wrap it into a profiler.
 /// let mut p = &mut Profiler::new(map);
@@ -99,9 +99,8 @@ impl Stats {
 
 pub struct Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
     cache: CloneCell<C>,
     stats: CloneCell<Stats>,
@@ -113,9 +112,8 @@ where
 
 impl<K, V, R, C> Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
     /// Wrap a `cache` into a "cache profiler" cache.
     pub fn new(cache: C) -> Self {
@@ -240,9 +238,8 @@ where
 
 impl<K, V, R, C> Drop for Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
     fn drop(&mut self) {
         if let Some(pathbuf) = &*self.path {
@@ -258,9 +255,8 @@ where
 
 impl<K, V, R, C> Clone for Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
     fn clone(&self) -> Self {
         Profiler {
@@ -280,9 +276,8 @@ where
 
 impl<K, V, R, C> std::fmt::Debug for Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -299,9 +294,8 @@ where
 
 impl<K, V, R, C> std::fmt::Display for Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "---------------------------------------------------")?;
@@ -371,17 +365,15 @@ where
 
 impl<K, V, R, C> Insert<K, V, R> for Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V> + FromValue<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
 }
 
-impl<K, V, R, C> Container<K, V, R> for Profiler<K, V, R, C>
+impl<K, V, R, C> Container<K, R> for Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
     fn capacity(&self) -> usize {
         self.cache.capacity()
@@ -459,9 +451,8 @@ where
 
 impl<K, V, R, C> Sequential<K, V, R> for Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R> + Sequential<K, V, R>,
+    C: Container<K, R> + Sequential<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         self.stats.access.fetch_add(1, Ordering::SeqCst);
@@ -512,25 +503,22 @@ where
 
 unsafe impl<K, V, R, C> Send for Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R> + Concurrent<K, V, R>,
+    C: Container<K, R> + Concurrent<K, V, R>,
 {
 }
 
 unsafe impl<K, V, R, C> Sync for Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R> + Concurrent<K, V, R>,
+    C: Container<K, R> + Concurrent<K, V, R>,
 {
 }
 
 impl<K, V, R, C> Concurrent<K, V, R> for Profiler<K, V, R, C>
 where
-    K: Ord,
     R: Reference<V>,
-    C: Container<K, V, R> + Concurrent<K, V, R>,
+    C: Container<K, R> + Concurrent<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
         self.stats.access.fetch_add(1, Ordering::SeqCst);
@@ -581,10 +569,9 @@ where
 // no point trying to record statistics.
 //
 // impl<'a,K,V,R,C,I> IntoIterator for Profiler<'a,K,V,R,C>
-// where K: Ord,
-//       R: Reference<V>,
+// where R: Reference<V>,
 //       I: Iterator<Item=(K, V)>,
-//       C: Container<K,V,R> + IntoIterator<Item=(K, V), IntoIter=I>,
+//       C: Container<K,R> + IntoIterator<Item=(K, V), IntoIter=I>,
 // {
 //     type Item=(K, V);
 //     type IntoIter=I;
@@ -620,11 +607,11 @@ where
 
 impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for Profiler<K, V, R, C>
 where
-    K: 'a + Ord,
+    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
     I: Iterator<Item = (&'a K, &'a mut V)>,
-    C: Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I>,
+    C: Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
 {
     type Iterator = ProfilerIter<I>;
 
@@ -638,11 +625,11 @@ where
 
 impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for Profiler<K, V, R, C>
 where
-    K: 'a + Ord,
+    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
     I: Iterator<Item = (&'a K, &'a V)>,
-    C: Container<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
+    C: Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
 {
     type Iterator = ProfilerIter<I>;
 
