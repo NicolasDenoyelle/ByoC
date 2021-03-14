@@ -1,7 +1,6 @@
 use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
 use std::cmp::Eq;
-use std::marker::PhantomData;
 use std::vec::Vec;
 
 //----------------------------------------------------------------------------//
@@ -45,26 +44,24 @@ use std::vec::Vec;
 /// assert!(key == "second");
 /// assert!(*value == 12);
 /// ```
-pub struct Vector<K, V, R>
+pub struct Vector<K, V>
 where
     K: Eq,
-    R: Reference<V>,
+    V: Ord,
 {
     capacity: usize,
-    values: Vec<(K, R)>,
-    unused: PhantomData<V>,
+    values: Vec<(K, V)>,
 }
 
-impl<K, V, R> Vector<K, V, R>
+impl<K, V> Vector<K, V>
 where
     K: Eq,
-    R: Reference<V>,
+    V: Ord,
 {
     pub fn new(n: usize) -> Self {
         Vector {
             capacity: n,
             values: Vec::with_capacity(n + 1),
-            unused: PhantomData,
         }
     }
 }
@@ -73,16 +70,7 @@ where
 //  Container implementation.                                                 //
 //----------------------------------------------------------------------------//
 
-impl<K: Eq, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
-    for Vector<K, V, R>
-{
-}
-
-impl<K, V, R> Container<K, V, R> for Vector<K, V, R>
-where
-    K: Eq,
-    R: Reference<V>,
-{
+impl<K: Eq, V: Ord> Container<K, V> for Vector<K, V> {
     fn capacity(&self) -> usize {
         return self.capacity;
     }
@@ -99,7 +87,7 @@ where
         self.values.clear()
     }
 
-    fn pop(&mut self) -> Option<(K, R)> {
+    fn pop(&mut self) -> Option<(K, V)> {
         if self.count() == 0 {
             return None;
         }
@@ -112,7 +100,7 @@ where
         Some(self.values.swap_remove(v))
     }
 
-    fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
         if self.capacity == 0 {
             return Some((key, reference));
         }
@@ -133,7 +121,7 @@ where
         }
     }
 
-    fn take(&mut self, key: &K) -> Option<R> {
+    fn take(&mut self, key: &K) -> Option<V> {
         match self.values.iter().position(|(k, _)| k == key) {
             None => None,
             Some(i) => Some(self.values.swap_remove(i).1),
@@ -141,7 +129,7 @@ where
     }
 }
 
-impl<K, V, R> Sequential<K, V, R> for Vector<K, V, R>
+impl<K, V, R> Sequential<K, V, R> for Vector<K, R>
 where
     K: Eq,
     R: Reference<V>,
@@ -164,10 +152,10 @@ where
     }
 }
 
-impl<K, V, R> Packed<K, V, R> for Vector<K, V, R>
-where
-    K: Eq,
-    R: Reference<V>,
+impl<K: Eq, V: Ord> Packed<K, V> for Vector<K, V> {}
+
+impl<K: Eq, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
+    for Vector<K, R>
 {
 }
 
@@ -175,7 +163,7 @@ where
 //  Vector iterator.                                                          //
 //----------------------------------------------------------------------------//
 
-impl<'a, K, V, R> Iter<'a, K, V, R> for Vector<K, V, R>
+impl<'a, K, V, R> Iter<'a, K, V, R> for Vector<K, R>
 where
     K: 'a + Eq,
     V: 'a,
@@ -193,7 +181,7 @@ where
     }
 }
 
-impl<'a, K, V, R> IterMut<'a, K, V, R> for Vector<K, V, R>
+impl<'a, K, V, R> IterMut<'a, K, V, R> for Vector<K, R>
 where
     K: 'a + Eq,
     V: 'a,
@@ -208,18 +196,5 @@ where
             r.touch();
             (k, r.deref_mut())
         })
-    }
-}
-
-impl<K, V, R> IntoIterator for Vector<K, V, R>
-where
-    K: Eq,
-    R: Reference<V>,
-{
-    type Item = (K, V);
-    type IntoIter =
-        std::iter::Map<std::vec::IntoIter<(K, R)>, fn((K, R)) -> (K, V)>;
-    fn into_iter(self) -> Self::IntoIter {
-        self.values.into_iter().map(|(k, r)| (k, r.unwrap()))
     }
 }

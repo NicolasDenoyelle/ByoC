@@ -28,7 +28,7 @@ use std::marker::PhantomData;
 /// use cache::reference::{Reference, LRU};
 ///
 /// // Build a Map cache of one element.
-/// let mut c = TopK::new(Map::<_,_,LRU<_>>::new(1));
+/// let mut c = TopK::new(Map::<_,LRU<_>>::new(1));
 ///
 /// // Container as room an element and returns None.
 /// assert!(c.push(0u16, LRU::new(4)).is_none());
@@ -48,7 +48,7 @@ pub struct TopK<K, V, R, C>
 where
     K: Clone,
     R: Reference<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
     container: C,
     unused_k: PhantomData<K>,
@@ -60,7 +60,7 @@ impl<K, V, R, C> TopK<K, V, R, C>
 where
     K: Clone,
     R: Reference<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
     /// Construct a new TopK container from another container.
     pub fn new(container: C) -> TopK<K, V, R, C> {
@@ -73,11 +73,11 @@ where
     }
 }
 
-impl<K, V, R, C> Packed<K, V, R> for TopK<K, V, R, C>
+impl<K, V, R, C> Packed<K, R> for TopK<K, V, R, C>
 where
     K: Clone,
     R: Reference<V>,
-    C: Container<K, V, R> + Packed<K, V, R>,
+    C: Container<K, R> + Packed<K, R>,
 {
 }
 
@@ -85,15 +85,15 @@ impl<K, V, R, C> Insert<K, V, R> for TopK<K, V, R, C>
 where
     K: Clone,
     R: Reference<V> + FromValue<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
 }
 
-impl<K, V, R, C> Container<K, V, R> for TopK<K, V, R, C>
+impl<K, V, R, C> Container<K, R> for TopK<K, V, R, C>
 where
     K: Clone,
     R: Reference<V>,
-    C: Container<K, V, R>,
+    C: Container<K, R>,
 {
     fn capacity(&self) -> usize {
         self.container.capacity()
@@ -139,7 +139,7 @@ impl<K, V, R, C> Sequential<K, V, R> for TopK<K, V, R, C>
 where
     K: Clone,
     R: Reference<V>,
-    C: Container<K, V, R> + Sequential<K, V, R>,
+    C: Container<K, R> + Sequential<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         self.container.get(key)
@@ -158,7 +158,7 @@ impl<K, V, R, C, I> IntoIterator for TopK<K, V, R, C>
 where
     K: Clone,
     R: Reference<V>,
-    C: Container<K, V, R> + IntoIterator<Item = (K, V), IntoIter = I>,
+    C: Container<K, R> + IntoIterator<Item = (K, V), IntoIter = I>,
     I: Iterator<Item = (K, V)>,
 {
     type Item = (K, V);
@@ -173,7 +173,7 @@ where
     K: 'a + Clone,
     V: 'a,
     R: 'a + Reference<V>,
-    C: 'a + Container<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
+    C: 'a + Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a V)>,
 {
     type Iterator = I;
@@ -188,7 +188,7 @@ where
     K: 'a + Clone,
     V: 'a,
     R: 'a + Reference<V>,
-    C: 'a + Container<K, V, R> + IterMut<'a, K, V, R, Iterator = I>,
+    C: 'a + Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
     I: Iterator<Item = (&'a K, &'a mut V)>,
 {
     type Iterator = I;

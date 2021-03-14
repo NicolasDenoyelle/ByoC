@@ -9,10 +9,7 @@ use std::marker::{Send, Sync};
 /// * `K`: Is the key type, used for cache lookups. Key must be orderable.
 /// * `V`: Value type stored in [cache reference](../reference/trait.Reference.html).
 /// * `R`: Type of [cache reference](../reference/trait.Reference.html).
-pub trait Container<K, V, R>
-where
-    R: Reference<V>,
-{
+pub trait Container<K, V: Ord> {
     /// Get the number of elements fitting in the container.
     fn capacity(&self) -> usize;
 
@@ -25,12 +22,12 @@ where
     /// Get a reference out of the container.
     ///
     /// * `key`: The key associated with the reference to take.    
-    fn take(&mut self, key: &K) -> Option<R>;
+    fn take(&mut self, key: &K) -> Option<V>;
 
     /// Remove next reference from the container.
     /// If cache is empty, return None.
     /// Else give ownership to the next reference to evict.
-    fn pop(&mut self) -> Option<(K, R)>;
+    fn pop(&mut self) -> Option<(K, V)>;
 
     /// Remove all references from the container.
     fn clear(&mut self) {
@@ -48,7 +45,7 @@ where
     ///
     /// * `key`: The key associated with the reference to insert.
     /// * `reference`: The cache reference to insert.
-    fn push(&mut self, key: K, reference: R) -> Option<(K, R)>;
+    fn push(&mut self, key: K, reference: V) -> Option<(K, V)>;
 }
 
 /// Marker trait of a container assessing that if the container hash
@@ -58,11 +55,7 @@ where
 /// In the container. This is specifically NOT used in
 /// [Associative](struct.Associative.html) containers that will pop when
 /// inserting in a full set/bucket.
-pub trait Packed<K, V, R>: Container<K, V, R>
-where
-    R: Reference<V>,
-{
-}
+pub trait Packed<K, V: Ord>: Container<K, V> {}
 
 /// `get()` and `get_mut()` methods for sequential [containers](trait.Container.html).
 ///
@@ -76,7 +69,7 @@ where
 /// For instance [BTree](struct.BTree.html) container maintains a sorted tree of references.
 /// When a reference is accessed, references order may change and thus the container is
 /// mutated.
-pub trait Sequential<K, V, R>: Container<K, V, R>
+pub trait Sequential<K, V, R>: Container<K, R>
 where
     R: Reference<V>,
 {
@@ -101,7 +94,7 @@ where
 /// use crate::container::{Container, Insert};
 /// impl<'a,K,V,R: Reference<V> + FromValue<V>> Insert<'a,K,V,R> for MyContainer<K,V,R> {}
 /// ```
-pub trait Insert<K, V, R>: Container<K, V, R>
+pub trait Insert<K, V, R>: Container<K, R>
 where
     R: Reference<V> + FromValue<V>,
 {
@@ -112,7 +105,7 @@ where
 }
 
 /// From ref mut [Container](trait.Container.html) into iterator of non mutable values.
-pub trait Iter<'a, K, V, R>: Container<K, V, R>
+pub trait Iter<'a, K, V, R>: Container<K, R>
 where
     K: 'a,
     V: 'a,
@@ -123,7 +116,7 @@ where
 }
 
 /// From ref mut [Container](trait.Container.html) into iterator of mutable values.
-pub trait IterMut<'a, K, V, R>: Container<K, V, R>
+pub trait IterMut<'a, K, V, R>: Container<K, R>
 where
     K: 'a,
     V: 'a,
@@ -149,8 +142,7 @@ where
 /// This version returns the content of a reference wrapped into a
 /// [RWLockGuard](../lock/struct.RWLockGuard.html) that will release a lock once
 /// out of scope
-pub trait Concurrent<K, V, R>:
-    Container<K, V, R> + Clone + Send + Sync
+pub trait Concurrent<K, V, R>: Container<K, R> + Clone + Send + Sync
 where
     R: Reference<V>,
 {
