@@ -9,12 +9,7 @@ fn map_container_test_0() {
 
 #[test]
 fn map_container_test_small() {
-    packed::test_container(Map::new(10));
-}
-
-#[test]
-fn map_container_test_large() {
-    packed::test_container(Map::new(1000));
+    packed::test_container(Map::new(100));
 }
 
 #[test]

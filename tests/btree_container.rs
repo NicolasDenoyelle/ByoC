@@ -9,12 +9,7 @@ fn btree_container_test_0() {
 
 #[test]
 fn btree_container_test_small() {
-    packed::test_container(BTree::new(10));
-}
-
-#[test]
-fn btree_container_test_large() {
-    packed::test_container(BTree::new(1000));
+    packed::test_container(BTree::new(100));
 }
 
 #[test]

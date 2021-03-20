@@ -11,7 +11,7 @@ fn sequential_container_test_0() {
 
 #[test]
 fn sequential_container_test_small() {
-    packed::test_container(Sequential::new(Vector::new(10)));
+    packed::test_container(Sequential::new(Vector::new(100)));
 }
 
 #[test]

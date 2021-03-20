@@ -10,10 +10,5 @@ fn stack_container_test_0() {
 
 #[test]
 fn stack_container_test_small() {
-    packed::test_container(Stack::new(Vector::new(10), Vector::new(10)));
-}
-
-#[test]
-fn stack_container_test_large() {
-    packed::test_container(Stack::new(Vector::new(10), Vector::new(1000)));
+    packed::test_container(Stack::new(Vector::new(10), Vector::new(100)));
 }
