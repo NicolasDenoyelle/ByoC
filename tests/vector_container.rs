@@ -13,11 +13,6 @@ fn filemap_container_test_small() {
 }
 
 #[test]
-fn vector_container_test_large() {
-    packed::test_container(Vector::new(100));
-}
-
-#[test]
 fn vector_sequential_test_0() {
     sequential::test_sequential(Vector::new(0));
 }
