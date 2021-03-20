@@ -308,50 +308,6 @@ impl<'a, V> Drop for RWLockGuard<'a, V> {
     }
 }
 
-#[derive(Debug)]
-/// Implementation of a mutex around a value using library
-/// [`RWLock`](struct.RWLock.html).
-pub struct Mutex<V> {
-    lock: RWLock,
-    value: V,
-}
-
-impl<V> Mutex<V> {
-    /// Construct a new lock wrapping a value.
-    pub fn new(v: V) -> Self {
-        Mutex {
-            lock: RWLock::new(),
-            value: v,
-        }
-    }
-
-    /// Try to acquire shared access to the wrapped value.
-    /// Return None on failure, Some lock guard around the value on success.
-    pub fn try_lock(&self) -> Result<RWLockGuard<&V>, TryLockError<&V>> {
-        self.lock.try_lock_for(&self.value)
-    }
-
-    /// Try to acquire exclusive access to the wrapped value.
-    /// Return None on failure, Some lock guard around the value on success.
-    pub fn try_lock_mut(
-        &mut self,
-    ) -> Result<RWLockGuard<&mut V>, TryLockError<&mut V>> {
-        self.lock.try_lock_mut_for(&mut self.value)
-    }
-
-    /// Hang until shared access to the wrapped balue is granted.
-    pub fn lock(&self) -> Result<RWLockGuard<&V>, LockError<&V>> {
-        self.lock.lock_for(&self.value)
-    }
-
-    /// Hang until exclusive access to the wrapped value is granted.
-    pub fn lock_mut(
-        &mut self,
-    ) -> Result<RWLockGuard<&mut V>, LockError<&mut V>> {
-        self.lock.lock_mut_for(&mut self.value)
-    }
-}
-
 //------------------------------------------------------------------------------------//
 //                                        Tests                                       //
 //------------------------------------------------------------------------------------//
