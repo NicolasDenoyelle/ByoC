@@ -143,7 +143,7 @@ where
 /// use cache::container::sequential::FileMap;
 ///
 /// let mut container = unsafe {
-///     FileMap::new("example_filemap", 2, true).unwrap()
+///     FileMap::new("example_filemap", 2, false).unwrap()
 /// };
 /// assert!(container.push(0usize, Default::new(0usize)).is_none());
 /// assert!(container.push(1usize, Default::new(1usize)).is_none());
@@ -236,7 +236,7 @@ where
             Ok(f) => Ok(FileMap {
                 file: f,
                 capacity: capacity,
-                persistant: if persistant {
+                persistant: if !persistant {
                     Some(String::from(filename))
                 } else {
                     None
