@@ -111,7 +111,9 @@ where
 }
 
 /// A [`Container`](../trait.Container.html) for key value store with a
-/// maximum size stored into a file. The container has tiny memory
+/// maximum size stored into a file.
+///
+/// The container has tiny memory
 /// footprint. However, it is not optimized to limit IO operations.
 /// Elements are stored to fit any hole in the file so that the
 /// container does not pop until the file is filled with elements.
@@ -120,12 +122,9 @@ where
 /// This container is intended to be optimized by combining it with:
 /// in-memory cache multiple files/sets in concurrent associative container,
 /// optimized replacement policy, and so on...
-///
-/// SAFETY:
-/// Keys and values must be safely writable and readable in place, i.e.
-/// they do not contain pointers that would be invalid to read from a file
-/// and they have a fixed size, e.g they are not dynamically sized strings
-/// or vectors.
+/// This container implements the marker trait `Packed` which means,
+/// that it will accept new elements with non existing keys as long
+/// as it is not full.
 ///
 /// ## Generics:
 ///
@@ -136,6 +135,20 @@ where
 /// * `V`: The value type stored.
 /// Values must have a set size known at compile time and must not contain
 /// pointers that would be invalid to read later from a file.
+///
+/// ## Example:
+/// ```
+/// use cache::container::Container;
+/// use cache::reference::Default;
+/// use cache::container::sequential::FileMap;
+///
+/// let mut container = unsafe {
+///     FileMap::new("example_filemap", 2, true).unwrap()
+/// };
+/// assert!(container.push(0usize, Default::new(0usize)).is_none());
+/// assert!(container.push(1usize, Default::new(1usize)).is_none());
+/// assert!(container.push(2usize, Default::new(2usize)).unwrap().0 == 1usize);
+/// ```
 pub struct FileMap<K, V>
 where
     K: Sized + Eq,
@@ -170,11 +183,16 @@ where
 {
     const ELEMENT_SIZE: usize = size_of::<FileMapElement<K, V>>();
 
+    /// Invalidate one FileMapElement in a FileMap file.
     fn zero(file: &mut File) -> Result<usize> {
         let s: u8 = 0;
         file.write(slice::from_ref(&s))
     }
 
+    /// Read File Represented by this [`FileMap`](struct.FileMap.html)
+    /// and look for key `key`. If the key is found, the function return
+    /// owned value matching to the first found `key`. If no `key` is found
+    /// this function returns `None`.
     pub fn get(&self, key: &K) -> Option<V> {
         let mut f = self.file.try_clone().unwrap();
         f.seek(SeekFrom::Start(0)).unwrap();
@@ -192,7 +210,19 @@ where
         }
     }
 
-    pub fn new(
+    /// Instanciate a new [`FileMap`](struct.FileMap.html) with a maximum
+    /// of `capacity` keys, stored with their value in the file
+    /// named `filename`. If `persistant` is `true`, the inner file will
+    /// not be deleted when the container is dropped.
+    ///
+    /// SAFETY:
+    /// Keys and values must be safely writable and readable in-place, i.e.
+    /// they do not contain pointers that would be invalid to read from a
+    /// file and they have a fixed size, e.g they are not dynamically
+    /// sized strings or vectors. Keys and Values must also have a
+    /// consistent struct layout across compilations if the underlying
+    /// `FileMap` file is going to be used by in this context.
+    pub unsafe fn new(
         filename: &str,
         capacity: usize,
         persistant: bool,
@@ -558,9 +588,10 @@ mod tests {
 
     #[test]
     fn test_filemap() {
-        let mut fm =
+        let mut fm = unsafe {
             FileMap::<usize, Default<usize>>::new("test_filemap", 10, false)
-                .unwrap();
+                .unwrap()
+        };
         // Push test
         for i in (0usize..10usize).rev() {
             assert!(fm.push(i, Default::new(i)).is_none());
