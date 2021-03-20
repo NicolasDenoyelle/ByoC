@@ -1,7 +1,4 @@
-use crate::{
-    container::{Container, Packed},
-    reference::Reference,
-};
+use crate::container::{Container, Packed};
 use std::{
     cmp::Eq,
     fs::{remove_file, File, OpenOptions},
@@ -139,20 +136,19 @@ where
 /// ## Example:
 /// ```
 /// use cache::container::Container;
-/// use cache::reference::Default;
 /// use cache::container::sequential::FileMap;
 ///
 /// let mut container = unsafe {
 ///     FileMap::new("example_filemap", 2, false).unwrap()
 /// };
-/// assert!(container.push(0usize, Default::new(0usize)).is_none());
-/// assert!(container.push(1usize, Default::new(1usize)).is_none());
-/// assert!(container.push(2usize, Default::new(2usize)).unwrap().0 == 1usize);
+/// assert!(container.push(0usize, 0usize).is_none());
+/// assert!(container.push(1usize, 1usize).is_none());
+/// assert!(container.push(2usize, 2usize).unwrap().1 == 1usize);
 /// ```
 pub struct FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized,
+    V: Sized + Ord,
 {
     file: File,
     persistant: Option<String>,
@@ -164,7 +160,7 @@ where
 impl<K, V> Drop for FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized,
+    V: Sized + Ord,
 {
     fn drop(&mut self) {
         match &self.persistant {
@@ -179,7 +175,7 @@ where
 impl<K, V> FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized,
+    V: Sized + Ord,
 {
     const ELEMENT_SIZE: usize = size_of::<FileMapElement<K, V>>();
 
@@ -256,7 +252,7 @@ where
 pub struct FileMapIterator<K, V>
 where
     K: Sized + Eq,
-    V: Sized,
+    V: Sized + Ord,
 {
     file: File,
     unused_k: PhantomData<K>,
@@ -266,7 +262,7 @@ where
 impl<K, V> FileMapIterator<K, V>
 where
     K: Sized + Eq,
-    V: Sized,
+    V: Sized + Ord,
 {
     pub fn new(mut f: File) -> Result<Self> {
         f.seek(SeekFrom::Start(0))?;
@@ -281,7 +277,7 @@ where
 impl<K, V> Iterator for FileMapIterator<K, V>
 where
     K: Sized + Eq,
-    V: Sized,
+    V: Sized + Ord,
 {
     type Item = (K, V);
 
@@ -299,7 +295,7 @@ where
 impl<'a, K, V> IntoIterator for &'a FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized,
+    V: Sized + Ord,
 {
     type Item = (K, V);
     type IntoIter = FileMapIterator<K, V>;
@@ -313,7 +309,7 @@ where
 impl<'a, K, V> IntoIterator for &'a mut FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized,
+    V: Sized + Ord,
 {
     type Item = (K, V);
     type IntoIter = FileMapIterator<K, V>;
@@ -328,11 +324,10 @@ where
 // Container impl
 //----------------------------------------------------------------------------//
 
-impl<K, V, R> Container<K, V, R> for FileMap<K, R>
+impl<K, V> Container<K, V> for FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized,
-    R: Reference<V> + Sized,
+    V: Sized + Ord,
 {
     fn capacity(&self) -> usize {
         self.capacity
@@ -349,11 +344,11 @@ where
         }
     }
 
-    fn take(&mut self, key: &K) -> Option<R> {
+    fn take(&mut self, key: &K) -> Option<V> {
         self.file.flush().unwrap();
         self.file.seek(SeekFrom::Start(0)).unwrap();
         loop {
-            match FileMapElement::<K, R>::read(&mut self.file) {
+            match FileMapElement::<K, V>::read(&mut self.file) {
                 Err(_) => break None,
                 Ok(None) => (),
                 Ok(Some(e)) => {
@@ -361,10 +356,10 @@ where
                     if &k == key {
                         self.file
                             .seek(SeekFrom::Current(
-                                -1 * (FileMap::<K, R>::ELEMENT_SIZE as i64),
+                                -1 * (FileMap::<K, V>::ELEMENT_SIZE as i64),
                             ))
                             .unwrap();
-                        FileMap::<K, R>::zero(&mut self.file).unwrap();
+                        FileMap::<K, V>::zero(&mut self.file).unwrap();
                         break Some(v);
                     }
                 }
@@ -376,16 +371,16 @@ where
         self.file.set_len(0).unwrap()
     }
 
-    fn pop(&mut self) -> Option<(K, R)> {
+    fn pop(&mut self) -> Option<(K, V)> {
         self.file.flush().unwrap();
         self.file.seek(SeekFrom::Start(0)).unwrap();
 
         let file_size = self.file.metadata().unwrap().len();
-        let mut victim: Option<(u64, (K, R))> = None;
+        let mut victim: Option<(u64, (K, V))> = None;
 
-        for off in (0..file_size).step_by(FileMap::<K, R>::ELEMENT_SIZE) {
+        for off in (0..file_size).step_by(FileMap::<K, V>::ELEMENT_SIZE) {
             victim =
-                match (&victim, FileMapElement::<K, R>::read(&mut self.file)) {
+                match (&victim, FileMapElement::<K, V>::read(&mut self.file)) {
                     (_, Err(_)) => victim,
                     (_, Ok(None)) => victim,
                     (None, Ok(Some(e))) => Some((off, e.into_kv())),
@@ -404,24 +399,24 @@ where
             None => None,
             Some((off, (k, r))) => {
                 self.file.seek(SeekFrom::Start(off)).unwrap();
-                FileMap::<K, R>::zero(&mut self.file).unwrap();
+                FileMap::<K, V>::zero(&mut self.file).unwrap();
                 Some((k, r))
             }
         }
     }
 
-    fn push(&mut self, key: K, reference: R) -> Option<(K, R)> {
+    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
         // Flush any outstanding write because we want to read the whole
         // file.
         self.file.flush().unwrap();
 
         let file_size = self.file.metadata().unwrap().len();
         let max_size =
-            self.capacity as u64 * (FileMap::<K, R>::ELEMENT_SIZE) as u64;
+            self.capacity as u64 * (FileMap::<K, V>::ELEMENT_SIZE) as u64;
 
         // Find a victim to evict: Either an element with the same key
         // or the minimum element.
-        let mut victim: Option<(u64, (K, R))> = None;
+        let mut victim: Option<(u64, (K, V))> = None;
         // If there are holes and the victim does not have the same key
         // Then we insert in a whole.
         let mut spot: Option<u64> = None;
@@ -431,8 +426,8 @@ where
         // Everything is done in one pass.
         self.file.flush().unwrap();
         self.file.seek(SeekFrom::Start(0)).unwrap();
-        for off in (0..file_size).step_by(FileMap::<K, R>::ELEMENT_SIZE) {
-            match FileMapElement::<K, R>::read(&mut self.file) {
+        for off in (0..file_size).step_by(FileMap::<K, V>::ELEMENT_SIZE) {
+            match FileMapElement::<K, V>::read(&mut self.file) {
                 // We can't look further in the file.
                 Err(_) => break,
                 // There is a hole, a potential spot for insertion.
@@ -519,11 +514,10 @@ where
     }
 }
 
-impl<K, V, R> Packed<K, V, R> for FileMap<K, R>
+impl<K, V> Packed<K, V> for FileMap<K, V>
 where
     K: Sized + Eq,
-    V: Sized,
-    R: Reference<V> + Sized,
+    V: Sized + Ord,
 {
 }
 
@@ -535,7 +529,6 @@ where
 mod tests {
     use super::{FileMap, FileMapElement};
     use crate::container::Container;
-    use crate::reference::Default;
     use std::fs::{remove_file, File, OpenOptions};
     use std::io::{Seek, SeekFrom, Write};
 
@@ -589,12 +582,11 @@ mod tests {
     #[test]
     fn test_filemap() {
         let mut fm = unsafe {
-            FileMap::<usize, Default<usize>>::new("test_filemap", 10, false)
-                .unwrap()
+            FileMap::<usize, usize>::new("test_filemap", 10, false).unwrap()
         };
         // Push test
         for i in (0usize..10usize).rev() {
-            assert!(fm.push(i, Default::new(i)).is_none());
+            assert!(fm.push(i, i).is_none());
         }
         // Pop test
         assert_eq!(fm.pop().unwrap().0, 9usize);
@@ -618,8 +610,8 @@ mod tests {
         assert!(it.next().is_none());
 
         // Test pop on push when full.
-        assert!(fm.push(9usize, Default::new(9usize)).is_none());
-        match fm.push(11usize, Default::new(11usize)) {
+        assert!(fm.push(9usize, 9usize).is_none());
+        match fm.push(11usize, 11usize) {
             None => panic!("Full filemap not popping."),
             Some((k, _)) => {
                 assert_eq!(k, 9usize);
@@ -627,7 +619,7 @@ mod tests {
         }
 
         // Test pop on push of an existing key.
-        match fm.push(4usize, Default::new(4usize)) {
+        match fm.push(4usize, 4usize) {
             None => panic!("Full filemap not popping."),
             Some((k, _)) => {
                 assert_eq!(k, 4usize);
