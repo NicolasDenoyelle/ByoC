@@ -4,7 +4,8 @@
 mod utils;
 
 /// Library custom read/write lock.
-pub mod lock;
+mod lock;
+pub use lock::RWLockGuard;
 
 /// Fixed point in time.
 ///

@@ -30,25 +30,24 @@ pub enum LockError<T> {
 /// creation of objects that call `unlock()` on a RWLock when they go out of scope.
 ///
 /// # Examples
-///
-/// ```ignore
-/// use cache::utils::lock::RWLock;
+/// ``` ignore
+/// use cache::lock::RWLock;
 /// let lock = RWLock::new();
 ///
 /// // exclusive lock
-/// lock.lock_mut();
-/// assert!(!lock.try_lock());
-/// assert!(!lock.try_lock_mut());
+/// assert!(lock.lock_mut().is_ok());
+/// assert!(lock.try_lock().is_err());
+/// assert!(lock.try_lock_mut().is_err());
 /// lock.unlock();
 ///
 /// // shared lock
-/// assert!(lock.try_lock());
-/// assert!(lock.try_lock());
-/// assert!(!lock.try_lock_mut());
+/// assert!(lock.try_lock().is_ok());
+/// assert!(lock.try_lock().is_ok());
+/// assert!(lock.try_lock_mut().is_err());
 /// lock.unlock();
-/// assert!(!lock.try_lock_mut());
+/// assert!(lock.try_lock_mut().is_err());
 /// lock.unlock();
-/// assert!(lock.try_lock_mut());
+/// assert!(lock.try_lock_mut().is_ok());
 /// ```
 #[derive(Debug)]
 pub struct RWLock {
@@ -87,19 +86,15 @@ impl RWLock {
         }
     }
 
-    /// Get the number of times this has been locked in shared state.
-    /// It is mainly used for debug.
-    pub fn weak_count(&self) -> u64 {
-        self.state.load(Ordering::Relaxed)
-    }
-
     /// Try to acquire shared access to the lock.
     /// Multiple `try_lock()` will succeed as long as the lock is unlocked,
     /// or locked in a shared state.
-    /// Return true if the lock was acquired, else false.
-    /// `try_lock()` may fail if the lock is locked in exclusive state or if
-    /// a thread is currently performing operation on the lock.
-    /// Call `unlock()` to unlock after succesfull `try_lock()`.
+    /// Return `Ok(())` if the lock was acquired, else an error.
+    /// `try_lock()` may fail if the lock is locked in exclusive state
+    /// , if a thread is currently performing an operation on the lock,
+    /// or if a thread owning a clone of this lock panicked.
+    /// Call [`unlock()`](struct.RWLock.html#method.unlock) to
+    /// unlock after succesfull `try_lock()`.
     pub fn try_lock(&self) -> Result<(), TryLockError<()>> {
         let count = self.state.load(Ordering::SeqCst);
         if (count & POISONED) != 0 {
@@ -119,6 +114,14 @@ impl RWLock {
         }
     }
 
+    /// Try to acquire shared access to the lock.
+    /// If lock is acquired, return input value wrapped around a
+    /// [`RWLockGuard`](struct.RWLockGuard.html) such that when this
+    /// value goes out of scope, the lock is released.
+    /// If lock is not acquired, return the input value wrapped into
+    /// an error.
+    /// See [`try_lock()`](struct.RWLock.html#method.try_lock) for more
+    /// details.
     pub fn try_lock_for<T>(
         &self,
         t: T,
@@ -134,10 +137,12 @@ impl RWLock {
 
     /// Try to acquire exclusive access to the lock.
     /// `try_lock_mut()` will succeed only if the lock is unlocked.
-    /// Return true if the lock was acquired, else false.
-    /// `try_lock_mut()` may fail if the lock is already locked or if
-    /// a thread is currently performing operation on the lock.    
-    /// Call `unlock()` to unlock after succesfull `try_lock_mut()`.
+    /// Return Ok(()) if the lock was acquired, else an error.
+    /// `try_lock_mut()` may fail if the lock is already locked, if
+    /// a thread is currently performing an operation on the lock or
+    /// if a thread owning a clone of this lock panicked.
+    /// Call [`unlock()`](struct.RWLock.html#method.unlock) to unlock
+    /// after succesfull `try_lock_mut()`.
     pub fn try_lock_mut(&self) -> Result<(), TryLockError<()>> {
         let count = self.state.load(Ordering::SeqCst);
         if (count & POISONED) != 0 {
@@ -157,6 +162,14 @@ impl RWLock {
         }
     }
 
+    /// Try to acquire exlusive access to the lock.
+    /// If lock is acquired, return input value wrapped around a
+    /// [`RWLockGuard`](struct.RWLockGuard.html) such that when this
+    /// value goes out of scope, the lock is released.
+    /// If lock is not acquired, return the input value wrapped into
+    /// an error.
+    /// See [`try_lock_mut()`](struct.RWLock.html#method.try_lock) for more
+    /// details.
     pub fn try_lock_mut_for<T>(
         &self,
         t: T,
@@ -171,7 +184,8 @@ impl RWLock {
     }
 
     /// Hang until shared access to the lock is granted.
-    /// Call `unlock()` to unlock after succesfull `lock()`.    
+    /// Call [`unlock()`](struct.RWLock.html#method.unlock) to
+    /// unlock after succesfull `lock()`.
     pub fn lock(&self) -> Result<(), LockError<()>> {
         let mut nanos: u64 = 1;
         loop {
@@ -188,6 +202,14 @@ impl RWLock {
         }
     }
 
+    /// Hang until shared access to the lock is granted.
+    /// When lock is acquired, input value is wrapped around a
+    /// [`RWLockGuard`](struct.RWLockGuard.html) such that when it
+    /// goes out of scope, the lock is released.
+    /// `lock_for()` may fail if a thread is currently performing an
+    /// operation on the lock or if a thread owning a clone of this
+    /// lock panicked. In such a case, the input is returned wrapped
+    /// inside an error.
     pub fn lock_for<T>(&self, t: T) -> Result<RWLockGuard<T>, LockError<T>> {
         match self.lock() {
             Ok(_) => Ok(RWLockGuard::new(self, t)),
@@ -196,7 +218,8 @@ impl RWLock {
     }
 
     /// Hang until exclusive access to the lock is granted.
-    /// Call `unlock()` to unlock after succesfull `lock_mut()`.    
+    /// Call [`unlock()`](struct.RWLock.html#method.unlock) to
+    /// unlock after succesfull `lock_mut()`.
     pub fn lock_mut(&self) -> Result<(), LockError<()>> {
         let mut nanos: u64 = 1;
         loop {
@@ -213,6 +236,14 @@ impl RWLock {
         }
     }
 
+    /// Hang until exclusive access to the lock is granted.
+    /// When lock is acquired, input value is wrapped around a
+    /// [`RWLockGuard`](struct.RWLockGuard.html) such that when it
+    /// goes out of scope, the lock is released.
+    /// `lock_for()` may fail if a thread is currently performing an
+    /// operation on the lock or if a thread owning a clone of this
+    /// lock panicked. In such a case, the input is returned wrapped
+    /// inside an error.
     pub fn lock_mut_for<T>(
         &self,
         t: T,
@@ -256,7 +287,7 @@ impl RWLock {
     }
 }
 
-/// A RWLock guard that unlock the lock when going out of scope.
+/// A RWLock guard that unlock a lock when going out of scope.
 /// Element inside a RWLockGuard can be accessed with Deref and DerefMut methods.
 ///
 /// # Examples
