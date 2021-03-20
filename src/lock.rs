@@ -314,7 +314,8 @@ pub struct Mutex<V> {
     value: V,
 }
 
-#[allow(dead_code)]
+/// Implementation of a mutex around a value using library
+/// [`RWLock`](struct.RWLock.html).
 impl<V> Mutex<V> {
     /// Construct a new lock wrapping a value.
     pub fn new(v: V) -> Self {
