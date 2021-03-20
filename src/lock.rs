@@ -309,16 +309,16 @@ impl<'a, V> Drop for RWLockGuard<'a, V> {
 }
 
 #[derive(Debug)]
-pub struct RWLockCell<V> {
+pub struct Mutex<V> {
     lock: RWLock,
     value: V,
 }
 
 #[allow(dead_code)]
-impl<V> RWLockCell<V> {
+impl<V> Mutex<V> {
     /// Construct a new lock wrapping a value.
     pub fn new(v: V) -> Self {
-        RWLockCell {
+        Mutex {
             lock: RWLock::new(),
             value: v,
         }
