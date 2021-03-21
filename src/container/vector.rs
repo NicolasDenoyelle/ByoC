@@ -1,4 +1,4 @@
-use crate::container::{Container, Get};
+use crate::container::{Buffered, Container, Get};
 use crate::marker::Packed;
 use std::cmp::Eq;
 use std::vec::Vec;
@@ -52,33 +52,7 @@ impl<K: Eq, V> Vector<K, V> {
 //  Container implementation.                                             //
 //------------------------------------------------------------------------//
 
-struct VectorTakeIterator<'a, K, V> {
-    vec: &'a mut Vec<(K, V)>,
-    key: &'a K,
-    current: usize,
-}
-
-impl<'a, K: Eq, V> Iterator for VectorTakeIterator<'a, K, V> {
-    type Item = (K, V);
-    fn next(&mut self) -> Option<Self::Item> {
-        let n = self.vec.len();
-        if n == 0 {
-            None
-        } else {
-            loop {
-                if n <= self.current {
-                    break None;
-                } else if &self.vec[self.current].0 == self.key {
-                    break Some(self.vec.swap_remove(self.current));
-                } else {
-                    self.current += 1;
-                }
-            }
-        }
-    }
-}
-
-impl<'a, K, V> Container<'a, K, V> for Vector<K, V>
+impl<'a, K, V> Container<'a, K, V> for Vector<(K, V)>
 where
     K: 'a + Eq,
     V: 'a + Ord,
@@ -174,5 +148,43 @@ impl<'a, K: 'a + Eq, V: 'a + Ord> Get<'a, K, V> for Vector<K, V> {
                 None
             }
         }))
+    }
+}
+
+impl<'a, K: 'a + Eq, V: 'a + Ord> Buffered<'a, K, V> for Vector<(K, V)> {
+    fn push_buffer(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        let mut out = Vec::<(K, V)>::with_capacity(elements.len());
+        let mut duplicate = Vec::<(K, V)>::with_capacity(elements.len());
+
+        // First pass removes duplicate keys
+        let get_key = |elements: &Vec<(K, V)>, k: &K| {
+            elements.iter().enumerate().find_map(|(i, (kk, _))| {
+                if k == kk {
+                    Some(i)
+                } else {
+                    None
+                }
+            })
+        };
+        for i in 0..self.values.len() {
+            match get_key(&elements, &self.values[i].0) {
+                None => (),
+                Some(j) => {
+                    duplicate.push(elements.swap_remove(j));
+                    out.push(self.values.swap_remove(i));
+                }
+            }
+        }
+
+        // Second pass remove elements popping.
+        self.values.sort_by(|(_, a), (_, b)| a.cmp(b));
+        let n = elements.len() + self.values.len() + duplicate.len();
+        if n > self.capacity {
+            out.append(&mut self.values.split_off(n - self.capacity))
+        }
+        self.values.append(&mut elements);
+        self.values.append(&mut duplicate);
+
+        out
     }
 }

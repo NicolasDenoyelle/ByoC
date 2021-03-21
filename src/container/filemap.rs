@@ -1,8 +1,9 @@
-use crate::container::Container;
+use crate::container::{Buffered, Container};
 use crate::marker::Packed;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
-    cmp::{Eq, Ordering},
+    cmp::{min, Eq, Ordering},
+    collections::BTreeSet,
     fs::{remove_file, File, OpenOptions},
     io::{BufReader, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
@@ -105,9 +106,9 @@ impl FileMapElement {
     }
 }
 
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 // Iterator over a file.
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 enum FileMapIteratorPath {
     TmpPath(TempPath),
@@ -164,9 +165,9 @@ where
     }
 }
 
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 //  Iterator to take elements out
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 pub struct FileMapTakeIterator<'a, K, V, F>
 where
@@ -214,9 +215,9 @@ where
     }
 }
 
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 // Elements for get method.
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 /// Struct returned from calling [`get()`](struct.FileMap.html#tymethod.get)
 /// method with a [`FileMap`](struct.FileMap.html) container.
@@ -296,9 +297,9 @@ where
     }
 }
 
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 // Container Filemap
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 /// A [`Container`](trait.Container.html) implementation for key/value
 /// elements stored into a file.
@@ -507,9 +508,9 @@ where
     }
 }
 
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 // Container impl
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 impl<'a, K, V> Container<'a, K, V> for FileMap<(K, V)>
 where
@@ -707,9 +708,94 @@ where
 {
 }
 
-//------------------------------------------------------------------------//
+impl<'a, K: 'a + Eq, V: 'a + Ord> Buffered<'a, K, V> for FileMap {
+    fn push_buffer(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        self.file.flush().unwrap();
+        // Fill with duplicate keys then with victims.
+        let mut out = Vec::<(K, V)>::with_capacity(elements.len());
+        // Ordered set of elements to evict.
+        let mut victims = BTreeSet::<(V, u64)>::new();
+        // Empty spots available to store elements.
+        let mut empty = Vec::<u64>::with_capacity(elements.len());
+
+        // Iterate file once
+        let file_size = self.file.metadata().unwrap().len();
+        for off in (0..file_size).step_by(FileMapElement::<K, V>::size()) {
+            match FileMapElement::<K, V>::read(&mut self.file) {
+                Err(_) => (),
+                Ok(None) => (),
+                Ok(Some((k, v))) => {
+                    let i = elements.iter().enumerate().find_map(
+                        |(i, (_k, _))| {
+                            if _k == &k {
+                                Some(i)
+                            } else {
+                                None
+                            }
+                        },
+                    );
+                    match i {
+                        None => {
+                            victims.insert((v, off));
+                            if elements.len() * 2 < victims.len() {
+                                let mut it = victims.into_iter();
+                                victims = BTreeSet::<(V, u64)>::new();
+                                for _ in 0..elements.len() {
+                                    victims.insert(it.next().unwrap());
+                                }
+                            }
+                        }
+                        // If key match another key in elements then go ahead
+                        // and replace in file.
+                        Some(i) => {
+                            out.push((k, v));
+                            let (k, v) = elements.swap_remove(i);
+                            let e = FileMapElement::new(k, v);
+                            self.file.seek(SeekFrom::Start(off)).unwrap();
+                            e.write(&mut self.file).unwrap();
+                        }
+                    };
+                }
+            }
+        }
+        // If some elements do not fit empty slots and
+        // file is not full yet, then insert remaining
+        // empty spots in the slots list.
+        if empty.len() < elements.len() {
+            let esize = FileMapElement::<K, V>::size() as u64;
+            let n = (elements.len() - empty.len()) as u64;
+            let max_size = (self.capacity as u64) * esize;
+            for off in file_size..min(max_size, file_size + n * esize) {
+                empty.push(off);
+            }
+        }
+
+        // Iterate elements once with insertion spots.
+        // Empty spots first, then victims.
+        for ((k, v), off) in elements.into_iter().zip(
+            empty
+                .into_iter()
+                .chain(victims.into_iter().rev().map(|e| e.1)),
+        ) {
+            self.file.seek(SeekFrom::Start(off)).unwrap();
+            match FileMapElement::<K, V>::read(&mut self.file).unwrap() {
+                None => {}
+                Some(victim) => {
+                    out.push(victim);
+                }
+            }
+            self.file.seek(SeekFrom::Start(off)).unwrap();
+            let e = FileMapElement::new(k, v);
+            e.write(&mut self.file).unwrap();
+        }
+
+        out
+    }
+}
+
+//-----------------------------------------------------------------------//
 // Tests
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 #[cfg(test)]
 mod tests {
