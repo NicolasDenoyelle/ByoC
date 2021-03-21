@@ -99,6 +99,12 @@ where
         return self.references.len();
     }
 
+    fn flush(&mut self) -> Vec<(K, V)> {
+        self.map.clear();
+        self.set.clear();
+        self.references.drain(..).collect()
+    }
+
     fn contains(&self, key: &K) -> bool {
         self.map.contains_key(key)
     }

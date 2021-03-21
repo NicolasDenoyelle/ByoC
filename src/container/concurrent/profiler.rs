@@ -411,6 +411,16 @@ where
         }
     }
 
+    fn flush(&mut self) -> Vec<(K, R)> {
+        let t0 = Instant::now();
+        let v = self.cache.flush();
+        let tf = t0.elapsed().as_millis();
+        self.stats.hit.fetch_add(v.len() as u64, Ordering::SeqCst);
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.pop_fn.push(tf as f64);
+        v
+    }
+
     /// Counts for one cache access and one hit.
     /// See [`pop` function](../trait.Container.html)
     fn pop(&mut self) -> Option<(K, R)> {

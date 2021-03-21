@@ -117,6 +117,13 @@ where
         self.container.capacity()
     }
 
+    fn flush(&mut self) -> Vec<(K, V)> {
+        self.lock.lock().unwrap();
+        let v = self.container.flush();
+        self.lock.unlock();
+        v
+    }
+
     fn count(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
         self.container.count()

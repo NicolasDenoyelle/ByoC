@@ -103,6 +103,10 @@ where
         self.container.count()
     }
 
+    fn flush(&mut self) -> Vec<(K, R)> {
+        self.container.flush()
+    }
+
     fn clear(&mut self) {
         self.container.clear()
     }
