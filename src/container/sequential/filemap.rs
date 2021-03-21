@@ -344,6 +344,19 @@ where
         }
     }
 
+    fn flush(&mut self) -> Vec<(K, V)> {
+        self.file.flush().unwrap();
+        self.file.seek(SeekFrom::Start(0)).unwrap();
+        let mut v = Vec::new();
+        loop {
+            match FileMapElement::<K, V>::read(&mut self.file) {
+                Err(_) => break v,
+                Ok(None) => (),
+                Ok(Some(x)) => v.push(x.into_kv()),
+            }
+        }
+    }
+
     fn take(&mut self, key: &K) -> Option<V> {
         self.file.flush().unwrap();
         self.file.seek(SeekFrom::Start(0)).unwrap();

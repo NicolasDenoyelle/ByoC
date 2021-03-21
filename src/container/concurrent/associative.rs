@@ -156,6 +156,14 @@ where
         return self.n_sets * self.set_size;
     }
 
+    fn flush(&mut self) -> Vec<(K, V)> {
+        let mut v = Vec::with_capacity(self.capacity());
+        for i in 0..self.n_sets {
+            v.append(&mut self.containers[i].flush());
+        }
+        v
+    }
+
     fn contains(&self, key: &K) -> bool {
         let i = self.set(key.clone());
         self.containers[i].contains(key)

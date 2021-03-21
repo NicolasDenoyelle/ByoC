@@ -75,6 +75,10 @@ impl<K: Eq, V: Ord> Container<K, V> for Vector<K, V> {
         return self.capacity;
     }
 
+    fn flush(&mut self) -> Vec<(K, V)> {
+        self.values.drain(..).collect()
+    }
+
     fn contains(&self, key: &K) -> bool {
         self.values.iter().any(|(k, _)| k == key)
     }

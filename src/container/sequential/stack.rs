@@ -101,6 +101,12 @@ where
         self.l1.capacity() + self.l2.capacity()
     }
 
+    fn flush(&mut self) -> Vec<(K, V)> {
+        let mut v = self.l1.flush();
+        v.append(&mut self.l2.flush());
+        v
+    }
+
     fn contains(&self, key: &K) -> bool {
         if self.l1.contains(key) {
             true

@@ -1,5 +1,6 @@
 use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
 use crate::reference::{FromValue, Reference};
+use std::collections::BTreeMap;
 
 //----------------------------------------------------------------------------//
 //  key value map container.                                                  //
@@ -47,7 +48,7 @@ where
     /// Container capacity
     capacity: usize,
     /// Map of references keys and values. Used for lookups.
-    map: std::collections::BTreeMap<K, V>,
+    map: BTreeMap<K, V>,
 }
 
 impl<K, V> Map<K, V>
@@ -57,7 +58,7 @@ where
     pub fn new(n: usize) -> Self {
         Map {
             capacity: n,
-            map: std::collections::BTreeMap::new(),
+            map: BTreeMap::new(),
         }
     }
 }
@@ -78,6 +79,15 @@ where
 {
     fn capacity(&self) -> usize {
         return self.capacity.clone();
+    }
+
+    fn flush(&mut self) -> Vec<(K, V)> {
+        let mut v = Vec::with_capacity(self.map.len());
+        let keys: Vec<K> = self.map.keys().map(|k| k.clone()).collect();
+        for k in keys {
+            v.push(self.map.remove_entry(&k).unwrap());
+        }
+        v
     }
 
     fn contains(&self, key: &K) -> bool {

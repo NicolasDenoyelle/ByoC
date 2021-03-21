@@ -1,6 +1,7 @@
 use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
 use std::marker::{Send, Sync};
+use std::vec::Vec;
 
 /// Container trait.
 ///
@@ -46,7 +47,26 @@ pub trait Container<K, V: Ord> {
     /// * `key`: The key associated with the reference to insert.
     /// * `reference`: The cache reference to insert.
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)>;
+
+    /// Empty the container and retrieve all elements inside a vector.
+    fn flush(&mut self) -> Vec<(K, V)> {
+        let mut v = Vec::new();
+        loop {
+            match self.pop() {
+                None => break v,
+                Some(x) => v.push(x),
+            }
+        }
+    }
 }
+
+// pub trait BufferedPush<K, V, C>
+// where V: Ord,
+//       C: Container<K,V>,
+// {
+//    fn buffered_push(&mut self, key: K, reference: V)
+//    fn commit(&mut self) -> Vec<(K,V)>
+// }
 
 /// Marker trait of a container assessing that if the container hash
 /// room for an extra element, then next push will not pop if key
@@ -126,7 +146,9 @@ where
     fn iter_mut(&'a mut self) -> Self::Iterator;
 }
 
-/// `get()` and `get_mut()` methods for thread safe containers.
+/// Concurrent containers implement `Clone` trait and allow concurrent
+/// access in between clones. They also implement `get()`
+/// and `get_mut()` methods.
 ///
 /// `get()` and `get_mut()` methods apply to a mutable container reference.
 /// Accessing a cache [reference](../reference/trait.Reference.html),
@@ -139,9 +161,10 @@ where
 /// When a reference is accessed, references order may change and thus the container is
 /// mutated.
 ///
-/// This version returns the content of a reference wrapped into a
-/// [RWLockGuard](../lock/struct.RWLockGuard.html) that will release a lock once
-/// out of scope
+/// Compared to [`Sequential`](trait.Sequential.html) trait, this version
+/// returns the content of a reference wrapped into a
+/// [RWLockGuard](../lock/struct.RWLockGuard.html) that will release a
+/// lock once out of scope
 pub trait Concurrent<K, V, R>: Container<K, R> + Clone + Send + Sync
 where
     R: Reference<V>,
