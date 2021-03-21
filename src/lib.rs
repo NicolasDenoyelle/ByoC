@@ -85,8 +85,7 @@ pub mod reference;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::Container;
-/// use cache::container::sequential::Vector;
+/// use cache::container::{Container, Vector};
 /// use cache::reference::{Reference, Default};
 ///
 /// // container with only 1 element.

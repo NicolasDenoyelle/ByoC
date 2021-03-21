@@ -1,4 +1,4 @@
-use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
+use crate::container::{Container, Get, Insert, Packed};
 use crate::reference::{FromValue, Reference};
 use std::cmp::Eq;
 use std::marker::PhantomData;
@@ -26,8 +26,7 @@ use std::marker::PhantomData;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Insert, Sequential};
-/// use cache::container::sequential::{Stack, Vector, Map};
+/// use cache::container::{Container, Insert, Get, Stack, Vector, Map};
 /// use cache::reference::Default;
 ///
 /// // Create cache
@@ -166,12 +165,12 @@ where
 {
 }
 
-impl<K, V, R, C1, C2> Sequential<K, V, R> for Stack<K, R, C1, C2>
+impl<K, V, R, C1, C2> Get<K, V, R> for Stack<K, R, C1, C2>
 where
     K: Clone + Eq,
     R: Reference<V>,
-    C1: Container<K, R> + Sequential<K, V, R>,
-    C2: Container<K, R> + Sequential<K, V, R>,
+    C1: Container<K, R> + Get<K, V, R>,
+    C2: Container<K, R> + Get<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         match self.get_mut(key) {
@@ -199,43 +198,5 @@ where
                 },
             }
         }
-    }
-}
-
-//----------------------------------------------------------------------------//
-// iterator for associative cache                                             //
-//----------------------------------------------------------------------------//
-
-impl<'a, K, V, R, C1, I1, C2, I2> Iter<'a, K, V, R> for Stack<K, R, C1, C2>
-where
-    K: 'a + Clone + Eq,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C1: 'a + Container<K, R> + Iter<'a, K, V, R, Iterator = I1>,
-    I1: 'a + Iterator<Item = (&'a K, &'a V)>,
-    C2: Container<K, R> + Iter<'a, K, V, R, Iterator = I2>,
-    I2: 'a + Iterator<Item = (&'a K, &'a V)>,
-{
-    type Iterator = std::iter::Chain<I1, I2>;
-
-    fn iter(&'a mut self) -> Self::Iterator {
-        self.l1.iter().chain(self.l2.iter())
-    }
-}
-
-impl<'a, K, V, R, C1, I1, C2, I2> IterMut<'a, K, V, R> for Stack<K, R, C1, C2>
-where
-    K: 'a + Clone + Eq,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C1: 'a + Container<K, R> + IterMut<'a, K, V, R, Iterator = I1>,
-    I1: 'a + Iterator<Item = (&'a K, &'a mut V)>,
-    C2: Container<K, R> + IterMut<'a, K, V, R, Iterator = I2>,
-    I2: 'a + Iterator<Item = (&'a K, &'a mut V)>,
-{
-    type Iterator = std::iter::Chain<I1, I2>;
-
-    fn iter_mut(&'a mut self) -> Self::Iterator {
-        self.l1.iter_mut().chain(self.l2.iter_mut())
     }
 }

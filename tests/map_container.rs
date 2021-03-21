@@ -1,4 +1,4 @@
-use cache::container::sequential::Map;
+use cache::container::Map;
 mod packed;
 mod sequential;
 

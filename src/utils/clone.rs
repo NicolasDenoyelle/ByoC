@@ -1,4 +1,4 @@
-use crate::container::{Concurrent, Container, Iter, IterMut, Sequential};
+use crate::container::{Concurrent, Container, Get};
 use crate::lock::{RWLock, RWLockGuard};
 use crate::reference::Reference;
 use std::boxed::Box;
@@ -182,44 +182,16 @@ where
     }
 }
 
-impl<'a, K, V, R, C> Sequential<K, V, R> for CloneCell<C>
+impl<'a, K, V, R, C> Get<K, V, R> for CloneCell<C>
 where
     R: Reference<V>,
-    C: Container<K, R> + Sequential<K, V, R>,
+    C: Container<K, R> + Get<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         unsafe { (*self.ptr).get(key) }
     }
     fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         unsafe { (*self.ptr).get_mut(key) }
-    }
-}
-
-impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for CloneCell<C>
-where
-    K: 'a,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a V)>,
-{
-    type Iterator = I;
-    fn iter(&'a mut self) -> I {
-        unsafe { (*self.ptr).iter() }
-    }
-}
-
-impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for CloneCell<C>
-where
-    K: 'a,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a mut V)>,
-{
-    type Iterator = I;
-    fn iter_mut(&'a mut self) -> I {
-        unsafe { (*self.ptr).iter_mut() }
     }
 }
 

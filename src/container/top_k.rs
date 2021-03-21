@@ -1,4 +1,4 @@
-use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
+use crate::container::{Container, Get, Insert, Packed};
 use crate::reference::{FromValue, Reference};
 use std::marker::PhantomData;
 
@@ -23,8 +23,7 @@ use std::marker::PhantomData;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::Container;
-/// use cache::container::sequential::{Map, TopK};
+/// use cache::container::{Container, Map, TopK};
 /// use cache::reference::{Reference, LRU};
 ///
 /// // Build a Map cache of one element.
@@ -139,11 +138,11 @@ where
     }
 }
 
-impl<K, V, R, C> Sequential<K, V, R> for TopK<K, V, R, C>
+impl<K, V, R, C> Get<K, V, R> for TopK<K, V, R, C>
 where
     K: Clone,
     R: Reference<V>,
-    C: Container<K, R> + Sequential<K, V, R>,
+    C: Container<K, R> + Get<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         self.container.get(key)
@@ -151,53 +150,5 @@ where
 
     fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         self.container.get_mut(key)
-    }
-}
-
-//----------------------------------------------------------------------------//
-// iterator for associative cache                                             //
-//----------------------------------------------------------------------------//
-
-impl<K, V, R, C, I> IntoIterator for TopK<K, V, R, C>
-where
-    K: Clone,
-    R: Reference<V>,
-    C: Container<K, R> + IntoIterator<Item = (K, V), IntoIter = I>,
-    I: Iterator<Item = (K, V)>,
-{
-    type Item = (K, V);
-    type IntoIter = I;
-    fn into_iter(self) -> Self::IntoIter {
-        self.container.into_iter()
-    }
-}
-
-impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for TopK<K, V, R, C>
-where
-    K: 'a + Clone,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: 'a + Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a V)>,
-{
-    type Iterator = I;
-
-    fn iter(&'a mut self) -> Self::Iterator {
-        self.container.iter()
-    }
-}
-
-impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for TopK<K, V, R, C>
-where
-    K: 'a + Clone,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: 'a + Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a mut V)>,
-{
-    type Iterator = I;
-
-    fn iter_mut(&'a mut self) -> Self::Iterator {
-        self.container.iter_mut()
     }
 }

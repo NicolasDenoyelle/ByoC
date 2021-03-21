@@ -1,6 +1,6 @@
 mod packed;
 mod sequential;
-use cache::container::sequential::Vector;
+use cache::container::Vector;
 
 #[test]
 fn filemap_container_test_0() {

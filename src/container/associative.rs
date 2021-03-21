@@ -1,7 +1,4 @@
-use crate::container::concurrent::{Sequential, SequentialIter};
-use crate::container::{
-    Concurrent, Container, Insert, Iter, IterMut, Sequential as Seq,
-};
+use crate::container::{Concurrent, Container, Get, Insert, Sequential};
 use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
 use crate::utils::clone::CloneCell;
@@ -39,9 +36,7 @@ use std::marker::Sync;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Insert};
-/// use cache::container::sequential::Map;
-/// use cache::container::concurrent::Associative;
+/// use cache::container::{Container, Insert, Map, Associative};
 /// use std::collections::hash_map::DefaultHasher;
 /// use cache::reference::Default;
 ///
@@ -254,7 +249,7 @@ impl<K, V, R, C, H> Concurrent<K, V, R> for Associative<K, R, C, H>
 where
     K: Clone + Hash,
     R: Reference<V>,
-    C: Container<K, R> + Seq<K, V, R>,
+    C: Container<K, R> + Get<K, V, R>,
     H: Hasher + Clone,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
@@ -287,130 +282,6 @@ where
             set_size: self.set_size,
             containers: self.containers.clone(),
             hasher: self.hasher.clone(),
-        }
-    }
-}
-
-//----------------------------------------------------------------------------//
-// iterator for associative concurrent cache                                  //
-//----------------------------------------------------------------------------//
-
-pub struct AssociativeIter<'a, K, V, R, C, I>
-where
-    K: 'a + Clone + Hash,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: 'a + Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a V)>,
-{
-    containers: std::slice::IterMut<'a, Sequential<K, R, C>>,
-    it: Option<SequentialIter<'a, I>>,
-}
-
-impl<'a, K, V, R, C, I> Iterator for AssociativeIter<'a, K, V, R, C, I>
-where
-    K: 'a + Clone + Hash,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: 'a + Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a V)>,
-{
-    type Item = (&'a K, &'a V);
-    fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.it {
-            None => match self.containers.next() {
-                None => None,
-                Some(c) => {
-                    self.it = Some(c.iter());
-                    self.next()
-                }
-            },
-            Some(it) => match it.next() {
-                Some(v) => Some(v),
-                None => {
-                    self.it = None;
-                    self.next()
-                }
-            },
-        }
-    }
-}
-
-impl<'a, K, V, R, C, I, H> Iter<'a, K, V, R> for Associative<K, R, C, H>
-where
-    K: 'a + Clone + Hash,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: 'a + Container<K, R> + Seq<K, V, R> + Iter<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a V)>,
-    H: Hasher + Clone,
-{
-    type Iterator = AssociativeIter<'a, K, V, R, C, I>;
-
-    fn iter(&'a mut self) -> Self::Iterator {
-        AssociativeIter::<'a, K, V, R, C, I> {
-            containers: self.containers.iter_mut(),
-            it: None,
-        }
-    }
-}
-
-pub struct AssociativeIterMut<'a, K, V, R, C, I>
-where
-    K: 'a + Clone + Hash,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: 'a + Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a mut V)>,
-{
-    containers: std::slice::IterMut<'a, Sequential<K, R, C>>,
-    it: Option<SequentialIter<'a, I>>,
-}
-
-impl<'a, K, V, R, C, I> Iterator for AssociativeIterMut<'a, K, V, R, C, I>
-where
-    K: 'a + Clone + Hash,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: 'a + Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a mut V)>,
-{
-    type Item = (&'a K, &'a mut V);
-    fn next(&mut self) -> Option<Self::Item> {
-        match &mut self.it {
-            None => match self.containers.next() {
-                None => None,
-                Some(c) => {
-                    self.it = Some(c.iter_mut());
-                    self.next()
-                }
-            },
-            Some(it) => match it.next() {
-                Some(v) => Some(v),
-                None => {
-                    self.it = None;
-                    self.next()
-                }
-            },
-        }
-    }
-}
-
-impl<'a, K, V, R, C, I, H> IterMut<'a, K, V, R> for Associative<K, R, C, H>
-where
-    K: 'a + Ord + Clone + Hash,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: 'a + Container<K, R> + Seq<K, V, R> + IterMut<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a mut V)>,
-    H: Hasher + Clone,
-{
-    type Iterator = AssociativeIterMut<'a, K, V, R, C, I>;
-
-    fn iter_mut(&'a mut self) -> Self::Iterator {
-        AssociativeIterMut::<'a, K, V, R, C, I> {
-            containers: self.containers.iter_mut(),
-            it: None,
         }
     }
 }

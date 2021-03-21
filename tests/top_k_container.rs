@@ -1,4 +1,4 @@
-use cache::container::sequential::{TopK, Vector};
+use cache::container::{TopK, Vector};
 mod packed;
 mod sequential;
 

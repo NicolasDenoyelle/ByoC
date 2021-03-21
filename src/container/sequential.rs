@@ -1,6 +1,4 @@
-use crate::container::{
-    Concurrent, Container, Insert, Iter, IterMut, Packed, Sequential as Seq,
-};
+use crate::container::{Concurrent, Container, Get, Insert, Packed};
 use crate::lock::{RWLock, RWLockGuard};
 use crate::reference::{FromValue, Reference};
 use crate::utils::clone::CloneCell;
@@ -24,9 +22,7 @@ use std::marker::{PhantomData, Sync};
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Concurrent, Insert};
-/// use cache::container::sequential::Map;
-/// use cache::container::concurrent::Sequential;
+/// use cache::container::{Container, Concurrent, Insert, Map, Sequential};
 /// use cache::reference::Default;
 ///
 /// // Build a Map cache of 2 sets. Each set hold one element.
@@ -201,7 +197,7 @@ where
 impl<K, V, R, C> Concurrent<K, V, R> for Sequential<K, R, C>
 where
     R: Reference<V>,
-    C: Container<K, R> + Seq<K, V, R>,
+    C: Container<K, R> + Get<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
         let _ = self.lock.lock_mut_for(()).unwrap();
@@ -219,60 +215,6 @@ where
                 None
             }
             Some(v) => Some(RWLockGuard::new(&self.lock, v)),
-        }
-    }
-}
-
-//----------------------------------------------------------------------------//
-// iterator for concurrent cache                                              //
-//----------------------------------------------------------------------------//
-
-pub struct SequentialIter<'a, I: Iterator> {
-    it: I,
-    _guard: RWLockGuard<'a, bool>,
-}
-
-impl<'a, I: Iterator> Iterator for SequentialIter<'a, I> {
-    type Item = I::Item;
-    fn next(&mut self) -> Option<Self::Item> {
-        self.it.next()
-    }
-}
-
-impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for Sequential<K, R, C>
-where
-    K: 'a,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a V)>,
-{
-    type Iterator = SequentialIter<'a, I>;
-
-    fn iter(&'a mut self) -> Self::Iterator {
-        self.lock.lock_mut_for(()).unwrap();
-        SequentialIter {
-            it: self.container.iter(),
-            _guard: RWLockGuard::new(&self.lock, true),
-        }
-    }
-}
-
-impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for Sequential<K, R, C>
-where
-    K: 'a,
-    V: 'a,
-    R: 'a + Reference<V>,
-    C: Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
-    I: Iterator<Item = (&'a K, &'a mut V)>,
-{
-    type Iterator = SequentialIter<'a, I>;
-
-    fn iter_mut(&'a mut self) -> Self::Iterator {
-        self.lock.lock_mut_for(()).unwrap();
-        SequentialIter {
-            it: self.container.iter_mut(),
-            _guard: RWLockGuard::new(&self.lock, true),
         }
     }
 }

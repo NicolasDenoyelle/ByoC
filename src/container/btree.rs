@@ -1,8 +1,7 @@
-use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
+use crate::container::{Container, Get, Insert, Packed};
 use crate::reference::{FromValue, Reference};
 use crate::utils::ptr::OrdPtr;
 use std::collections::{BTreeMap, BTreeSet};
-use std::marker::PhantomData;
 
 //----------------------------------------------------------------------------//
 // Ordered set of references and key value map.                               //
@@ -30,8 +29,7 @@ use std::marker::PhantomData;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::Container;
-/// use cache::container::sequential::BTree;
+/// use cache::container::{Container, BTree};
 /// use cache::reference::{Reference, Default};
 ///
 /// // container with only 1 element.
@@ -205,7 +203,7 @@ where
     }
 }
 
-impl<K, V, R> Sequential<K, V, R> for BTree<K, R>
+impl<K, V, R> Get<K, V, R> for BTree<K, R>
 where
     K: Copy + Ord,
     R: Reference<V>,
@@ -239,76 +237,4 @@ where
     K: Ord + Copy,
     V: Ord,
 {
-}
-
-//----------------------------------------------------------------------------//
-// BTree iterator                                                             //
-//----------------------------------------------------------------------------//
-
-/// Iterator of ref mut BTree [container](../trait.Container.html).
-pub struct BTreeIterator<'a, K, V, R>
-where
-    K: Ord + Copy,
-    R: Reference<V>,
-{
-    set: &'a mut BTreeSet<(OrdPtr<R>, K)>,
-    iter: std::slice::IterMut<'a, (K, R)>,
-    unused: PhantomData<V>,
-}
-
-impl<'a, K, V, R> Iterator for BTreeIterator<'a, K, V, R>
-where
-    K: Ord + Copy,
-    V: 'a,
-    R: Reference<V>,
-{
-    type Item = (&'a K, &'a mut V);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.iter.next() {
-            None => None,
-            Some((k, r)) => {
-                assert!(self.set.remove(&(OrdPtr::new(r), *k)));
-                r.touch();
-                assert!(self.set.insert((OrdPtr::new(r), *k)));
-                Some((k, r.deref_mut()))
-            }
-        }
-    }
-}
-
-impl<'a, K, V, R> IterMut<'a, K, V, R> for BTree<K, R>
-where
-    K: 'a + Ord + Copy,
-    V: 'a,
-    R: 'a + Reference<V>,
-{
-    type Iterator = BTreeIterator<'a, K, V, R>;
-    fn iter_mut(&'a mut self) -> Self::Iterator {
-        BTreeIterator {
-            set: &mut self.set,
-            iter: self.references.iter_mut(),
-            unused: PhantomData,
-        }
-    }
-}
-
-impl<'a, K, V, R> Iter<'a, K, V, R> for BTree<K, R>
-where
-    K: 'a + Ord + Copy,
-    V: 'a,
-    R: 'a + Reference<V>,
-{
-    type Iterator = std::iter::Map<
-        BTreeIterator<'a, K, V, R>,
-        fn((&'a K, &'a mut V)) -> (&'a K, &'a V),
-    >;
-    fn iter(&'a mut self) -> Self::Iterator {
-        BTreeIterator {
-            set: &mut self.set,
-            iter: self.references.iter_mut(),
-            unused: PhantomData,
-        }
-        .map(|(k, v)| (k, v))
-    }
 }

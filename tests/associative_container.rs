@@ -1,8 +1,7 @@
 mod concurrent;
 mod container;
 
-use cache::container::concurrent::Associative;
-use cache::container::sequential::Map;
+use cache::container::{Associative, Map};
 use std::collections::hash_map::DefaultHasher;
 
 #[test]

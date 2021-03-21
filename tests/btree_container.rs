@@ -1,4 +1,4 @@
-use cache::container::sequential::BTree;
+use cache::container::BTree;
 mod packed;
 mod sequential;
 

@@ -1,4 +1,4 @@
-use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
+use crate::container::{Container, Get, Insert, Packed};
 use crate::reference::{FromValue, Reference};
 use std::cmp::Eq;
 use std::vec::Vec;
@@ -132,7 +132,7 @@ impl<K: Eq, V: Ord> Container<K, V> for Vector<K, V> {
     }
 }
 
-impl<K, V, R> Sequential<K, V, R> for Vector<K, R>
+impl<K, V, R> Get<K, V, R> for Vector<K, R>
 where
     K: Eq,
     R: Reference<V>,
@@ -160,44 +160,4 @@ impl<K: Eq, V: Ord> Packed<K, V> for Vector<K, V> {}
 impl<K: Eq, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
     for Vector<K, R>
 {
-}
-
-//----------------------------------------------------------------------------//
-//  Vector iterator.                                                          //
-//----------------------------------------------------------------------------//
-
-impl<'a, K, V, R> Iter<'a, K, V, R> for Vector<K, R>
-where
-    K: 'a + Eq,
-    V: 'a,
-    R: 'a + Reference<V>,
-{
-    type Iterator = std::iter::Map<
-        std::slice::IterMut<'a, (K, R)>,
-        fn(&'a mut (K, R)) -> (&'a K, &'a V),
-    >;
-    fn iter(&'a mut self) -> Self::Iterator {
-        self.values.iter_mut().map(|(k, r)| {
-            r.touch();
-            (k, r.deref())
-        })
-    }
-}
-
-impl<'a, K, V, R> IterMut<'a, K, V, R> for Vector<K, R>
-where
-    K: 'a + Eq,
-    V: 'a,
-    R: 'a + Reference<V>,
-{
-    type Iterator = std::iter::Map<
-        std::slice::IterMut<'a, (K, R)>,
-        fn(&'a mut (K, R)) -> (&'a K, &'a mut V),
-    >;
-    fn iter_mut(&'a mut self) -> Self::Iterator {
-        self.values.iter_mut().map(|(k, r)| {
-            r.touch();
-            (k, r.deref_mut())
-        })
-    }
 }

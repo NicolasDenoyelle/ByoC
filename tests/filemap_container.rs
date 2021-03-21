@@ -1,5 +1,5 @@
 mod packed;
-use cache::container::sequential::FileMap;
+use cache::container::FileMap;
 
 #[test]
 fn filemap_container_test_0() {

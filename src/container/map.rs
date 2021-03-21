@@ -1,4 +1,4 @@
-use crate::container::{Container, Insert, Iter, IterMut, Packed, Sequential};
+use crate::container::{Container, Get, Insert, Packed};
 use crate::reference::{FromValue, Reference};
 use std::collections::BTreeMap;
 
@@ -24,8 +24,7 @@ use std::collections::BTreeMap;
 ///
 /// ```
 /// use std::string::String;
-/// use cache::container::Container;
-/// use cache::container::sequential::Map;
+/// use cache::container::{Container, Map};
 /// use cache::reference::{Reference, Default};
 ///
 /// // container with only 1 element.
@@ -132,7 +131,7 @@ where
     }
 }
 
-impl<K, V, R> Sequential<K, V, R> for Map<K, R>
+impl<K, V, R> Get<K, V, R> for Map<K, R>
 where
     K: Clone + Ord,
     R: Reference<V>,
@@ -156,43 +155,3 @@ where
 }
 
 impl<K, V: Ord> Packed<K, V> for Map<K, V> where K: Ord + Copy {}
-
-//----------------------------------------------------------------------------//
-//  Map iterators                                                             //
-//----------------------------------------------------------------------------//
-
-impl<'a, K, V, R> Iter<'a, K, V, R> for Map<K, R>
-where
-    K: 'a + Ord + Clone,
-    V: 'a,
-    R: 'a + Reference<V>,
-{
-    type Iterator = std::iter::Map<
-        std::collections::btree_map::IterMut<'a, K, R>,
-        fn((&'a K, &'a mut R)) -> (&'a K, &'a V),
-    >;
-    fn iter(&'a mut self) -> Self::Iterator {
-        self.map.iter_mut().map(|(k, r)| {
-            r.touch();
-            (k, r.deref())
-        })
-    }
-}
-
-impl<'a, K, V, R> IterMut<'a, K, V, R> for Map<K, R>
-where
-    K: 'a + Ord + Clone,
-    V: 'a,
-    R: 'a + Reference<V>,
-{
-    type Iterator = std::iter::Map<
-        std::collections::btree_map::IterMut<'a, K, R>,
-        fn((&'a K, &'a mut R)) -> (&'a K, &'a mut V),
-    >;
-    fn iter_mut(&'a mut self) -> Self::Iterator {
-        self.map.iter_mut().map(|(k, r)| {
-            r.touch();
-            (k, r.deref_mut())
-        })
-    }
-}

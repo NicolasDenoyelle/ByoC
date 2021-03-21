@@ -135,8 +135,7 @@ where
 ///
 /// ## Example:
 /// ```
-/// use cache::container::Container;
-/// use cache::container::sequential::FileMap;
+/// use cache::container::{Container, FileMap};
 ///
 /// let mut container = unsafe {
 ///     FileMap::new("example_filemap", 2, false).unwrap()

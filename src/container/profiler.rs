@@ -1,6 +1,4 @@
-use crate::container::{
-    Concurrent, Container, Insert, Iter, IterMut, Sequential,
-};
+use crate::container::{Concurrent, Container, Get, Insert};
 use crate::lock::RWLockGuard;
 use crate::reference::{FromValue, Reference};
 use crate::utils::{clone::CloneCell, stats::SyncOnlineStats};
@@ -30,16 +28,7 @@ use std::time::Instant;
 /// # Examples
 ///
 /// ```
-/// // Let's bring container methods into scope. We also bring
-/// // Insert methods for container to make the code easier to read.
-/// // We bring sequential get methods into scope.
-/// use cache::container::{Container, Insert, Sequential};
-/// // The container will be a Map.
-/// use cache::container::sequential::Map;
-/// // We wrap into a Profiler. Though it can support concurrent acces,
-/// // We only use sequential access in this example.
-/// use cache::container::concurrent::Profiler;
-/// // We will insert default references in the container.
+/// use cache::container::{Container, Insert, Get, Map, Profiler};
 /// use cache::reference::Default;
 ///
 /// // Build a cache:
@@ -161,10 +150,10 @@ where
     fn write_header<W: Write>(output: &mut W) -> std::io::Result<()> {
         write!(
             output,
-            "{access} {miss} {hit} 
-{take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max} 
-{pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max} 
-{push_fn_mean} {push_fn_var} {push_fn_min} {push_fn_max} 
+            "{access} {miss} {hit}
+{take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max}
+{pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max}
+{push_fn_mean} {push_fn_var} {push_fn_min} {push_fn_max}
 {get_fn_mean} {get_fn_var} {get_fn_min} {get_fn_max}",
             access = "access",
             miss = "miss",
@@ -208,10 +197,10 @@ where
 
         write!(
             out,
-            "{access} {miss} {hit} 
-{take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max} 
-{pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max} 
-{push_fn_mean} {push_fn_var} {push_fn_min} {push_fn_max} 
+            "{access} {miss} {hit}
+{take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max}
+{pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max}
+{push_fn_mean} {push_fn_var} {push_fn_min} {push_fn_max}
 {get_fn_mean} {get_fn_var} {get_fn_min} {get_fn_max}",
             access = self.stats.access.load(Ordering::Relaxed),
             miss = self.stats.miss.load(Ordering::Relaxed),
@@ -456,13 +445,13 @@ where
 }
 
 //----------------------------------------------------------------------------//
-// Sequential Trait                                                           //
+// Get Trait                                                           //
 //----------------------------------------------------------------------------//
 
-impl<K, V, R, C> Sequential<K, V, R> for Profiler<K, V, R, C>
+impl<K, V, R, C> Get<K, V, R> for Profiler<K, V, R, C>
 where
     R: Reference<V>,
-    C: Container<K, R> + Sequential<K, V, R>,
+    C: Container<K, R> + Get<K, V, R>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         self.stats.access.fetch_add(1, Ordering::SeqCst);
@@ -566,87 +555,6 @@ where
                 self.stats.hit.fetch_add(1, Ordering::SeqCst);
                 Some(v)
             }
-        }
-    }
-}
-
-//----------------------------------------------------------------------------//
-// Iterator trait implementation                                              //
-//----------------------------------------------------------------------------//
-
-// This is incompatible with Drop trait that dumps the container when it gets out
-// of scope. Building this iterator drops the container profiler. Thus, there is
-// no point trying to record statistics.
-//
-// impl<'a,K,V,R,C,I> IntoIterator for Profiler<'a,K,V,R,C>
-// where R: Reference<V>,
-//       I: Iterator<Item=(K, V)>,
-//       C: Container<K,R> + IntoIterator<Item=(K, V), IntoIter=I>,
-// {
-//     type Item=(K, V);
-//     type IntoIter=I;
-
-//     fn into_iter(self) -> Self::IntoIter { self.cache.into_iter() }
-// }
-
-/// Iterator of [Profiler](struct.Profiler.html) [container](../trait.Container.html).
-pub struct ProfilerIter<I>
-where
-    I: Iterator,
-{
-    stats: CloneCell<Stats>,
-    container_iterator: I,
-}
-
-impl<I> Iterator for ProfilerIter<I>
-where
-    I: Iterator,
-{
-    type Item = I::Item;
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.container_iterator.next() {
-            None => None,
-            Some(item) => {
-                self.stats.access.fetch_add(1, Ordering::SeqCst);
-                self.stats.hit.fetch_add(1, Ordering::SeqCst);
-                Some(item)
-            }
-        }
-    }
-}
-
-impl<'a, K, V, R, C, I> IterMut<'a, K, V, R> for Profiler<K, V, R, C>
-where
-    K: 'a,
-    V: 'a,
-    R: 'a + Reference<V>,
-    I: Iterator<Item = (&'a K, &'a mut V)>,
-    C: Container<K, R> + IterMut<'a, K, V, R, Iterator = I>,
-{
-    type Iterator = ProfilerIter<I>;
-
-    fn iter_mut(&'a mut self) -> Self::Iterator {
-        ProfilerIter {
-            stats: self.stats.clone(),
-            container_iterator: self.cache.iter_mut(),
-        }
-    }
-}
-
-impl<'a, K, V, R, C, I> Iter<'a, K, V, R> for Profiler<K, V, R, C>
-where
-    K: 'a,
-    V: 'a,
-    R: 'a + Reference<V>,
-    I: Iterator<Item = (&'a K, &'a V)>,
-    C: Container<K, R> + Iter<'a, K, V, R, Iterator = I>,
-{
-    type Iterator = ProfilerIter<I>;
-
-    fn iter(&'a mut self) -> Self::Iterator {
-        ProfilerIter {
-            stats: self.stats.clone(),
-            container_iterator: self.cache.iter(),
         }
     }
 }

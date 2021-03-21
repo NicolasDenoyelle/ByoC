@@ -1,4 +1,4 @@
-use cache::container::sequential::{Stack, Vector};
+use cache::container::{Stack, Vector};
 mod packed;
 
 #[test]

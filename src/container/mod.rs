@@ -89,7 +89,7 @@ pub trait Packed<K, V: Ord>: Container<K, V> {}
 /// For instance [BTree](struct.BTree.html) container maintains a sorted tree of references.
 /// When a reference is accessed, references order may change and thus the container is
 /// mutated.
-pub trait Sequential<K, V, R>: Container<K, R>
+pub trait Get<K, V, R>: Container<K, R>
 where
     R: Reference<V>,
 {
@@ -124,28 +124,6 @@ where
     }
 }
 
-/// From ref mut [Container](trait.Container.html) into iterator of non mutable values.
-pub trait Iter<'a, K, V, R>: Container<K, R>
-where
-    K: 'a,
-    V: 'a,
-    R: 'a + Reference<V>,
-{
-    type Iterator: Iterator<Item = (&'a K, &'a V)>;
-    fn iter(&'a mut self) -> Self::Iterator;
-}
-
-/// From ref mut [Container](trait.Container.html) into iterator of mutable values.
-pub trait IterMut<'a, K, V, R>: Container<K, R>
-where
-    K: 'a,
-    V: 'a,
-    R: 'a + Reference<V>,
-{
-    type Iterator: Iterator<Item = (&'a K, &'a mut V)>;
-    fn iter_mut(&'a mut self) -> Self::Iterator;
-}
-
 /// Concurrent containers implement `Clone` trait and allow concurrent
 /// access in between clones. They also implement `get()`
 /// and `get_mut()` methods.
@@ -161,7 +139,7 @@ where
 /// When a reference is accessed, references order may change and thus the container is
 /// mutated.
 ///
-/// Compared to [`Sequential`](trait.Sequential.html) trait, this version
+/// Compared to [`Get`](trait.Get.html) trait, this version
 /// returns the content of a reference wrapped into a
 /// [RWLockGuard](../lock/struct.RWLockGuard.html) that will release a
 /// lock once out of scope
@@ -182,5 +160,21 @@ where
     fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>>;
 }
 
-pub mod concurrent;
-pub mod sequential;
+mod associative;
+pub use crate::container::associative::Associative;
+mod btree;
+pub use crate::container::btree::BTree;
+mod filemap;
+pub use crate::container::filemap::FileMap;
+mod map;
+pub use crate::container::map::Map;
+mod profiler;
+pub use crate::container::profiler::Profiler;
+mod sequential;
+pub use crate::container::sequential::Sequential;
+mod stack;
+pub use crate::container::stack::Stack;
+mod top_k;
+pub use crate::container::top_k::TopK;
+mod vector;
+pub use crate::container::vector::Vector;
