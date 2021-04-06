@@ -30,23 +30,14 @@ pub struct Default<V: Ord> {
     value: V,
 }
 
-impl<V: Ord> Default<V> {
+impl<V: Ord> Reference<V> for Default<V> {
     pub fn new(v: V) -> Self {
         Default { value: v }
     }
-}
-
-impl<V: Ord> FromValue<V> for Default<V> {
-    fn from_value(v: V) -> Self {
-        Default::new(v)
-    }
-}
-
-impl<V: Ord> Reference<V> for Default<V> {
     fn unwrap(self) -> V {
         self.value
     }
-    fn from_ref(value: V, _other: &Self) -> Self {
+    fn clone(&self, value: V) -> Self {
         Default { value: value }
     }
 }

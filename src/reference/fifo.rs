@@ -38,29 +38,20 @@ pub struct FIFO<V> {
     timestamp: Counter,
 }
 
-impl<V> FIFO<V> {
+impl<V> Reference<V> for FIFO<V> {
     pub fn new(v: V) -> Self {
         FIFO {
             value: v,
             timestamp: Counter::new(),
         }
     }
-}
-
-impl<V> FromValue<V> for FIFO<V> {
-    fn from_value(v: V) -> Self {
-        FIFO::new(v)
-    }
-}
-
-impl<V> Reference<V> for FIFO<V> {
     fn unwrap(self) -> V {
         self.value
     }
-    fn from_ref(value: V, other: &Self) -> Self {
+    fn clone(&self, value: V) -> Self {
         FIFO {
             value: value,
-            timestamp: other.timestamp,
+            timestamp: self.timestamp,
         }
     }
 }

@@ -1,5 +1,4 @@
 use crate::lock::RWLockGuard;
-use crate::reference::{FromValue, Reference};
 use std::marker::{Send, Sync};
 use std::vec::Vec;
 
@@ -8,9 +7,8 @@ use std::vec::Vec;
 /// ## Generics:
 ///
 /// * `K`: Is the key type, used for cache lookups. Key must be orderable.
-/// * `V`: Value type stored in [cache reference](../reference/trait.Reference.html).
-/// * `R`: Type of [cache reference](../reference/trait.Reference.html).
-pub trait Container<K, V: Ord> {
+/// * `V`: Value to insert in container.
+pub trait Container<K, V> {
     /// Get the number of elements fitting in the container.
     fn capacity(&self) -> usize;
 
@@ -77,22 +75,21 @@ pub trait Container<K, V: Ord> {
 /// inserting in a full set/bucket.
 pub trait Packed<K, V: Ord>: Container<K, V> {}
 
-/// `get()` and `get_mut()` methods for sequential [containers](trait.Container.html).
+/// `get()` and `get_mut()` methods for sequential
+/// [containers](trait.Container.html).
 ///
 /// `get()` and `get_mut()` methods apply to a mutable container reference.
-/// Accessing a cache [reference](../reference/trait.Reference.html),
-/// even read-only, mutates the reference state via a call to `touch()` on reference.
+/// Accessing a cache element even read-only, mutates the reference metadata.
 /// For instance,
 /// [LRFU](../reference/struct.LRFU.html) references require to keep track of
 /// the number and [timestamp](../timestamp/trait.Timestamp.html) of accesses.
 /// Updates to container references may also mutate the container.
-/// For instance [BTree](struct.BTree.html) container maintains a sorted tree of references.
-/// When a reference is accessed, references order may change and thus the container is
+/// For instance [BTree](struct.BTree.html) container maintains a sorted tree of
+/// references.
+/// When a reference is accessed, references order may change and thus the
+/// container is
 /// mutated.
-pub trait Get<K, V, R>: Container<K, R>
-where
-    R: Reference<V>,
-{
+pub trait Get<K, V>: Container<K, V> {
     /// Get read-only reference to the content of a cache
     /// [reference](../reference/trait.Reference.html) in the container.
     /// If not found, None is returned.
@@ -106,47 +103,28 @@ where
     fn get_mut(&mut self, key: &K) -> Option<&mut V>;
 }
 
-/// Implementation of direct insertion of values inside container.
-///
-/// Implementer of container can add this capability to containers for free:
-/// ```ignore
-/// use crate::reference::{Reference, FromValue};
-/// use crate::container::{Container, Insert};
-/// impl<'a,K,V,R: Reference<V> + FromValue<V>> Insert<'a,K,V,R> for MyContainer<K,V,R> {}
-/// ```
-pub trait Insert<K, V, R>: Container<K, R>
-where
-    R: Reference<V> + FromValue<V>,
-{
-    fn insert(&mut self, key: K, value: V) -> Option<(K, R)> {
-        let reference = R::from_value(value);
-        self.push(key, reference)
-    }
-}
-
 /// Concurrent containers implement `Clone` trait and allow concurrent
 /// access in between clones. They also implement `get()`
 /// and `get_mut()` methods.
 ///
 /// `get()` and `get_mut()` methods apply to a mutable container reference.
 /// Accessing a cache [reference](../reference/trait.Reference.html),
-/// even read-only, mutates the reference state via a call to `touch()` on reference.
+/// even read-only, mutates the reference state via a call to `touch()` on
+/// reference.
 /// For instance,
 /// [LRFU](../reference/struct.LRFU.html) references require to keep track of
 /// the number and [timestamp](../timestamp/trait.Timestamp.html) of accesses.
 /// Updates to container references may also mutate the container.
-/// For instance [BTree](struct.BTree.html) container maintains a sorted tree of references.
-/// When a reference is accessed, references order may change and thus the container is
-/// mutated.
+/// For instance [BTree](struct.BTree.html) container maintains a sorted tree
+/// of references.
+/// When a reference is accessed, references order may change and thus the
+/// container is mutated.
 ///
 /// Compared to [`Get`](trait.Get.html) trait, this version
 /// returns the content of a reference wrapped into a
 /// [RWLockGuard](../lock/struct.RWLockGuard.html) that will release a
 /// lock once out of scope
-pub trait Concurrent<K, V, R>: Container<K, R> + Clone + Send + Sync
-where
-    R: Reference<V>,
-{
+pub trait Concurrent<K, V>: Container<K, V> + Clone + Send + Sync {
     /// Get read-only reference to the content of a cache
     /// [reference](../reference/trait.Reference.html) in the container.
     /// If not found, None is returned.

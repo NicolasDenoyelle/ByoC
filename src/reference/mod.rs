@@ -20,9 +20,8 @@ use std::ops::{Deref, DerefMut};
 /// * `Deref<Target = V>`: Read-only access to the value held in the cache Reference.
 /// * `DerefMut<Target = V>`: Write access to the value held in the cache Reference.
 pub trait Reference<V>: Ord + Deref<Target = V> + DerefMut<Target = V> {
-    /// Construct a reference which is a copy of an existing reference,
-    /// with a new value.
-    fn from_ref(value: V, other: &Self) -> Self;
+    /// Build a new reference from input value.
+    fn new(value: V) -> Self;
 
     /// Consume the cache reference and get ownership its inner value.
     fn unwrap(self) -> V;
@@ -37,22 +36,6 @@ pub trait Reference<V>: Ord + Deref<Target = V> + DerefMut<Target = V> {
     fn replace(&mut self, value: V) -> V {
         std::mem::replace(self.deref_mut(), value)
     }
-}
-
-/// References that can be created with no other argument but the value they embed.
-pub trait FromValue<V>: Reference<V> {
-    /// Construct a cache reference.
-    ///
-    /// Cache reference takes ownership of value.
-    /// Cache references [`Container`](../container/trait.Container.html) may need
-    /// to create new references regardless of the
-    /// [`Reference`](trait.Reference.html) implementation
-    /// details. Therefore, generic constructor is needed for this trait.
-    ///
-    /// ### Arguments
-    ///
-    /// * `value`: The value held in the cache reference.
-    fn from_value(value: V) -> Self;
 }
 
 mod priority;
