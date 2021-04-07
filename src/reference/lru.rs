@@ -40,15 +40,15 @@ impl<V> LRU<V> {
             timestamp: Counter::new(),
         }
     }
+    pub fn touch(&mut self) -> &mut Self {
+        self.timestamp = Counter::new();
+        self
+    }
 }
 
 impl<V> Reference<V> for LRU<V> {
     fn unwrap(self) -> V {
         self.value
-    }
-    fn touch(&mut self) -> &mut Self {
-        self.timestamp = Counter::new();
-        self
     }
     fn clone(&self, value: V) -> Self {
         LRU {

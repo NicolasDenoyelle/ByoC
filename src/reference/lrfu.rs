@@ -87,6 +87,15 @@ impl<V, T: Timestamp> LRFU<V, T> {
     pub fn score(&self) -> f32 {
         T::new().diff(&self.last) + self.eavg / self.exponent
     }
+    /// Function to update reference state when it is looked up in the cache.
+    /// Just set the last accessed time to now and increment access count.
+    pub fn touch(&mut self) -> &mut Self {
+        let last = T::new();
+        let diff = last.diff(&self.last);
+        self.eavg = diff + self.eavg / self.exponent;
+        self.last = last;
+        self
+    }
 }
 
 impl<V, T: Timestamp> Reference<V> for LRFU<V, T> {
@@ -100,16 +109,6 @@ impl<V, T: Timestamp> Reference<V> for LRFU<V, T> {
     }
     fn unwrap(self) -> V {
         self.value
-    }
-
-    /// Function to update reference state when it is looked up in the cache.
-    /// Just set the last accessed time to now and increment access count.
-    fn touch(&mut self) -> &mut Self {
-        let last = T::new();
-        let diff = last.diff(&self.last);
-        self.eavg = diff + self.eavg / self.exponent;
-        self.last = last;
-        self
     }
 
     fn replace(&mut self, value: V) -> V {

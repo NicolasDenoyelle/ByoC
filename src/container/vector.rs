@@ -158,10 +158,7 @@ where
     fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         match self.values.iter().position(|(k, _)| k == key) {
             None => None,
-            Some(i) => {
-                self.values[i].1.touch();
-                Some(self.values[i].1.deref_mut())
-            }
+            Some(i) => Some(self.values[i].1.deref_mut()),
         }
     }
 }

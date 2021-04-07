@@ -26,12 +26,6 @@ pub trait Reference<V>: Ord + Deref<Target = V> + DerefMut<Target = V> {
     /// Consume the cache reference and get ownership its inner value.
     fn unwrap(self) -> V;
 
-    /// Function to update reference state when it is looked up in the cache.
-    /// Returns self to allow chaining calls.
-    fn touch(&mut self) -> &mut Self {
-        self
-    }
-
     /// Replace the value inside a reference with another value.
     fn replace(&mut self, value: V) -> V {
         std::mem::replace(self.deref_mut(), value)
