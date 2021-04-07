@@ -1,4 +1,4 @@
-use crate::reference::{FromValue, Reference};
+use crate::reference::Reference;
 use crate::timestamp::Timestamp;
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
@@ -90,12 +90,12 @@ impl<V, T: Timestamp> LRFU<V, T> {
 }
 
 impl<V, T: Timestamp> Reference<V> for LRFU<V, T> {
-    fn from_ref(value: V, other: &Self) -> Self {
+    fn clone(&self, value: V) -> Self {
         LRFU {
             value: value,
-            exponent: other.exponent,
-            last: other.last.clone(),
-            eavg: other.eavg,
+            exponent: self.exponent,
+            last: self.last.clone(),
+            eavg: self.eavg,
         }
     }
     fn unwrap(self) -> V {
@@ -114,17 +114,6 @@ impl<V, T: Timestamp> Reference<V> for LRFU<V, T> {
 
     fn replace(&mut self, value: V) -> V {
         std::mem::replace(&mut self.value, value)
-    }
-}
-
-impl<V, T: Timestamp> FromValue<V> for LRFU<V, T> {
-    fn from_value(v: V) -> Self {
-        LRFU {
-            value: v,
-            exponent: 1.1,
-            last: T::new(),
-            eavg: 0f32,
-        }
     }
 }
 

@@ -1,4 +1,4 @@
-use crate::reference::{FromValue, Reference};
+use crate::reference::Reference;
 use crate::timestamp::{Counter, Timestamp};
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
@@ -42,12 +42,6 @@ impl<V> LRU<V> {
     }
 }
 
-impl<V> FromValue<V> for LRU<V> {
-    fn from_value(v: V) -> Self {
-        LRU::new(v)
-    }
-}
-
 impl<V> Reference<V> for LRU<V> {
     fn unwrap(self) -> V {
         self.value
@@ -56,10 +50,10 @@ impl<V> Reference<V> for LRU<V> {
         self.timestamp = Counter::new();
         self
     }
-    fn from_ref(value: V, other: &Self) -> Self {
+    fn clone(&self, value: V) -> Self {
         LRU {
             value: value,
-            timestamp: other.timestamp.clone(),
+            timestamp: self.timestamp.clone(),
         }
     }
     fn replace(&mut self, value: V) -> V {

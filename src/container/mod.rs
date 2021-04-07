@@ -44,7 +44,7 @@ pub trait Container<K, V> {
     ///
     /// * `key`: The key associated with the reference to insert.
     /// * `reference`: The cache reference to insert.
-    fn push(&mut self, key: K, reference: V) -> Option<(K, V)>;
+    fn push(&mut self, key: K, value: V) -> Option<(K, V)>;
 
     /// Empty the container and retrieve all elements inside a vector.
     fn flush(&mut self) -> Vec<(K, V)> {
@@ -57,14 +57,6 @@ pub trait Container<K, V> {
         }
     }
 }
-
-// pub trait BufferedPush<K, V, C>
-// where V: Ord,
-//       C: Container<K,V>,
-// {
-//    fn buffered_push(&mut self, key: K, reference: V)
-//    fn commit(&mut self) -> Vec<(K,V)>
-// }
 
 /// Marker trait of a container assessing that if the container hash
 /// room for an extra element, then next push will not pop if key

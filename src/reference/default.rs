@@ -1,4 +1,4 @@
-use crate::reference::{FromValue, Reference};
+use crate::reference::Reference;
 use std::cmp::Ord;
 use std::ops::{Deref, DerefMut};
 
@@ -30,10 +30,13 @@ pub struct Default<V: Ord> {
     value: V,
 }
 
-impl<V: Ord> Reference<V> for Default<V> {
+impl<V: Ord> Default<V> {
     pub fn new(v: V) -> Self {
         Default { value: v }
     }
+}
+
+impl<V: Ord> Reference<V> for Default<V> {
     fn unwrap(self) -> V {
         self.value
     }

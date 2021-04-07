@@ -1,5 +1,5 @@
 use crate::container::{Container, Get, Insert, Packed};
-use crate::reference::{FromValue, Reference};
+use crate::reference::Reference;
 use std::cmp::Eq;
 use std::vec::Vec;
 
@@ -43,22 +43,24 @@ use std::vec::Vec;
 /// assert!(key == "second");
 /// assert!(*value == 12);
 /// ```
-pub struct Vector<K, V>
+pub struct Vector<K, V, R>
 where
     K: Eq,
-    V: Ord,
+    R: Reference<V>,
 {
+    wrap_ref: Fn(V) -> R,
     capacity: usize,
-    values: Vec<(K, V)>,
+    values: Vec<(K, R)>,
 }
 
-impl<K, V> Vector<K, V>
+impl<K, V, R> Vector<K, V, R>
 where
     K: Eq,
-    V: Ord,
+    R: Reference<V>,
 {
-    pub fn new(n: usize) -> Self {
+    pub fn new(n: usize, wrap_ref: Fn(V) -> R) -> Self {
         Vector {
+            wrap_ref: wrap_ref,
             capacity: n,
             values: Vec::with_capacity(n + 1),
         }
@@ -69,13 +71,20 @@ where
 //  Container implementation.                                                 //
 //----------------------------------------------------------------------------//
 
-impl<K: Eq, V: Ord> Container<K, V> for Vector<K, V> {
+impl<K, V, R> Container<K, V> for Vector<K, V, R>
+where
+    K: Eq,
+    R: Reference<V>,
+{
     fn capacity(&self) -> usize {
         return self.capacity;
     }
 
     fn flush(&mut self) -> Vec<(K, V)> {
-        self.values.drain(..).collect()
+        self.values
+            .drain(..)
+            .map(|(k, r)| (k, r.unwrap()))
+            .collect()
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -100,7 +109,7 @@ impl<K: Eq, V: Ord> Container<K, V> for Vector<K, V> {
                 v = i
             }
         }
-        Some(self.values.swap_remove(v))
+        Some(self.values.swap_remove(v).unwrap())
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
@@ -110,7 +119,7 @@ impl<K: Eq, V: Ord> Container<K, V> for Vector<K, V> {
 
         match self.values.iter().position(|(k, _)| k == &key) {
             None => {
-                self.values.push((key, reference));
+                self.values.push((key, self.wrap_ref(reference)));
                 if self.values.len() > self.capacity {
                     self.pop()
                 } else {
@@ -118,7 +127,7 @@ impl<K: Eq, V: Ord> Container<K, V> for Vector<K, V> {
                 }
             }
             Some(i) => {
-                self.values.push((key, reference));
+                self.values.push((key, self.wrap_ref(reference)));
                 Some(self.values.swap_remove(i))
             }
         }
@@ -127,12 +136,12 @@ impl<K: Eq, V: Ord> Container<K, V> for Vector<K, V> {
     fn take(&mut self, key: &K) -> Option<V> {
         match self.values.iter().position(|(k, _)| k == key) {
             None => None,
-            Some(i) => Some(self.values.swap_remove(i).1),
+            Some(i) => Some(self.values.swap_remove(i).1.unwrap()),
         }
     }
 }
 
-impl<K, V, R> Get<K, V, R> for Vector<K, R>
+impl<K, V, R> Get<K, V> for Vector<K, V, R>
 where
     K: Eq,
     R: Reference<V>,
@@ -155,9 +164,9 @@ where
     }
 }
 
-impl<K: Eq, V: Ord> Packed<K, V> for Vector<K, V> {}
-
-impl<K: Eq, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
-    for Vector<K, R>
+impl<K, V, R> Packed<K, V> for Vector<K, V, R>
+where
+    K: Eq,
+    R: Reference<V>,
 {
 }

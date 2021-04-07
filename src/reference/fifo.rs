@@ -1,4 +1,4 @@
-use crate::reference::{FromValue, Reference};
+use crate::reference::Reference;
 use crate::timestamp::{Counter, Timestamp};
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
@@ -38,13 +38,16 @@ pub struct FIFO<V> {
     timestamp: Counter,
 }
 
-impl<V> Reference<V> for FIFO<V> {
+impl<V> FIFO<V> {
     pub fn new(v: V) -> Self {
         FIFO {
             value: v,
             timestamp: Counter::new(),
         }
     }
+}
+
+impl<V> Reference<V> for FIFO<V> {
     fn unwrap(self) -> V {
         self.value
     }

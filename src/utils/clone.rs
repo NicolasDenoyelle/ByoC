@@ -171,7 +171,7 @@ where
 impl<'a, K, V, R, C> Concurrent<K, V, R> for CloneCell<C>
 where
     R: Reference<V>,
-    C: Container<K, R> + Concurrent<K, V, R>,
+    C: Container<K, R> + Concurrent<K, R>,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
         unsafe { (*self.ptr).get(key) }
@@ -182,10 +182,9 @@ where
     }
 }
 
-impl<'a, K, V, R, C> Get<K, V, R> for CloneCell<C>
+impl<'a, K, V, C> Get<K, V> for CloneCell<C>
 where
-    R: Reference<V>,
-    C: Container<K, R> + Get<K, V, R>,
+    C: Container<K, V> + Get<K, V>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         unsafe { (*self.ptr).get(key) }
