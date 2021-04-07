@@ -87,7 +87,7 @@ impl Timestamp for Counter {
 ///    
 /// assert!(Clock::new() < Clock::new());
 /// ```
-#[derive(Clone, Debug, PartialOrd, PartialEq, Eq, Ord)]
+#[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Eq, Ord)]
 pub struct Clock {
     t: Instant,
 }

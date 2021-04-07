@@ -1,5 +1,6 @@
 use crate::reference::Reference;
 use crate::timestamp::{Counter, Timestamp};
+use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
 
@@ -30,19 +31,15 @@ use std::ops::{Deref, DerefMut};
 pub struct LRU<V> {
     value: V,
     /// Last `touch()` time.
-    timestamp: Counter,
+    timestamp: Cell<Counter>,
 }
 
 impl<V> LRU<V> {
     pub fn new(e: V) -> Self {
         LRU {
             value: e,
-            timestamp: Counter::new(),
+            timestamp: Cell::new(Counter::new()),
         }
-    }
-    pub fn touch(&mut self) -> &mut Self {
-        self.timestamp = Counter::new();
-        self
     }
 }
 
@@ -64,12 +61,14 @@ impl<V> Reference<V> for LRU<V> {
 impl<V> Deref for LRU<V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
+        self.timestamp.set(Counter::new());
         &self.value
     }
 }
 
 impl<V> DerefMut for LRU<V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.timestamp.set(Counter::new());
         &mut self.value
     }
 }
