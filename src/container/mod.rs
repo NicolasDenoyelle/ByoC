@@ -65,7 +65,7 @@ pub trait Container<K, V> {
 /// In the container. This is specifically NOT used in
 /// [Associative](struct.Associative.html) containers that will pop when
 /// inserting in a full set/bucket.
-pub trait Packed<K, V: Ord>: Container<K, V> {}
+pub trait Packed<K, V>: Container<K, V> {}
 
 /// `get()` and `get_mut()` methods for sequential
 /// [containers](trait.Container.html).
@@ -144,7 +144,5 @@ mod sequential;
 pub use crate::container::sequential::Sequential;
 mod stack;
 pub use crate::container::stack::Stack;
-mod top_k;
-pub use crate::container::top_k::TopK;
 mod vector;
 pub use crate::container::vector::Vector;

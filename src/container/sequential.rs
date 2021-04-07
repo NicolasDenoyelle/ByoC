@@ -1,6 +1,5 @@
-use crate::container::{Concurrent, Container, Get, Insert, Packed};
+use crate::container::{Concurrent, Container, Get, Packed};
 use crate::lock::{RWLock, RWLockGuard};
-use crate::reference::{FromValue, Reference};
 use crate::utils::clone::CloneCell;
 use std::marker::{PhantomData, Sync};
 
@@ -22,15 +21,15 @@ use std::marker::{PhantomData, Sync};
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Concurrent, Insert, Map, Sequential};
+/// use cache::container::{Container, Concurrent, Map, Sequential};
 /// use cache::reference::Default;
 ///
 /// // Build a Map cache of 2 sets. Each set hold one element.
 /// let mut c = Sequential::<_,Default<_>,_>::new(Map::new(1));
 ///
 /// // Container as room for first and second element and returns None.
-/// assert!(c.insert(0u16, 4).is_none());
-/// assert!(c.insert(1u16, 12).is_some());
+/// assert!(c.push(0u16, 4).is_none());
+/// assert!(c.push(1u16, 12).is_some());
 /// assert!(c.get(&0u16).is_some());
 /// assert!(c.get(&1u16).is_none());
 ///```
@@ -173,13 +172,6 @@ where
 {
 }
 
-impl<K, V, R, C> Insert<K, V, R> for Sequential<K, R, C>
-where
-    R: Reference<V> + FromValue<V>,
-    C: Container<K, R>,
-{
-}
-
 unsafe impl<K, V, C> Send for Sequential<K, V, C>
 where
     V: Ord,
@@ -194,10 +186,10 @@ where
 {
 }
 
-impl<K, V, R, C> Concurrent<K, V, R> for Sequential<K, R, C>
+impl<K, V, C> Concurrent<K, V> for Sequential<K, V, C>
 where
-    R: Reference<V>,
-    C: Container<K, R> + Get<K, V, R>,
+    V: Ord,
+    C: Container<K, V> + Get<K, V>,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
         let _ = self.lock.lock_mut_for(()).unwrap();

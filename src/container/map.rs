@@ -1,5 +1,4 @@
-use crate::container::{Container, Get, Insert, Packed};
-use crate::reference::{FromValue, Reference};
+use crate::container::{Container, Get, Packed};
 use std::collections::BTreeMap;
 
 //----------------------------------------------------------------------------//
@@ -66,11 +65,6 @@ where
 //  Container implementation.                                                 //
 //----------------------------------------------------------------------------//
 
-impl<K: Clone + Ord, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
-    for Map<K, R>
-{
-}
-
 impl<K, V> Container<K, V> for Map<K, V>
 where
     K: Clone + Ord,
@@ -131,26 +125,17 @@ where
     }
 }
 
-impl<K, V, R> Get<K, V, R> for Map<K, R>
+impl<K, V> Get<K, V> for Map<K, V>
 where
     K: Clone + Ord,
-    R: Reference<V>,
+    V: Ord,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
-        match self.map.get(key) {
-            None => None,
-            Some(r) => Some(r.deref()),
-        }
+        self.map.get(key)
     }
 
     fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        match self.map.get_mut(key) {
-            None => None,
-            Some(r) => {
-                r.touch();
-                Some(r.deref_mut())
-            }
-        }
+        self.map.get_mut(key)
     }
 }
 

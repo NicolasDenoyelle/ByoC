@@ -1,5 +1,4 @@
-use crate::container::{Container, Get, Insert, Packed};
-use crate::reference::{FromValue, Reference};
+use crate::container::{Container, Get, Packed};
 use std::marker::PhantomData;
 
 //----------------------------------------------------------------------------//
@@ -80,14 +79,6 @@ where
 {
 }
 
-impl<K, V, R, C> Insert<K, V, R> for TopK<K, V, R, C>
-where
-    K: Clone,
-    R: Reference<V> + FromValue<V>,
-    C: Container<K, R>,
-{
-}
-
 impl<K, V, R, C> Container<K, R> for TopK<K, V, R, C>
 where
     K: Clone,
@@ -138,11 +129,11 @@ where
     }
 }
 
-impl<K, V, R, C> Get<K, V, R> for TopK<K, V, R, C>
+impl<K, V, R, C> Get<K, V> for TopK<K, V, R, C>
 where
     K: Clone,
     R: Reference<V>,
-    C: Container<K, R> + Get<K, V, R>,
+    C: Container<K, V> + Get<K, V>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         self.container.get(key)

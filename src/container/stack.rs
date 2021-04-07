@@ -1,5 +1,4 @@
-use crate::container::{Container, Get, Insert, Packed};
-use crate::reference::{FromValue, Reference};
+use crate::container::{Container, Get, Packed};
 use std::cmp::Eq;
 use std::marker::PhantomData;
 
@@ -26,7 +25,7 @@ use std::marker::PhantomData;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Insert, Get, Stack, Vector, Map};
+/// use cache::container::{Container, Get, Stack, Vector, Map};
 /// use cache::reference::Default;
 ///
 /// // Create cache
@@ -36,12 +35,12 @@ use std::marker::PhantomData;
 /// assert_eq!(cache.capacity(), 2);
 ///
 /// // Populate cache
-/// assert!(cache.insert("first", 0).is_none());
-/// assert!(cache.insert("second", 3).is_none());
+/// assert!(cache.push("first", 0).is_none());
+/// assert!(cache.push("second", 3).is_none());
 /// let mut first = cache.get_mut(&"first");
 ///
 /// // Cache overflow. Victim is the Least Recently used, i.e "second".
-/// let victim = cache.insert("third", 2).unwrap();
+/// let victim = cache.push("third", 2).unwrap();
 /// assert_eq!(victim.0, "second");
 /// ```
 pub struct Stack<K, V, C1, C2>
@@ -55,15 +54,6 @@ where
     l2: C2,
     unused_k: PhantomData<K>,
     unused_v: PhantomData<V>,
-}
-
-impl<K, V, R, C1, C2> Insert<K, V, R> for Stack<K, R, C1, C2>
-where
-    K: Clone + Eq,
-    R: Reference<V> + FromValue<V>,
-    C1: Container<K, R>,
-    C2: Container<K, R>,
-{
 }
 
 impl<K, V, C1, C2> Stack<K, V, C1, C2>
@@ -165,12 +155,12 @@ where
 {
 }
 
-impl<K, V, R, C1, C2> Get<K, V, R> for Stack<K, R, C1, C2>
+impl<K, V, C1, C2> Get<K, V> for Stack<K, V, C1, C2>
 where
     K: Clone + Eq,
-    R: Reference<V>,
-    C1: Container<K, R> + Get<K, V, R>,
-    C2: Container<K, R> + Get<K, V, R>,
+    V: Ord,
+    C1: Container<K, V> + Get<K, V>,
+    C2: Container<K, V> + Get<K, V>,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         match self.get_mut(key) {

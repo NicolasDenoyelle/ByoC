@@ -1,6 +1,5 @@
-use crate::container::{Concurrent, Container, Get, Insert, Sequential};
+use crate::container::{Concurrent, Container, Get, Sequential};
 use crate::lock::RWLockGuard;
-use crate::reference::{FromValue, Reference};
 use crate::utils::clone::CloneCell;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
@@ -36,7 +35,7 @@ use std::marker::Sync;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Insert, Map, Associative};
+/// use cache::container::{Container, Map, Associative};
 /// use std::collections::hash_map::DefaultHasher;
 /// use cache::reference::Default;
 ///
@@ -44,11 +43,11 @@ use std::marker::Sync;
 /// let mut c = Associative::<_,Default<_>,_,_>::new(2, 2, |n|{Map::new(n)}, DefaultHasher::new());
 ///
 /// // Container as room for first and second element and returns None.
-/// assert!(c.insert(0u16, 4).is_none());
-/// assert!(c.insert(1u16, 12).is_none());
+/// assert!(c.push(0u16, 4).is_none());
+/// assert!(c.push(1u16, 12).is_none());
 ///
 /// // Then we don't know if a set is full. Next insertion may pop:
-/// match c.insert(2u16, 14) {
+/// match c.push(2u16, 14) {
 ///       None => { println!("Still room for one more"); }
 ///       Some((key, value)) => {
 ///             assert!(key == 2u16);
@@ -111,15 +110,6 @@ where
         let i = hasher.finish();
         usize::from((i % (self.n_sets as u64)) as u16)
     }
-}
-
-impl<K, V, R, C, H> Insert<K, V, R> for Associative<K, R, C, H>
-where
-    K: Clone + Hash,
-    R: Reference<V> + FromValue<V>,
-    C: Container<K, R>,
-    H: Hasher + Clone,
-{
 }
 
 unsafe impl<K, V, C, H> Send for Associative<K, V, C, H>
@@ -245,11 +235,11 @@ where
     }
 }
 
-impl<K, V, R, C, H> Concurrent<K, V, R> for Associative<K, R, C, H>
+impl<K, V, C, H> Concurrent<K, V> for Associative<K, V, C, H>
 where
     K: Clone + Hash,
-    R: Reference<V>,
-    C: Container<K, R> + Get<K, V, R>,
+    V: Ord,
+    C: Container<K, V> + Get<K, V>,
     H: Hasher + Clone,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {

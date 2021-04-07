@@ -1,4 +1,4 @@
-use crate::container::{Container, Get, Insert, Packed};
+use crate::container::{Container, Get, Packed};
 use crate::reference::Reference;
 use std::cmp::Eq;
 use std::vec::Vec;
@@ -48,7 +48,7 @@ where
     K: Eq,
     R: Reference<V>,
 {
-    wrap_ref: Fn(V) -> R,
+    wrap_ref: Box<dyn Fn(V) -> R>,
     capacity: usize,
     values: Vec<(K, R)>,
 }
@@ -58,7 +58,7 @@ where
     K: Eq,
     R: Reference<V>,
 {
-    pub fn new(n: usize, wrap_ref: Fn(V) -> R) -> Self {
+    pub fn new(n: usize, wrap_ref: Box<dyn Fn(V) -> R>) -> Self {
         Vector {
             wrap_ref: wrap_ref,
             capacity: n,
@@ -109,7 +109,8 @@ where
                 v = i
             }
         }
-        Some(self.values.swap_remove(v).unwrap())
+        let (k, r) = self.values.swap_remove(v);
+        Some((k, r.unwrap()))
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
@@ -119,7 +120,7 @@ where
 
         match self.values.iter().position(|(k, _)| k == &key) {
             None => {
-                self.values.push((key, self.wrap_ref(reference)));
+                self.values.push((key, (self.wrap_ref)(reference)));
                 if self.values.len() > self.capacity {
                     self.pop()
                 } else {
@@ -127,8 +128,9 @@ where
                 }
             }
             Some(i) => {
-                self.values.push((key, self.wrap_ref(reference)));
-                Some(self.values.swap_remove(i))
+                self.values.push((key, (self.wrap_ref)(reference)));
+                let (k, r) = self.values.swap_remove(i);
+                Some((k, r.unwrap()))
             }
         }
     }

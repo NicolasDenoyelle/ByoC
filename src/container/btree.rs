@@ -1,5 +1,4 @@
-use crate::container::{Container, Get, Insert, Packed};
-use crate::reference::{FromValue, Reference};
+use crate::container::{Container, Get, Packed};
 use crate::utils::ptr::OrdPtr;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -78,11 +77,6 @@ where
 //----------------------------------------------------------------------------//
 //  Container implementation.                                                 //
 //----------------------------------------------------------------------------//
-
-impl<K: Copy + Ord, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
-    for BTree<K, R>
-{
-}
 
 impl<K, V> Container<K, V> for BTree<K, V>
 where
@@ -203,10 +197,10 @@ where
     }
 }
 
-impl<K, V, R> Get<K, V, R> for BTree<K, R>
+impl<K, V> Get<K, V> for BTree<K, V>
 where
     K: Copy + Ord,
-    R: Reference<V>,
+    V: Ord,
 {
     fn get(&mut self, key: &K) -> Option<&V> {
         match self.get_mut(key) {
@@ -222,11 +216,10 @@ where
                 assert!(self
                     .set
                     .remove(&(OrdPtr::new(&self.references[*i].1), *key)));
-                self.references[*i].1.touch();
                 assert!(self
                     .set
                     .insert((OrdPtr::new(&self.references[*i].1), *key)));
-                Some(self.references[*i].1.deref_mut())
+                Some(&mut self.references[*i].1)
             }
         }
     }

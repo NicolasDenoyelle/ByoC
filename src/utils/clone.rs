@@ -1,6 +1,5 @@
 use crate::container::{Concurrent, Container, Get};
 use crate::lock::{RWLock, RWLockGuard};
-use crate::reference::Reference;
 use std::boxed::Box;
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
@@ -136,7 +135,6 @@ unsafe impl<V: Sync> Sync for CloneCell<V> {}
 
 impl<'a, K, V, C> Container<K, V> for CloneCell<C>
 where
-    V: Ord,
     C: Container<K, V>,
 {
     fn capacity(&self) -> usize {
@@ -168,10 +166,9 @@ where
     }
 }
 
-impl<'a, K, V, R, C> Concurrent<K, V, R> for CloneCell<C>
+impl<'a, K, V, C> Concurrent<K, V> for CloneCell<C>
 where
-    R: Reference<V>,
-    C: Container<K, R> + Concurrent<K, R>,
+    C: Container<K, V> + Concurrent<K, V>,
 {
     fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
         unsafe { (*self.ptr).get(key) }
