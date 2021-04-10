@@ -1,35 +1,40 @@
-use crate::container::{Concurrent, Container, Get, Sequential};
+use crate::container::{Container, Get, Sequential};
 use crate::lock::RWLockGuard;
+use crate::marker::Concurrent;
 use crate::utils::clone::CloneCell;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
 
-//----------------------------------------------------------------------------//
-// Concurrent implementation of container                                     //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Concurrent implementation of container                                 //
+//------------------------------------------------------------------------//
 
-/// Associative [`container`](../trait.Container.html) wrapper with multiple sets.
+/// Associative [`container`](../trait.Container.html) wrapper with
+/// multiple sets.
 ///
-/// Associative container is an array of containers. Whenever an element is to be
-/// insered/looked up, the key is hashed (`key.into() % n_sets`) to choose
-/// the set where container [reference](../../reference/trait.Reference.html)
-/// will be stored.
-/// On insertion, if the target
-/// set is full, an element is popped from the same set.
+/// Associative container is an array of containers. Whenever an element
+/// is to be insered/looked up, the key is hashed (`key.into() % n_sets`)
+/// to choose the set where container
+/// [reference](../../reference/trait.Reference.html) will be stored.
+/// On insertion, if the target set is full, an element is popped from the
+/// same set.
 ///
-/// When invoking `pop()` to evict a container [reference](../reference/trait.Reference.html),
-/// `pop()` on all sets. A victim is elected then all elements that are not elected
-/// are reinserted inside the container.
+/// When invoking `pop()` to evict a container
+/// [reference](../reference/trait.Reference.html), `pop()` on all sets.
+/// A victim is elected then all elements that are not elected are
+/// reinserted inside the container.
 ///
-/// When invoking `push()`, only the container matching the key is affected and only
-/// this container may `pop()` a value.
+/// When invoking `push()`, only the container matching the key is
+/// affected and only this container may `pop()` a value.
 ///
 /// ## Generics:
 ///
-/// * `K`: The type of key to use. Keys must implement `Clone` trait and `Hash`
-/// trait to compute the set index from key.
-/// * `V`: Value type stored in [container reference](../../reference/trait.Reference.html).
-/// * `R`: A type of container [reference](../../reference/trait.Reference.html).
+/// * `K`: The type of key to use. Keys must implement `Clone` trait and
+/// `Hash` trait to compute the set index from key.
+/// * `V`: Value type stored in
+/// [container reference](../../reference/trait.Reference.html).
+/// * `R`: A type of container
+/// [reference](../../reference/trait.Reference.html).
 /// * `C`: A type of [Container](../trait.Container.html).
 ///
 /// ## Examples
@@ -55,37 +60,30 @@ use std::marker::Sync;
 ///       }
 /// }
 ///```
-pub struct Associative<K, V, C, H>
-where
-    K: Clone + Hash,
-    V: Ord,
-    C: Container<K, V>,
-    H: Hasher + Clone,
-{
+pub struct Associative<C, H: Hasher + Clone> {
     n_sets: usize,
     set_size: usize,
-    containers: CloneCell<Vec<Sequential<K, V, C>>>,
+    containers: CloneCell<Vec<Sequential<C>>>,
     hasher: H,
 }
 
-impl<K, V, C, H> Associative<K, V, C, H>
-where
-    K: Clone + Hash,
-    V: Ord,
-    C: Container<K, V>,
-    H: Hasher + Clone,
-{
+impl<C, H: Hasher + Clone> Associative<C, H> {
     /// Construct a new associative container from a list of containers.
     ///
-    /// The resulting associative container will have as many sets as containers in
-    /// input.
+    /// The resulting associative container will have as many sets as
+    /// containers in input.
     ///
     /// * `n_sets`: The number of sets for this container.
-    /// * `set_size`: The capacity of each set. Every set of this container have
-    /// the same capacity.
-    /// * `new`: A container constructor closure taking the set size as argument
-    /// to build a container of the same capacity.
-    pub fn new<F>(n_sets: usize, set_size: usize, new: F, set_hasher: H) -> Self
+    /// * `set_size`: The capacity of each set. Every set of this
+    /// container have the same capacity.
+    /// * `new`: A container constructor closure taking the set size as
+    /// argument to build a container of the same capacity.
+    pub fn new<F>(
+        n_sets: usize,
+        set_size: usize,
+        new: F,
+        set_hasher: H,
+    ) -> Self
     where
         F: Fn(usize) -> C,
     {
@@ -101,7 +99,7 @@ where
         a
     }
 
-    fn set(&self, key: K) -> usize {
+    fn set<K: Hash>(&self, key: K) -> usize {
         if self.n_sets == 0 || self.set_size == 0 {
             return 0;
         };
@@ -112,25 +110,11 @@ where
     }
 }
 
-unsafe impl<K, V, C, H> Send for Associative<K, V, C, H>
-where
-    K: Clone + Hash,
-    V: Ord,
-    C: Container<K, V>,
-    H: Hasher + Clone,
-{
-}
+unsafe impl<C, H: Hasher + Clone> Send for Associative<C, H> {}
 
-unsafe impl<K, V, C, H> Sync for Associative<K, V, C, H>
-where
-    K: Clone + Hash,
-    V: Ord,
-    C: Container<K, V>,
-    H: Hasher + Clone,
-{
-}
+unsafe impl<C, H: Hasher + Clone> Sync for Associative<C, H> {}
 
-impl<K, V, C, H> Container<K, V> for Associative<K, V, C, H>
+impl<K, V, C, H> Container<K, V> for Associative<C, H>
 where
     K: Clone + Hash,
     V: Ord,
@@ -235,37 +219,34 @@ where
     }
 }
 
-impl<K, V, C, H> Concurrent<K, V> for Associative<K, V, C, H>
-where
-    K: Clone + Hash,
-    V: Ord,
-    C: Container<K, V> + Get<K, V>,
-    H: Hasher + Clone,
-{
-    fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
-        if self.n_sets == 0 || self.set_size == 0 {
-            return None;
-        };
-        let i = self.set(key.clone());
-        self.containers[i].get(key)
-    }
-
-    fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>> {
-        if self.n_sets == 0 || self.set_size == 0 {
-            return None;
-        };
-        let i = self.set(key.clone());
-        self.containers[i].get_mut(key)
-    }
-}
-
-impl<K, V, C, H> Clone for Associative<K, V, C, H>
+impl<K, V, C, H> Concurrent<K, V> for Associative<C, H>
 where
     K: Clone + Hash,
     V: Ord,
     C: Container<K, V>,
     H: Hasher + Clone,
 {
+}
+
+impl<'a, K, V, C, H, T> Get<'a, K, V> for Associative<C, H>
+where
+    K: Clone + Hash,
+    V: Ord,
+    C: Container<K, V> + Get<'a, K, V, Item = T>,
+    H: Hasher + Clone,
+{
+    type Item = RWLockGuard<'a, T>;
+    fn get(&'a mut self, key: &K) -> Option<Self::Item> {
+        if self.n_sets == 0 || self.set_size == 0 {
+            return None;
+        };
+        let i = self.set(key.clone());
+        self.containers[i].lock_mut();
+        Get::get(&mut self.containers[i], key)
+    }
+}
+
+impl<C, H: Hasher + Clone> Clone for Associative<C, H> {
     fn clone(&self) -> Self {
         Associative {
             n_sets: self.n_sets,

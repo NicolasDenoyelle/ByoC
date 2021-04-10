@@ -1,5 +1,3 @@
-use crate::lock::RWLockGuard;
-use std::marker::{Send, Sync};
 use std::vec::Vec;
 
 /// Container trait.
@@ -58,91 +56,37 @@ pub trait Container<K, V> {
     }
 }
 
-/// Marker trait of a container assessing that if the container hash
-/// room for an extra element, then next push will not pop if key
-/// is not already in the container. If a container does not implement
-/// this trait, the it may pop on trying to push a key that is not already
-/// In the container. This is specifically NOT used in
-/// [Associative](struct.Associative.html) containers that will pop when
-/// inserting in a full set/bucket.
-pub trait Packed<K, V>: Container<K, V> {}
-
-/// `get()` and `get_mut()` methods for sequential
-/// [containers](trait.Container.html).
+/// `get()` and `get_mut()` methods for [containers](trait.Container.html).
 ///
 /// `get()` and `get_mut()` methods apply to a mutable container reference.
-/// Accessing a cache element even read-only, mutates the reference metadata.
-/// For instance,
-/// [LRFU](../reference/struct.LRFU.html) references require to keep track of
-/// the number and [timestamp](../timestamp/trait.Timestamp.html) of accesses.
-/// Updates to container references may also mutate the container.
-/// For instance [BTree](struct.BTree.html) container maintains a sorted tree of
-/// references.
-/// When a reference is accessed, references order may change and thus the
-/// container is
-/// mutated.
-pub trait Get<K, V>: Container<K, V> {
+/// Accessing a cache element even read-only, mutates the reference
+/// metadata. For instance,
+/// [LRFU](../reference/struct.LRFU.html) references require to keep track
+/// of the number and [timestamp](../timestamp/trait.Timestamp.html) of
+/// accesses. Updates to container references may also mutate the container.
+/// For instance [BTree](struct.BTree.html) container maintains a sorted
+/// tree of references. When a reference is accessed, references order may
+/// change and thus the container is mutated.
+pub trait Get<'a, K, V>: Container<K, V> {
+    type Item;
     /// Get read-only reference to the content of a cache
     /// [reference](../reference/trait.Reference.html) in the container.
     /// If not found, None is returned.
     /// * `key`: The key value used for searching a reference.
-    fn get(&mut self, key: &K) -> Option<&V>;
-
-    /// Get mutable reference to the content of a
-    /// cache [reference](../reference/trait.Reference.html) in the container.
-    /// If not found, None is returned.
-    /// * `key`: The key value used for searching a reference.
-    fn get_mut(&mut self, key: &K) -> Option<&mut V>;
-}
-
-/// Concurrent containers implement `Clone` trait and allow concurrent
-/// access in between clones. They also implement `get()`
-/// and `get_mut()` methods.
-///
-/// `get()` and `get_mut()` methods apply to a mutable container reference.
-/// Accessing a cache [reference](../reference/trait.Reference.html),
-/// even read-only, mutates the reference state via a call to `touch()` on
-/// reference.
-/// For instance,
-/// [LRFU](../reference/struct.LRFU.html) references require to keep track of
-/// the number and [timestamp](../timestamp/trait.Timestamp.html) of accesses.
-/// Updates to container references may also mutate the container.
-/// For instance [BTree](struct.BTree.html) container maintains a sorted tree
-/// of references.
-/// When a reference is accessed, references order may change and thus the
-/// container is mutated.
-///
-/// Compared to [`Get`](trait.Get.html) trait, this version
-/// returns the content of a reference wrapped into a
-/// [RWLockGuard](../lock/struct.RWLockGuard.html) that will release a
-/// lock once out of scope
-pub trait Concurrent<K, V>: Container<K, V> + Clone + Send + Sync {
-    /// Get read-only reference to the content of a cache
-    /// [reference](../reference/trait.Reference.html) in the container.
-    /// If not found, None is returned.
-    /// * `key`: The key value used for searching a reference.
-    fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>>;
-
-    /// Get mutable reference to the content of a
-    /// cache [reference](../reference/trait.Reference.html) in the container.
-    /// If not found, None is returned.
-    /// * `key`: The key value used for searching a reference.
-    fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>>;
+    fn get(&'a mut self, key: &K) -> Option<Self::Item>;
 }
 
 mod associative;
 pub use crate::container::associative::Associative;
 mod btree;
 pub use crate::container::btree::BTree;
-mod filemap;
-pub use crate::container::filemap::FileMap;
-mod map;
-pub use crate::container::map::Map;
+// mod filemap;
+// pub use crate::container::filemap::FileMap;
 mod profiler;
 pub use crate::container::profiler::Profiler;
 mod sequential;
 pub use crate::container::sequential::Sequential;
-mod stack;
-pub use crate::container::stack::Stack;
+// mod stack;
+// pub use crate::container::stack::Stack;
 mod vector;
 pub use crate::container::vector::Vector;

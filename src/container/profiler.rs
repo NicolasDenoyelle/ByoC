@@ -1,14 +1,7 @@
-use crate::container::{Concurrent, Container, Get};
-use crate::lock::RWLockGuard;
+use crate::container::{Container, Get};
+use crate::marker::Concurrent;
 use crate::utils::{clone::CloneCell, stats::SyncOnlineStats};
-use std::fs::{File, OpenOptions};
-use std::io::{Seek, SeekFrom, Write};
-use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
-};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
 /// [`Container`](../trait.Container.html) wrapper to collect access, misses, hits and
@@ -85,41 +78,17 @@ impl Stats {
     }
 }
 
-pub struct Profiler<K, V, C>
-where
-    C: Container<K, V>,
-{
+pub struct Profiler<C> {
     cache: CloneCell<C>,
     stats: CloneCell<Stats>,
-    path: Arc<Option<PathBuf>>,
-    unused_k: PhantomData<K>,
-    unused_v: PhantomData<V>,
 }
 
-impl<K, V, C> Profiler<K, V, C>
-where
-    C: Container<K, V>,
-{
+impl<C> Profiler<C> {
     /// Wrap a `cache` into a "cache profiler" cache.
     pub fn new(cache: C) -> Self {
         Profiler {
             cache: CloneCell::new(cache),
             stats: CloneCell::new(Stats::new()),
-            path: Arc::new(None),
-            unused_k: PhantomData,
-            unused_v: PhantomData,
-        }
-    }
-
-    /// Wrap a `cache` into a "Cache profiler" and write results to
-    /// a file pointed by `path` when it is dropped.
-    pub fn with_path(cache: C, path: &Path) -> Self {
-        Profiler {
-            cache: CloneCell::new(cache),
-            stats: CloneCell::new(Stats::new()),
-            path: Arc::new(Some(path.to_path_buf())),
-            unused_k: PhantomData,
-            unused_v: PhantomData,
         }
     }
 
@@ -141,9 +110,8 @@ where
     }
 
     /// Write profiler header.
-    fn write_header<W: Write>(output: &mut W) -> std::io::Result<()> {
-        write!(
-            output,
+    pub fn print_header() {
+        println!(
             "{access} {miss} {hit}
 {take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max}
 {pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max}
@@ -174,23 +142,8 @@ where
     /// Print the profiler statistic to file.
     /// If file is empty then header is printed.
     /// Profiler statistic are appended at the end of file.
-    pub fn fprint(&self, out: &mut File) -> std::io::Result<()> {
-        let (begin, end) = {
-            let pos = out.seek(SeekFrom::Current(0))?;
-            let begin = out.seek(SeekFrom::Start(0))?;
-            let end = out.seek(SeekFrom::End(0))?;
-            out.seek(SeekFrom::Start(pos))?;
-            (begin, end)
-        };
-
-        if end - begin == 0 {
-            Self::write_header(out)?;
-        } else {
-            out.seek(SeekFrom::End(0))?;
-        }
-
-        write!(
-            out,
+    pub fn print(&self) {
+        println!(
             "{access} {miss} {hit}
 {take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max}
 {pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max}
@@ -219,45 +172,20 @@ where
     }
 }
 
-impl<K, V, C> Drop for Profiler<K, V, C>
-where
-    C: Container<K, V>,
-{
-    fn drop(&mut self) {
-        if let Some(pathbuf) = &*self.path {
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .open(pathbuf)
-                .expect("Profiler cache open output:");
-            self.fprint(&mut file).expect("Profiler cache dump output:");
-        }
-    }
-}
-
-impl<K, V, C> Clone for Profiler<K, V, C>
-where
-    C: Container<K, V>,
-{
+impl<C: Clone> Clone for Profiler<C> {
     fn clone(&self) -> Self {
         Profiler {
             cache: self.cache.clone(),
             stats: self.stats.clone(),
-            path: self.path.clone(),
-            unused_k: PhantomData,
-            unused_v: PhantomData,
         }
     }
 }
 
-//----------------------------------------------------------------------------//
-// Display Implementation                                                     //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Display Implementation                                                 //
+//------------------------------------------------------------------------//
 
-impl<K, V, C> std::fmt::Debug for Profiler<K, V, C>
-where
-    C: Container<K, V>,
-{
+impl<C: Container<u32, u32>> std::fmt::Debug for Profiler<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -271,10 +199,7 @@ where
     }
 }
 
-impl<K, V, C> std::fmt::Display for Profiler<K, V, C>
-where
-    C: Container<K, V>,
-{
+impl<C: Container<u32, u32>> std::fmt::Display for Profiler<C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "---------------------------------------------------")?;
         write!(f, "Cache profile summary")?;
@@ -337,11 +262,11 @@ where
     }
 }
 
-//----------------------------------------------------------------------------//
-// Container implementation                                                   //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Container implementation                                               //
+//------------------------------------------------------------------------//
 
-impl<K, V, C> Container<K, V> for Profiler<K, V, C>
+impl<K, V, C> Container<K, V> for Profiler<C>
 where
     C: Container<K, V>,
 {
@@ -425,15 +350,16 @@ where
     }
 }
 
-//----------------------------------------------------------------------------//
-// Get Trait                                                           //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Get Trait                                                              //
+//------------------------------------------------------------------------//
 
-impl<K, V, C> Get<K, V> for Profiler<K, V, C>
+impl<'a, K, V, C, T> Get<'a, K, V> for Profiler<C>
 where
-    C: Container<K, V> + Get<K, V>,
+    C: Get<'a, K, V, Item = T>,
 {
-    fn get(&mut self, key: &K) -> Option<&V> {
+    type Item = T;
+    fn get(&'a mut self, key: &K) -> Option<T> {
         self.stats.access.fetch_add(1, Ordering::SeqCst);
         let t0 = Instant::now();
 
@@ -452,84 +378,14 @@ where
             }
         }
     }
-
-    /// Counts for one cache access.
-    /// If key is found, count a hit else count a miss.
-    /// See [`get_mut` function](../trait.Container.html)
-    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        self.stats.access.fetch_add(1, Ordering::SeqCst);
-        let t0 = Instant::now();
-        let out = self.cache.get_mut(key);
-        let tf = t0.elapsed().as_millis();
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.get_fn.push(tf as f64);
-        match out {
-            None => {
-                self.stats.miss.fetch_add(1, Ordering::SeqCst);
-                None
-            }
-            Some(v) => {
-                self.stats.hit.fetch_add(1, Ordering::SeqCst);
-                Some(v)
-            }
-        }
-    }
 }
 
-//----------------------------------------------------------------------------//
-// Concurrent trait                                                           //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Concurrent trait                                                       //
+//------------------------------------------------------------------------//
 
-unsafe impl<K, V, C> Send for Profiler<K, V, C> where
-    C: Container<K, V> + Concurrent<K, V>
-{
-}
+unsafe impl<C: Send> Send for Profiler<C> {}
 
-unsafe impl<K, V, C> Sync for Profiler<K, V, C> where
-    C: Container<K, V> + Concurrent<K, V>
-{
-}
+unsafe impl<C: Sync> Sync for Profiler<C> {}
 
-impl<K, V, C> Concurrent<K, V> for Profiler<K, V, C>
-where
-    C: Container<K, V> + Concurrent<K, V>,
-{
-    fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
-        self.stats.access.fetch_add(1, Ordering::SeqCst);
-        let t0 = Instant::now();
-
-        let out = self.cache.get(key);
-        let tf = t0.elapsed().as_millis();
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.get_fn.push(tf as f64);
-        match out {
-            None => {
-                self.stats.miss.fetch_add(1, Ordering::SeqCst);
-                None
-            }
-            Some(v) => {
-                self.stats.hit.fetch_add(1, Ordering::SeqCst);
-                Some(v)
-            }
-        }
-    }
-
-    fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>> {
-        self.stats.access.fetch_add(1, Ordering::SeqCst);
-        let t0 = Instant::now();
-        let out = self.cache.get_mut(key);
-        let tf = t0.elapsed().as_millis();
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.get_fn.push(tf as f64);
-        match out {
-            None => {
-                self.stats.miss.fetch_add(1, Ordering::SeqCst);
-                None
-            }
-            Some(v) => {
-                self.stats.hit.fetch_add(1, Ordering::SeqCst);
-                Some(v)
-            }
-        }
-    }
-}
+impl<K, V, C: Concurrent<K, V>> Concurrent<K, V> for Profiler<C> {}

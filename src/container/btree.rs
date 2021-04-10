@@ -1,10 +1,11 @@
-use crate::container::{Container, Get, Packed};
+use crate::container::Container;
+use crate::marker::Packed;
 use crate::utils::ptr::OrdPtr;
 use std::collections::{BTreeMap, BTreeSet};
 
-//----------------------------------------------------------------------------//
-// Ordered set of references and key value map.                               //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Ordered set of references and key value map.                           //
+//------------------------------------------------------------------------//
 
 /// [`Container`](../trait.Container.html) with ordered keys and [references](../../reference/trait.Reference.html).
 ///
@@ -74,9 +75,9 @@ where
     }
 }
 
-//----------------------------------------------------------------------------//
-//  Container implementation.                                                 //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+//  Container implementation.                                             //
+//------------------------------------------------------------------------//
 
 impl<K, V> Container<K, V> for BTree<K, V>
 where
@@ -192,34 +193,6 @@ where
                     let (_, reference) = self.references.swap_remove(i);
                     Some(reference)
                 }
-            }
-        }
-    }
-}
-
-impl<K, V> Get<K, V> for BTree<K, V>
-where
-    K: Copy + Ord,
-    V: Ord,
-{
-    fn get(&mut self, key: &K) -> Option<&V> {
-        match self.get_mut(key) {
-            None => None,
-            Some(v) => Some(v),
-        }
-    }
-
-    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        match self.map.get(key) {
-            None => None,
-            Some(i) => {
-                assert!(self
-                    .set
-                    .remove(&(OrdPtr::new(&self.references[*i].1), *key)));
-                assert!(self
-                    .set
-                    .insert((OrdPtr::new(&self.references[*i].1), *key)));
-                Some(&mut self.references[*i].1)
             }
         }
     }

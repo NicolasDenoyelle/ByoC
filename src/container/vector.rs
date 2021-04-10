@@ -1,11 +1,12 @@
-use crate::container::{Container, Get, Packed};
+use crate::container::{Container, Get};
+use crate::marker::Packed;
 use crate::reference::Reference;
 use std::cmp::Eq;
 use std::vec::Vec;
 
-//----------------------------------------------------------------------------//
-//  Vector struct                                                             //
-//----------------------------------------------------------------------------//
+//-------------------------------------------------------------------------
+//  Vector struct
+//-------------------------------------------------------------------------
 
 /// [`Container`](trait.Container.html) with unordered
 /// [references](../../reference/trait.Reference.html) and keys.
@@ -143,19 +144,14 @@ where
     }
 }
 
-impl<K, V, R> Get<K, V> for Vector<K, V, R>
+impl<'a, K, V, R> Get<'a, K, V> for Vector<K, V, R>
 where
     K: Eq,
+    V: 'a,
     R: Reference<V>,
 {
-    fn get(&mut self, key: &K) -> Option<&V> {
-        match self.values.iter().position(|(k, _)| k == key) {
-            None => None,
-            Some(i) => Some(self.values[i].1.deref()),
-        }
-    }
-
-    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+    type Item = &'a mut V;
+    fn get(&'a mut self, key: &K) -> Option<&'a mut V> {
         match self.values.iter().position(|(k, _)| k == key) {
             None => None,
             Some(i) => Some(self.values[i].1.deref_mut()),

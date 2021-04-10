@@ -1,11 +1,12 @@
-use crate::container::{Concurrent, Container, Get, Packed};
+use crate::container::{Container, Get};
 use crate::lock::{RWLock, RWLockGuard};
+use crate::marker::{Concurrent, Packed};
 use crate::utils::clone::CloneCell;
-use std::marker::{PhantomData, Sync};
+use std::marker::Sync;
 
-//---------------------------------------------------------------------------//
-// Concurrent cache                                                          //
-//---------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Concurrent cache                                                       //
+//------------------------------------------------------------------------//
 
 /// Concurrent [`container`](trait.Container.html) wrapper with a lock.
 /// Makes a container thread safe by sequentializing its access.
@@ -14,7 +15,8 @@ use std::marker::{PhantomData, Sync};
 ///
 /// * `K`: The type of key to use.
 /// trait to compute the set index from key.
-/// * `V`: Value type stored in [cache reference](../reference/trait.Reference.html).
+/// * `V`: Value type stored in
+/// [cache reference](../reference/trait.Reference.html).
 /// * `R`: A type of cache [reference](../reference/trait.Reference.html).
 /// * `C`: A type of [Container](trait.Container.html).
 ///
@@ -33,38 +35,26 @@ use std::marker::{PhantomData, Sync};
 /// assert!(c.get(&0u16).is_some());
 /// assert!(c.get(&1u16).is_none());
 ///```
-pub struct Sequential<K, V, C>
-where
-    V: Ord,
-    C: Container<K, V>,
-{
+pub struct Sequential<C> {
     container: CloneCell<C>,
     lock: RWLock,
-    unused_k: PhantomData<K>,
-    unused_v: PhantomData<V>,
 }
 
-impl<K, V, C> Sequential<K, V, C>
-where
-    V: Ord,
-    C: Container<K, V>,
-{
+impl<C> Sequential<C> {
     /// Construct a new concurrent container from a list of containers.
     ///
-    /// The resulting concurrent container will have as many sets as containers in
-    /// input.
+    /// The resulting concurrent container will have as many sets as
+    /// containers in input.
     ///
     /// * `n_sets`: The number of sets for this container.
-    /// * `set_size`: The capacity of each set. Every set of this container have
-    /// the same capacity.
-    /// * `new`: A container constructor closure taking the set size as argument
-    /// to build a container of the same capacity.
+    /// * `set_size`: The capacity of each set. Every set of this
+    /// container have the same capacity.
+    /// * `new`: A container constructor closure taking the set size as
+    /// argument to build a container of the same capacity.
     pub fn new(container: C) -> Self {
         Sequential {
             container: CloneCell::new(container),
             lock: RWLock::new(),
-            unused_k: PhantomData,
-            unused_v: PhantomData,
         }
     }
 
@@ -102,7 +92,7 @@ where
     }
 }
 
-impl<K, V, C> Container<K, V> for Sequential<K, V, C>
+impl<K, V, C> Container<K, V> for Sequential<C>
 where
     V: Ord,
     C: Container<K, V>,
@@ -150,62 +140,43 @@ where
     }
 }
 
-impl<K, V, C> Clone for Sequential<K, V, C>
-where
-    V: Ord,
-    C: Container<K, V>,
-{
+impl<C: Clone> Clone for Sequential<C> {
     fn clone(&self) -> Self {
         Sequential {
             container: self.container.clone(),
             lock: self.lock.clone(),
-            unused_k: PhantomData,
-            unused_v: PhantomData,
         }
     }
 }
 
-impl<K, V, C> Packed<K, V> for Sequential<K, V, C>
+impl<K, V, C> Packed<K, V> for Sequential<C>
 where
     V: Ord,
     C: Container<K, V> + Packed<K, V>,
 {
 }
 
-unsafe impl<K, V, C> Send for Sequential<K, V, C>
+unsafe impl<C> Send for Sequential<C> {}
+
+unsafe impl<C> Sync for Sequential<C> {}
+
+impl<K, V, C> Concurrent<K, V> for Sequential<C>
 where
     V: Ord,
-    C: Container<K, V>,
+    C: Container<K, V> + Clone,
 {
 }
 
-unsafe impl<K, V, C> Sync for Sequential<K, V, C>
+impl<'a, K, V, C, T> Get<'a, K, V> for Sequential<C>
 where
     V: Ord,
-    C: Container<K, V>,
+    C: Container<K, V> + Get<'a, K, V, Item = T>,
 {
-}
-
-impl<K, V, C> Concurrent<K, V> for Sequential<K, V, C>
-where
-    V: Ord,
-    C: Container<K, V> + Get<K, V>,
-{
-    fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
-        let _ = self.lock.lock_mut_for(()).unwrap();
+    type Item = RWLockGuard<'a, T>;
+    fn get(&'a mut self, key: &K) -> Option<RWLockGuard<T>> {
+        self.lock_mut();
         match self.container.get(key) {
             None => None,
-            Some(v) => Some(RWLockGuard::new(&self.lock, v)),
-        }
-    }
-
-    fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>> {
-        self.lock.lock_mut_for(()).unwrap();
-        match self.container.get_mut(key) {
-            None => {
-                self.lock.unlock();
-                None
-            }
             Some(v) => Some(RWLockGuard::new(&self.lock, v)),
         }
     }

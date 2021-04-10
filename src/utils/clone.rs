@@ -1,5 +1,6 @@
-use crate::container::{Concurrent, Container, Get};
-use crate::lock::{RWLock, RWLockGuard};
+use crate::container::{Container, Get};
+use crate::lock::RWLock;
+use crate::marker::Concurrent;
 use std::boxed::Box;
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
@@ -129,9 +130,9 @@ impl<V> DerefMut for CloneCell<V> {
 unsafe impl<V: Send> Send for CloneCell<V> {}
 unsafe impl<V: Sync> Sync for CloneCell<V> {}
 
-//------------------------------------------------------------------------------------//
-//                                 Container implementation                           //
-//------------------------------------------------------------------------------------//
+//-------------------------------------------------------------------------
+//                         Container implementation
+//-------------------------------------------------------------------------
 
 impl<'a, K, V, C> Container<K, V> for CloneCell<C>
 where
@@ -166,34 +167,21 @@ where
     }
 }
 
-impl<'a, K, V, C> Concurrent<K, V> for CloneCell<C>
-where
-    C: Container<K, V> + Concurrent<K, V>,
-{
-    fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
-        unsafe { (*self.ptr).get(key) }
-    }
+impl<K, V, C> Concurrent<K, V> for CloneCell<C> where C: Concurrent<K, V> {}
 
-    fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>> {
-        unsafe { (*self.ptr).get_mut(key) }
+impl<'a, K, V, T, C> Get<'a, K, V> for CloneCell<C>
+where
+    C: Get<'a, K, V, Item = T>,
+{
+    type Item = T;
+    fn get(&'a mut self, key: &K) -> Option<T> {
+        unsafe { (*self.ptr).get(key) }
     }
 }
 
-impl<'a, K, V, C> Get<K, V> for CloneCell<C>
-where
-    C: Container<K, V> + Get<K, V>,
-{
-    fn get(&mut self, key: &K) -> Option<&V> {
-        unsafe { (*self.ptr).get(key) }
-    }
-    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        unsafe { (*self.ptr).get_mut(key) }
-    }
-}
-
-//------------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 // Tests
-//------------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 
 #[cfg(tests)]
 mod tests {

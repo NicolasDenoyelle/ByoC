@@ -102,3 +102,8 @@ pub mod reference;
 /// assert!(*value == 12);
 /// ```
 pub mod container;
+
+/// Marker traits for containers.
+/// Marker traits are traits that combine several traits without
+/// implementing new methods.
+pub mod marker;
