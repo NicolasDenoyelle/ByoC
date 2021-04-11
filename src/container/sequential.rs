@@ -13,11 +13,6 @@ use std::marker::Sync;
 ///
 /// ## Generics:
 ///
-/// * `K`: The type of key to use.
-/// trait to compute the set index from key.
-/// * `V`: Value type stored in
-/// [cache reference](../reference/trait.Reference.html).
-/// * `R`: A type of cache [reference](../reference/trait.Reference.html).
 /// * `C`: A type of [Container](trait.Container.html).
 ///
 /// ## Examples
@@ -41,30 +36,13 @@ pub struct Sequential<C> {
 }
 
 impl<C> Sequential<C> {
-    /// Construct a new concurrent container from a list of containers.
-    ///
-    /// The resulting concurrent container will have as many sets as
-    /// containers in input.
-    ///
-    /// * `n_sets`: The number of sets for this container.
-    /// * `set_size`: The capacity of each set. Every set of this
-    /// container have the same capacity.
-    /// * `new`: A container constructor closure taking the set size as
-    /// argument to build a container of the same capacity.
+    /// Construct a new concurrent container wrapping an existing
+    /// `container`.
     pub fn new(container: C) -> Self {
         Sequential {
             container: CloneCell::new(container),
             lock: RWLock::new(),
         }
-    }
-
-    /// Get access to wrapped container.
-    /// Lock is not acquired.
-    /// Therefore, the use of returned container
-    /// is not thread safe. Management of thread safety
-    /// is left to the carefull user.
-    pub unsafe fn deref(&self) -> &C {
-        &*self.container
     }
 
     /// Get mutable access to wrapped container.
@@ -74,11 +52,6 @@ impl<C> Sequential<C> {
     /// is left to the carefull user.
     pub unsafe fn deref_mut(&mut self) -> &mut C {
         &mut *self.container
-    }
-
-    /// Lock the container for shared access.
-    pub fn lock(&self) {
-        self.lock.lock().unwrap()
     }
 
     /// Lock the container for exclusive access.

@@ -7,24 +7,21 @@ use std::collections::{BTreeMap, BTreeSet};
 // Ordered set of references and key value map.                           //
 //------------------------------------------------------------------------//
 
-/// [`Container`](../trait.Container.html) with ordered keys and [references](../../reference/trait.Reference.html).
+/// [`Container`](../trait.Container.html) with ordered keys and
+/// [references](../../reference/trait.Reference.html).
 ///
 /// BTree is a container organized with binary tree structures.
-/// Cache [references](../reference/trait.Reference.html) are kept in a binary tree
-/// for fast search of
-/// eviction candidates.
+/// Values are kept in a binary tree for fast search of eviction candidates.
 /// A binary tree map <key, value> is also maintained to enable
 /// fast cache lookups.
-/// As a result, insertions, removal, lookup and evictions are O(1).
+/// As a result, insertions, removal, lookup and evictions are O(log(n)).
 /// However, this implementation require to store an additional pointer and
-/// key per [cache reference](../reference/trait.Reference.html).
+/// key per key/value pair.
 ///
 /// ## Generics:
 ///
-/// * `K`: The type of key to use. Keys must implement `Copy` trait and `Ord`
-/// trait to be work with `BTreeMap`.
-/// * `V`: Value type stored in [cache reference](../reference/trait.Reference.html).
-/// * `R`: A type of [cache reference](../reference/trait.Reference.html).
+/// * `K`: The type of key to use.
+/// * `V`: Value type stored.
 ///
 /// ## Examples
 ///
@@ -185,9 +182,10 @@ where
                     assert!(self.set.remove(&(r_last, k_last)));
                     self.map.insert(k_last, i);
                     let (_, reference) = self.references.swap_remove(i);
-                    assert!(self
-                        .set
-                        .insert((OrdPtr::new(&self.references[i].1), k_last)));
+                    assert!(self.set.insert((
+                        OrdPtr::new(&self.references[i].1),
+                        k_last
+                    )));
                     Some(reference)
                 } else {
                     let (_, reference) = self.references.swap_remove(i);
