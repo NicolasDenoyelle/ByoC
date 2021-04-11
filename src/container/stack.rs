@@ -1,26 +1,29 @@
-use crate::container::{Container, Get, Packed};
+use crate::container::{Container, Get};
+use crate::marker::Packed;
 use std::cmp::Eq;
-use std::marker::PhantomData;
 
-//----------------------------------------------------------------------------//
-// Constiner Stack                                                            //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Container Stack                                                        //
+//------------------------------------------------------------------------//
 
-/// [`Container`](../trait.Container.html) wrapper to build multi-level cache.
+/// [`Container`](../trait.Container.html) wrapper to build multi-level
+/// cache.
 ///
 /// Stack container implements a stack of 2 containers.
 /// It is a non-inclusive container, i.e a key cannot be present in multiple
 /// containers of the stack.
 ///
 /// Insertions will be performed at the bottom of the stack.
-/// Pops on insertions are propagated from the bottom to the top of the stack.
+/// Pops on insertions are propagated from the bottom to the top of the
+/// stack.
 ///
-/// Container lookups will look from the bottom to the top of the stack for matches.
+/// Container lookups will look from the bottom to the top of the stack
+/// for matches.
 /// Whenever a match is found, the reference is taken out of the container,
 /// unwrapped and reinserted at the bottom of the container stack.
 ///
-/// `pop()` invocation will search from the top to the bottom of the stack for
-/// an element to evict.
+/// `pop()` invocation will search from the top to the bottom of the stack
+/// for an element to evict.
 ///
 /// ## Examples
 ///
@@ -43,43 +46,24 @@ use std::marker::PhantomData;
 /// let victim = cache.push("third", 2).unwrap();
 /// assert_eq!(victim.0, "second");
 /// ```
-pub struct Stack<K, V, C1, C2>
-where
-    K: Clone + Eq,
-    V: Ord,
-    C1: Container<K, V>,
-    C2: Container<K, V>,
-{
+pub struct Stack<C1, C2> {
     l1: C1,
     l2: C2,
-    unused_k: PhantomData<K>,
-    unused_v: PhantomData<V>,
 }
 
-impl<K, V, C1, C2> Stack<K, V, C1, C2>
-where
-    K: Clone + Eq,
-    V: Ord,
-    C1: Container<K, V>,
-    C2: Container<K, V>,
-{
+impl<C1, C2> Stack<C1, C2> {
     /// Construct a Stack Cache.
     ///
     /// The stack spans from bottom (first element) to top (last) element
     /// of the list of containers provided as input.
     ///
     /// * `containers`: The list of containers composing the stack.
-    pub fn new(l1: C1, l2: C2) -> Stack<K, V, C1, C2> {
-        Stack {
-            l1: l1,
-            l2: l2,
-            unused_k: PhantomData,
-            unused_v: PhantomData,
-        }
+    pub fn new(l1: C1, l2: C2) -> Stack<C1, C2> {
+        Stack { l1: l1, l2: l2 }
     }
 }
 
-impl<K, V, C1, C2> Container<K, V> for Stack<K, V, C1, C2>
+impl<K, V, C1, C2> Container<K, V> for Stack<C1, C2>
 where
     K: Clone + Eq,
     V: Ord,
@@ -121,9 +105,21 @@ where
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
-        match self.l2.pop() {
-            None => self.l1.pop(),
-            Some(r) => Some(r),
+        let x1 = self.l1.pop();
+        let x2 = self.l2.pop();
+        match (x1, x2) {
+            (None, None) => None,
+            (None, Some(x)) => Some(x),
+            (Some(x), None) => Some(x),
+            (Some((k1, v1)), Some((k2, v2))) => {
+                if v1 <= v2 {
+                    assert!(self.l1.push(k1, v1).is_none());
+                    Some((k2, v2))
+                } else {
+                    assert!(self.l2.push(k2, v2).is_none());
+                    Some((k1, v1))
+                }
+            }
         }
     }
 
@@ -146,7 +142,7 @@ where
     }
 }
 
-impl<K, V, C1, C2> Packed<K, V> for Stack<K, V, C1, C2>
+impl<K, V, C1, C2> Packed<K, V> for Stack<C1, C2>
 where
     K: Clone + Eq,
     V: Ord,
@@ -155,38 +151,15 @@ where
 {
 }
 
-impl<K, V, C1, C2> Get<K, V> for Stack<K, V, C1, C2>
+impl<'a, K, V, C1, C2, T> Get<'a, K, V> for Stack<C1, C2>
 where
     K: Clone + Eq,
     V: Ord,
-    C1: Container<K, V> + Get<K, V>,
-    C2: Container<K, V> + Get<K, V>,
+    C1: Container<K, V> + Get<'a, K, V, Item = T>,
+    C2: Container<K, V> + Get<'a, K, V, Item = T>,
 {
-    fn get(&mut self, key: &K) -> Option<&V> {
-        match self.get_mut(key) {
-            None => None,
-            Some(v) => Some(v),
-        }
-    }
-
-    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        if self.l1.contains(key) {
-            self.l1.get_mut(key)
-        } else {
-            match self.l2.take(key) {
-                None => None,
-                Some(r) => match self.l1.push(key.clone(), r) {
-                    None => self.l1.get_mut(key),
-                    Some((k, v2)) => {
-                        assert!(self.l2.push(k.clone(), v2).is_none());
-                        if &k == key {
-                            self.l2.get_mut(key)
-                        } else {
-                            self.l1.get_mut(key)
-                        }
-                    }
-                },
-            }
-        }
+    type Item = T;
+    fn get(&'a mut self, key: &K) -> Option<T> {
+        None
     }
 }

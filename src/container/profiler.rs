@@ -1,11 +1,12 @@
 use crate::container::{Container, Get};
 use crate::marker::Concurrent;
 use crate::utils::{clone::CloneCell, stats::SyncOnlineStats};
+use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-/// [`Container`](../trait.Container.html) wrapper to collect access, misses, hits and
-/// statistics about methods access time.
+/// [`Container`](../trait.Container.html) wrapper to collect access,
+/// misses, hits and statistics about methods access time.
 ///
 /// Recording statistics is thread safe.
 /// If the wrapped container implements the concurrent trait, then
@@ -78,17 +79,21 @@ impl Stats {
     }
 }
 
-pub struct Profiler<C> {
+pub struct Profiler<K, V, C> {
     cache: CloneCell<C>,
     stats: CloneCell<Stats>,
+    unused_k: PhantomData<K>,
+    unused_v: PhantomData<V>,
 }
 
-impl<C> Profiler<C> {
+impl<K, V, C> Profiler<K, V, C> {
     /// Wrap a `cache` into a "cache profiler" cache.
     pub fn new(cache: C) -> Self {
         Profiler {
             cache: CloneCell::new(cache),
             stats: CloneCell::new(Stats::new()),
+            unused_k: PhantomData,
+            unused_v: PhantomData,
         }
     }
 
@@ -172,11 +177,13 @@ impl<C> Profiler<C> {
     }
 }
 
-impl<C: Clone> Clone for Profiler<C> {
+impl<K, V, C: Clone> Clone for Profiler<K, V, C> {
     fn clone(&self) -> Self {
         Profiler {
             cache: self.cache.clone(),
             stats: self.stats.clone(),
+            unused_k: PhantomData,
+            unused_v: PhantomData,
         }
     }
 }
@@ -185,7 +192,7 @@ impl<C: Clone> Clone for Profiler<C> {
 // Display Implementation                                                 //
 //------------------------------------------------------------------------//
 
-impl<C: Container<u32, u32>> std::fmt::Debug for Profiler<C> {
+impl<K, V, C: Container<K, V>> std::fmt::Debug for Profiler<K, V, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -199,7 +206,7 @@ impl<C: Container<u32, u32>> std::fmt::Debug for Profiler<C> {
     }
 }
 
-impl<C: Container<u32, u32>> std::fmt::Display for Profiler<C> {
+impl<K, V, C: Container<K, V>> std::fmt::Display for Profiler<K, V, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "---------------------------------------------------")?;
         write!(f, "Cache profile summary")?;
@@ -266,7 +273,7 @@ impl<C: Container<u32, u32>> std::fmt::Display for Profiler<C> {
 // Container implementation                                               //
 //------------------------------------------------------------------------//
 
-impl<K, V, C> Container<K, V> for Profiler<C>
+impl<K, V, C> Container<K, V> for Profiler<K, V, C>
 where
     C: Container<K, V>,
 {
@@ -354,7 +361,7 @@ where
 // Get Trait                                                              //
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, C, T> Get<'a, K, V> for Profiler<C>
+impl<'a, K, V, C, T> Get<'a, K, V> for Profiler<K, V, C>
 where
     C: Get<'a, K, V, Item = T>,
 {
@@ -384,8 +391,8 @@ where
 // Concurrent trait                                                       //
 //------------------------------------------------------------------------//
 
-unsafe impl<C: Send> Send for Profiler<C> {}
+unsafe impl<K, V, C: Send> Send for Profiler<K, V, C> {}
 
-unsafe impl<C: Sync> Sync for Profiler<C> {}
+unsafe impl<K, V, C: Sync> Sync for Profiler<K, V, C> {}
 
-impl<K, V, C: Concurrent<K, V>> Concurrent<K, V> for Profiler<C> {}
+impl<K, V, C: Concurrent<K, V>> Concurrent<K, V> for Profiler<K, V, C> {}

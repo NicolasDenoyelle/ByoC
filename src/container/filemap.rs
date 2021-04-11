@@ -269,6 +269,7 @@ where
     fn count(&self) -> usize {
         let mut count = 0usize;
         let mut file = self.file.try_clone().unwrap();
+        file.flush().unwrap();
         file.seek(SeekFrom::Start(0)).unwrap();
         loop {
             match FileMapElement::<K, V>::read(&mut file) {
@@ -283,6 +284,7 @@ where
     }
 
     fn contains(&self, key: &K) -> bool {
+        self.file.try_clone().unwrap().flush().unwrap();
         match self.get::<K, V>(key) {
             None => false,
             Some(_) => true,
@@ -486,6 +488,21 @@ where
 // Get trait
 //------------------------------------------------------------------------//
 
+/// Struct returned from calling [`get()`](trait.Get.html#tymethod.get)
+/// method with a [`FileMap`](struct.FileMap.html) container.
+///
+/// `FileMapValue` struct implements `Deref` and `DerefMut` traits to
+/// access reference to the value it wraps.
+/// The value it wraps originate from a [`FileMap`](struct.FileMap.html)
+/// container. This value is expected to be a cache
+/// [reference](../reference/trait.Reference.html). References implement
+/// interior mutability such that when they are dereferenced to access their
+/// inner value, they can update their metadata about accesses.
+/// Hence, values wrapped in this struct are expected to be updated.
+/// Therefore, they need to be written back to the file when they cease
+/// to be used to commit their metadata update.
+/// As a consequence, when this structure is dropped, it is writes back
+/// its content to the FileMap.
 pub struct FileMapValue<K, V>
 where
     K: Sized,
