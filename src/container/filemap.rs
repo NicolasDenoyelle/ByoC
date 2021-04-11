@@ -1,11 +1,11 @@
-use crate::container::{Container, Packed};
+use crate::container::{Container, Get};
+use crate::marker::Packed;
 use std::{
     cmp::Eq,
     fs::{remove_file, File, OpenOptions},
     io::{Read, Result, Seek, SeekFrom, Write},
-    marker::PhantomData,
     mem::{size_of, MaybeUninit},
-    ops::Drop,
+    ops::{Deref, DerefMut, Drop},
     path::PathBuf,
     slice,
     string::String,
@@ -31,6 +31,10 @@ where
     K: Sized,
     V: Sized,
 {
+    pub fn size() -> usize {
+        size_of::<FileMapElement<K, V>>()
+    }
+
     /// Create a new valid initialized element.
     fn new(key: K, value: V) -> Self {
         FileMapElement {
@@ -94,16 +98,39 @@ where
     }
 
     /// Write initialized FileMapElement to file.
-    pub fn write(self, f: &mut File) -> Result<usize> {
+    pub fn write(&self, f: &mut File) -> Result<usize> {
         // SAFETY: slice representation is safe because self is
         // initialized.
         let s = unsafe {
             slice::from_raw_parts(
-                &self as *const _ as *const u8,
+                self as *const _ as *const u8,
                 size_of::<Self>(),
             )
         };
         f.write(s)
+    }
+
+    pub fn write_kv(
+        f: &mut File,
+        key: &mut K,
+        value: &mut V,
+    ) -> Result<usize> {
+        let uninit = MaybeUninit::<FileMapElement<K, V>>::uninit();
+        // SAFETY: Initialization below
+        let mut init = unsafe { uninit.assume_init() };
+        init.set = true;
+        unsafe {
+            std::mem::swap(&mut init.key, key);
+            std::mem::swap(&mut init.value, value);
+        };
+        let out = (&init).write(f);
+
+        // Restore input.
+        unsafe {
+            std::mem::swap(&mut init.key, key);
+            std::mem::swap(&mut init.value, value);
+        };
+        out
     }
 }
 
@@ -144,23 +171,13 @@ where
 /// assert!(container.push(1usize, 1usize).is_none());
 /// assert!(container.push(2usize, 2usize).unwrap().1 == 1usize);
 /// ```
-pub struct FileMap<K, V>
-where
-    K: Sized + Eq,
-    V: Sized + Ord,
-{
+pub struct FileMap {
     file: File,
     persistant: Option<String>,
     capacity: usize,
-    unused_k: PhantomData<K>,
-    unused_v: PhantomData<V>,
 }
 
-impl<K, V> Drop for FileMap<K, V>
-where
-    K: Sized + Eq,
-    V: Sized + Ord,
-{
+impl Drop for FileMap {
     fn drop(&mut self) {
         match &self.persistant {
             Some(filename) => {
@@ -171,13 +188,7 @@ where
     }
 }
 
-impl<K, V> FileMap<K, V>
-where
-    K: Sized + Eq,
-    V: Sized + Ord,
-{
-    const ELEMENT_SIZE: usize = size_of::<FileMapElement<K, V>>();
-
+impl FileMap {
     /// Invalidate one FileMapElement in a FileMap file.
     fn zero(file: &mut File) -> Result<usize> {
         let s: u8 = 0;
@@ -188,7 +199,7 @@ where
     /// and look for key `key`. If the key is found, the function return
     /// owned value matching to the first found `key`. If no `key` is found
     /// this function returns `None`.
-    pub fn get(&self, key: &K) -> Option<V> {
+    pub fn get<K: Sized + Eq, V: Sized>(&self, key: &K) -> Option<V> {
         let mut f = self.file.try_clone().unwrap();
         f.seek(SeekFrom::Start(0)).unwrap();
         loop {
@@ -236,94 +247,17 @@ where
                 } else {
                     None
                 },
-                unused_k: PhantomData,
-                unused_v: PhantomData,
             }),
             Err(e) => Err(e),
         }
     }
 }
 
-//----------------------------------------------------------------------------//
-// Iterator of FileMap elements.
-//----------------------------------------------------------------------------//
-
-pub struct FileMapIterator<K, V>
-where
-    K: Sized + Eq,
-    V: Sized + Ord,
-{
-    file: File,
-    unused_k: PhantomData<K>,
-    unused_v: PhantomData<V>,
-}
-
-impl<K, V> FileMapIterator<K, V>
-where
-    K: Sized + Eq,
-    V: Sized + Ord,
-{
-    pub fn new(mut f: File) -> Result<Self> {
-        f.seek(SeekFrom::Start(0))?;
-        Ok(FileMapIterator {
-            file: f,
-            unused_k: PhantomData,
-            unused_v: PhantomData,
-        })
-    }
-}
-
-impl<K, V> Iterator for FileMapIterator<K, V>
-where
-    K: Sized + Eq,
-    V: Sized + Ord,
-{
-    type Item = (K, V);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match FileMapElement::<K, V>::read(&mut self.file) {
-                Err(_) => break None,
-                Ok(Some(e)) => break Some(e.into_kv()),
-                Ok(None) => (),
-            }
-        }
-    }
-}
-
-impl<'a, K, V> IntoIterator for &'a FileMap<K, V>
-where
-    K: Sized + Eq,
-    V: Sized + Ord,
-{
-    type Item = (K, V);
-    type IntoIter = FileMapIterator<K, V>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let f = self.file.try_clone().unwrap();
-        FileMapIterator::<K, V>::new(f).unwrap()
-    }
-}
-
-impl<'a, K, V> IntoIterator for &'a mut FileMap<K, V>
-where
-    K: Sized + Eq,
-    V: Sized + Ord,
-{
-    type Item = (K, V);
-    type IntoIter = FileMapIterator<K, V>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        let f = self.file.try_clone().unwrap();
-        FileMapIterator::<K, V>::new(f).unwrap()
-    }
-}
-
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
 // Container impl
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
 
-impl<K, V> Container<K, V> for FileMap<K, V>
+impl<K, V> Container<K, V> for FileMap
 where
     K: Sized + Eq,
     V: Sized + Ord,
@@ -333,11 +267,23 @@ where
     }
 
     fn count(&self) -> usize {
-        self.into_iter().count()
+        let mut count = 0usize;
+        let mut file = self.file.try_clone().unwrap();
+        file.seek(SeekFrom::Start(0)).unwrap();
+        loop {
+            match FileMapElement::<K, V>::read(&mut file) {
+                Err(_) => break,
+                Ok(None) => (),
+                Ok(Some(_)) => {
+                    count += 1;
+                }
+            }
+        }
+        count
     }
 
     fn contains(&self, key: &K) -> bool {
-        match self.get(key) {
+        match self.get::<K, V>(key) {
             None => false,
             Some(_) => true,
         }
@@ -368,10 +314,11 @@ where
                     if &k == key {
                         self.file
                             .seek(SeekFrom::Current(
-                                -1 * (FileMap::<K, V>::ELEMENT_SIZE as i64),
+                                -1 * (FileMapElement::<K, V>::size()
+                                    as i64),
                             ))
                             .unwrap();
-                        FileMap::<K, V>::zero(&mut self.file).unwrap();
+                        FileMap::zero(&mut self.file).unwrap();
                         break Some(v);
                     }
                 }
@@ -390,28 +337,30 @@ where
         let file_size = self.file.metadata().unwrap().len();
         let mut victim: Option<(u64, (K, V))> = None;
 
-        for off in (0..file_size).step_by(FileMap::<K, V>::ELEMENT_SIZE) {
-            victim =
-                match (&victim, FileMapElement::<K, V>::read(&mut self.file)) {
-                    (_, Err(_)) => victim,
-                    (_, Ok(None)) => victim,
-                    (None, Ok(Some(e))) => Some((off, e.into_kv())),
-                    (Some((_, (_, rv))), Ok(Some(e))) => {
-                        let (k, r) = e.into_kv();
-                        if rv < &r {
-                            Some((off, (k, r)))
-                        } else {
-                            victim
-                        }
+        for off in (0..file_size).step_by(FileMapElement::<K, V>::size()) {
+            victim = match (
+                &victim,
+                FileMapElement::<K, V>::read(&mut self.file),
+            ) {
+                (_, Err(_)) => victim,
+                (_, Ok(None)) => victim,
+                (None, Ok(Some(e))) => Some((off, e.into_kv())),
+                (Some((_, (_, rv))), Ok(Some(e))) => {
+                    let (k, r) = e.into_kv();
+                    if rv < &r {
+                        Some((off, (k, r)))
+                    } else {
+                        victim
                     }
                 }
+            }
         }
 
         match victim {
             None => None,
             Some((off, (k, r))) => {
                 self.file.seek(SeekFrom::Start(off)).unwrap();
-                FileMap::<K, V>::zero(&mut self.file).unwrap();
+                FileMap::zero(&mut self.file).unwrap();
                 Some((k, r))
             }
         }
@@ -424,7 +373,7 @@ where
 
         let file_size = self.file.metadata().unwrap().len();
         let max_size =
-            self.capacity as u64 * (FileMap::<K, V>::ELEMENT_SIZE) as u64;
+            self.capacity as u64 * (FileMapElement::<K, V>::size()) as u64;
 
         // Find a victim to evict: Either an element with the same key
         // or the minimum element.
@@ -438,7 +387,7 @@ where
         // Everything is done in one pass.
         self.file.flush().unwrap();
         self.file.seek(SeekFrom::Start(0)).unwrap();
-        for off in (0..file_size).step_by(FileMap::<K, V>::ELEMENT_SIZE) {
+        for off in (0..file_size).step_by(FileMapElement::<K, V>::size()) {
             match FileMapElement::<K, V>::read(&mut self.file) {
                 // We can't look further in the file.
                 Err(_) => break,
@@ -482,14 +431,14 @@ where
             (None, None) => {
                 let e = FileMapElement::new(key, reference);
                 self.file.seek(SeekFrom::End(0)).unwrap();
-                e.write(&mut self.file).unwrap();
+                (&e).write(&mut self.file).unwrap();
                 None
             }
             // No victim but a spot, then insert in the spot.
             (None, Some(offset)) => {
                 let e = FileMapElement::new(key, reference);
                 self.file.seek(SeekFrom::Start(offset)).unwrap();
-                e.write(&mut self.file).unwrap();
+                (&e).write(&mut self.file).unwrap();
                 None
             }
             // A victim and a spot! If the victim has the same key then
@@ -498,12 +447,12 @@ where
                 if k == key {
                     let e = FileMapElement::new(key, reference);
                     self.file.seek(SeekFrom::Start(off)).unwrap();
-                    e.write(&mut self.file).unwrap();
+                    (&e).write(&mut self.file).unwrap();
                     Some((k, v))
                 } else {
                     let e = FileMapElement::new(key, reference);
                     self.file.seek(SeekFrom::Start(offset)).unwrap();
-                    e.write(&mut self.file).unwrap();
+                    (&e).write(&mut self.file).unwrap();
                     None
                 }
             }
@@ -514,11 +463,11 @@ where
                 let e = FileMapElement::new(key, reference);
                 if file_size >= max_size {
                     self.file.seek(SeekFrom::Start(off)).unwrap();
-                    e.write(&mut self.file).unwrap();
+                    (&e).write(&mut self.file).unwrap();
                     Some((k, v))
                 } else {
                     self.file.seek(SeekFrom::End(0)).unwrap();
-                    e.write(&mut self.file).unwrap();
+                    (&e).write(&mut self.file).unwrap();
                     None
                 }
             }
@@ -526,16 +475,96 @@ where
     }
 }
 
-impl<K, V> Packed<K, V> for FileMap<K, V>
+impl<K, V> Packed<K, V> for FileMap
 where
     K: Sized + Eq,
     V: Sized + Ord,
 {
 }
 
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Get trait
+//------------------------------------------------------------------------//
+
+pub struct FileMapValue<K, V>
+where
+    K: Sized,
+    V: Sized,
+{
+    file: File,
+    offset: u64,
+    key: K,
+    value: V,
+}
+
+impl<K: Sized, V: Sized> FileMapValue<K, V> {
+    fn new(file_handle: &File, offset: u64, key: K, value: V) -> Self {
+        FileMapValue {
+            file: file_handle.try_clone().unwrap(),
+            offset: offset,
+            key: key,
+            value: value,
+        }
+    }
+}
+
+impl<K: Sized, V: Sized> Deref for FileMapValue<K, V> {
+    type Target = V;
+    fn deref(&self) -> &Self::Target {
+        &self.value
+    }
+}
+
+impl<K: Sized, V: Sized> DerefMut for FileMapValue<K, V> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value
+    }
+}
+
+impl<K, V> Drop for FileMapValue<K, V> {
+    fn drop(&mut self) {
+        self.file.seek(SeekFrom::Start(self.offset)).unwrap();
+        FileMapElement::<K, V>::write_kv(
+            &mut self.file,
+            &mut self.key,
+            &mut self.value,
+        )
+        .unwrap();
+    }
+}
+
+impl<'a, K, V> Get<'a, K, V> for FileMap
+where
+    K: Sized + Eq,
+    V: Sized + Ord,
+{
+    type Item = FileMapValue<K, V>;
+    fn get(&'a mut self, key: &K) -> Option<Self::Item> {
+        self.file.flush().unwrap();
+        self.file.seek(SeekFrom::Start(0)).unwrap();
+
+        let file_size = self.file.metadata().unwrap().len();
+        for off in (0..file_size).step_by(FileMapElement::<K, V>::size()) {
+            match FileMapElement::<K, V>::read(&mut self.file) {
+                Err(_) => return None,
+                Ok(None) => (),
+                Ok(Some(e)) => {
+                    let (k, v) = e.into_kv();
+                    if &k == key {
+                        return Some(FileMapValue::<K, V>::new(
+                            &self.file, off, k, v,
+                        ));
+                    }
+                }
+            }
+        }
+        None
+    }
+}
+
+//------------------------------------------------------------------------//
 // Tests
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
 
 #[cfg(test)]
 mod tests {
@@ -574,7 +603,9 @@ mod tests {
         file.seek(SeekFrom::Start(0)).unwrap();
 
         (0..16)
-            .map(|i| (i, FileMapElement::<usize, usize>::read(file).unwrap()))
+            .map(|i| {
+                (i, FileMapElement::<usize, usize>::read(file).unwrap())
+            })
             .collect()
     }
 
@@ -594,7 +625,8 @@ mod tests {
     #[test]
     fn test_filemap() {
         let mut fm = unsafe {
-            FileMap::<usize, usize>::new("test_filemap", 10, false).unwrap()
+            FileMap::<usize, usize>::new("test_filemap", 10, false)
+                .unwrap()
         };
         // Push test
         for i in (0usize..10usize).rev() {
@@ -608,18 +640,6 @@ mod tests {
         }
         let i = 9usize;
         assert!(!fm.contains(&i));
-
-        // Iteration test
-        let mut it = fm.into_iter();
-        for i in (0usize..9usize).rev() {
-            match it.next() {
-                None => panic!("Premature end of iteration"),
-                Some((k, _)) => {
-                    assert_eq!(k, i);
-                }
-            }
-        }
-        assert!(it.next().is_none());
 
         // Test pop on push when full.
         assert!(fm.push(9usize, 9usize).is_none());
