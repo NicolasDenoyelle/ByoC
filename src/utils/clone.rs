@@ -172,6 +172,7 @@ impl<K, V, C> Concurrent<K, V> for CloneCell<C> where C: Concurrent<K, V> {}
 impl<'a, K, V, T, C> Get<'a, K, V> for CloneCell<C>
 where
     C: Get<'a, K, V, Item = T>,
+    T: 'a,
 {
     type Item = T;
     fn get(&'a mut self, key: &K) -> Option<T> {

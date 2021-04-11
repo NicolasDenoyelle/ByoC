@@ -156,10 +156,44 @@ where
     K: Clone + Eq,
     V: Ord,
     C1: Container<K, V> + Get<'a, K, V, Item = T>,
-    C2: Container<K, V> + Get<'a, K, V, Item = T>,
+    C2: Container<K, V>,
+    T: 'a,
 {
     type Item = T;
     fn get(&'a mut self, key: &K) -> Option<T> {
-        None
+        // Start with first container
+        if let Some(v1) = self.l1.get(key) {
+            // Found! Stop here.
+            return Some(v1);
+        }
+
+        // Not Found. Find in l2 and move to l1.
+        match self.l2.take(key) {
+            // Not Found. Stop here.
+            None => None,
+            // Found!
+            Some(v2) => {
+                // Make some room in l1
+                match self.l1.pop() {
+                    // We made room in l1. Push result to l2.
+                    Some((k1, v1)) => {
+                        assert!(self.l2.push(k1, v1).is_none());
+                    }
+                    // l1 was empty already.
+                    None => (),
+                }
+                // Push found value into l1 inorder to invoke get.
+                match self.l1.push(key.clone(), v2) {
+                    // Worked, return get method result.
+                    None => self.l1.get(key),
+                    // l1 cannot store elements at all.
+                    // We put element back in l2.
+                    Some((k2, v2)) => {
+                        assert!(self.l2.push(k2, v2).is_none());
+                        None
+                    }
+                }
+            }
+        }
     }
 }

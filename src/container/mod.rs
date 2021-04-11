@@ -4,7 +4,7 @@ use std::vec::Vec;
 ///
 /// ## Generics:
 ///
-/// * `K`: Is the key type, used for cache lookups. Key must be orderable.
+/// * `K`: Is the key type, used for cache lookups.
 /// * `V`: Value to insert in container.
 pub trait Container<K, V> {
     /// Get the number of elements fitting in the container.
@@ -16,32 +16,32 @@ pub trait Container<K, V> {
     /// Check if container contains a key.
     fn contains(&self, key: &K) -> bool;
 
-    /// Get a reference out of the container.
+    /// Get a value out of the container.
     ///
-    /// * `key`: The key associated with the reference to take.    
+    /// * `key`: The key associated with the value to take.
     fn take(&mut self, key: &K) -> Option<V>;
 
-    /// Remove next reference from the container.
+    /// Remove a value from the container.
     /// If cache is empty, return None.
-    /// Else give ownership to the next reference to evict.
+    /// Else evict and return a victim key/value pair.
     fn pop(&mut self) -> Option<(K, V)>;
 
-    /// Remove all references from the container.
+    /// Remove all values from the container.
     fn clear(&mut self) {
         while self.pop().is_some() {}
     }
 
-    /// Insert a reference in the container.
-    /// Ownership on reference is taken.
-    /// If a reference with the same key is present,
+    /// Insert a value in the container.
+    /// Ownership on value is taken.
+    /// If a value with the same key is present,
     /// it is returned after replacing it with the new
-    /// reference.
-    /// If the container is full, then the new reference is inserted
-    /// and an evicted reference is returned.
+    /// value.
+    /// If the container is full, then the new value is inserted
+    /// and an evicted value is returned.
     /// If none of these cases is encountered, None is returned.
     ///
-    /// * `key`: The key associated with the reference to insert.
-    /// * `reference`: The cache reference to insert.
+    /// * `key`: The key associated with the value to insert.
+    /// * `value`: The cache value to insert.
     fn push(&mut self, key: K, value: V) -> Option<(K, V)>;
 
     /// Empty the container and retrieve all elements inside a vector.
@@ -56,23 +56,24 @@ pub trait Container<K, V> {
     }
 }
 
-/// `get()` and `get_mut()` methods for [containers](trait.Container.html).
+/// `get()` method for [containers](trait.Container.html).
 ///
-/// `get()` and `get_mut()` methods apply to a mutable container reference.
-/// Accessing a cache element even read-only, mutates the reference
-/// metadata. For instance,
-/// [LRFU](../reference/struct.LRFU.html) references require to keep track
-/// of the number and [timestamp](../timestamp/trait.Timestamp.html) of
-/// accesses. Updates to container references may also mutate the container.
-/// For instance [BTree](struct.BTree.html) container maintains a sorted
-/// tree of references. When a reference is accessed, references order may
-/// change and thus the container is mutated.
+/// This method looks into the container for a matching key.
+/// If key is found, then an item with the same lifetime as the container
+/// is returned. This item is intended to hold either a reference or a
+/// smart pointer (e.g [cache reference](../reference/trait.Reference.html)
+/// or [lock guard](../struct.RWLockGuard.html)) to the matching
+/// value inside the container.
+/// The accessed container needs to be mutable for several reasons:
+/// 1. Because cache references implement interior mutability and update
+/// their metadata when they are dereferenced.
+/// 2. A returned smart pointer may allow to access a mutable reference
+/// to its content.
 pub trait Get<'a, K, V>: Container<K, V> {
-    type Item;
-    /// Get read-only reference to the content of a cache
-    /// [reference](../reference/trait.Reference.html) in the container.
+    type Item: 'a;
+    /// Get an item with matching key from cache.
     /// If not found, None is returned.
-    /// * `key`: The key value used for searching a reference.
+    /// * `key`: The key value used for searching a value.
     fn get(&'a mut self, key: &K) -> Option<Self::Item>;
 }
 

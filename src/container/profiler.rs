@@ -364,6 +364,7 @@ where
 impl<'a, K, V, C, T> Get<'a, K, V> for Profiler<K, V, C>
 where
     C: Get<'a, K, V, Item = T>,
+    T: 'a,
 {
     type Item = T;
     fn get(&'a mut self, key: &K) -> Option<T> {

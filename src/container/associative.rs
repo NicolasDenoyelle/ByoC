@@ -234,6 +234,7 @@ where
     V: Ord,
     C: Container<K, V> + Get<'a, K, V, Item = T>,
     H: Hasher + Clone,
+    T: 'a,
 {
     type Item = RWLockGuard<'a, T>;
     fn get(&'a mut self, key: &K) -> Option<Self::Item> {

@@ -171,6 +171,7 @@ impl<'a, K, V, C, T> Get<'a, K, V> for Sequential<C>
 where
     V: Ord,
     C: Container<K, V> + Get<'a, K, V, Item = T>,
+    T: 'a,
 {
     type Item = RWLockGuard<'a, T>;
     fn get(&'a mut self, key: &K) -> Option<RWLockGuard<T>> {

@@ -1,6 +1,5 @@
 use crate::container::{Container, Get};
 use crate::marker::Packed;
-use crate::reference::Reference;
 use std::cmp::Eq;
 use std::vec::Vec;
 
@@ -8,10 +7,9 @@ use std::vec::Vec;
 //  Vector struct
 //-------------------------------------------------------------------------
 
-/// [`Container`](trait.Container.html) with unordered
-/// [references](../../reference/trait.Reference.html) and keys.
+/// Unordered [`container`](trait.Container.html).
 ///
-/// Vector holds references in a `Vec<(index, value)>`.
+/// Vector holds values in a `Vec<(index, value)>`.
 /// It is an unordered container.
 /// Any operation on vector (`push()`, `pop()`, `get()`, `take()`) is O(n).
 /// `push()`, `get()`, `get_mut()`, `take()` require to find a matching key
@@ -20,10 +18,8 @@ use std::vec::Vec;
 ///
 /// ## Generics
 ///
-/// * `K`: The type of key to use. Keys must implement `Ord`
-/// trait to be searched in the container.
-/// * `V`: Value type stored in [cache reference](../../reference/trait.Reference.html).
-/// * `R`: An orderable cache reference.
+/// * `K`: The type of key to use for container lookups.
+/// * `V`: Value type stored.
 ///
 /// ## Examples
 ///
@@ -44,48 +40,43 @@ use std::vec::Vec;
 /// assert!(key == "second");
 /// assert!(*value == 12);
 /// ```
-pub struct Vector<K, V, R>
+pub struct Vector<K, V>
 where
     K: Eq,
-    R: Reference<V>,
+    V: Ord,
 {
-    wrap_ref: Box<dyn Fn(V) -> R>,
     capacity: usize,
-    values: Vec<(K, R)>,
+    values: Vec<(K, V)>,
 }
 
-impl<K, V, R> Vector<K, V, R>
+impl<K, V> Vector<K, V>
 where
     K: Eq,
-    R: Reference<V>,
+    V: Ord,
 {
-    pub fn new(n: usize, wrap_ref: Box<dyn Fn(V) -> R>) -> Self {
+    pub fn new(n: usize) -> Self {
         Vector {
-            wrap_ref: wrap_ref,
             capacity: n,
             values: Vec::with_capacity(n + 1),
         }
     }
 }
 
-//----------------------------------------------------------------------------//
-//  Container implementation.                                                 //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+//  Container implementation.                                             //
+//------------------------------------------------------------------------//
 
-impl<K, V, R> Container<K, V> for Vector<K, V, R>
+impl<K, V> Container<K, V> for Vector<K, V>
 where
     K: Eq,
-    R: Reference<V>,
+    V: Ord,
 {
     fn capacity(&self) -> usize {
         return self.capacity;
     }
 
     fn flush(&mut self) -> Vec<(K, V)> {
-        self.values
-            .drain(..)
-            .map(|(k, r)| (k, r.unwrap()))
-            .collect()
+        self.values.drain(..).collect()
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -111,7 +102,7 @@ where
             }
         }
         let (k, r) = self.values.swap_remove(v);
-        Some((k, r.unwrap()))
+        Some((k, r))
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
@@ -121,7 +112,7 @@ where
 
         match self.values.iter().position(|(k, _)| k == &key) {
             None => {
-                self.values.push((key, (self.wrap_ref)(reference)));
+                self.values.push((key, reference));
                 if self.values.len() > self.capacity {
                     self.pop()
                 } else {
@@ -129,9 +120,9 @@ where
                 }
             }
             Some(i) => {
-                self.values.push((key, (self.wrap_ref)(reference)));
+                self.values.push((key, reference));
                 let (k, r) = self.values.swap_remove(i);
-                Some((k, r.unwrap()))
+                Some((k, r))
             }
         }
     }
@@ -139,29 +130,28 @@ where
     fn take(&mut self, key: &K) -> Option<V> {
         match self.values.iter().position(|(k, _)| k == key) {
             None => None,
-            Some(i) => Some(self.values.swap_remove(i).1.unwrap()),
+            Some(i) => Some(self.values.swap_remove(i).1),
         }
     }
 }
 
-impl<'a, K, V, R> Get<'a, K, V> for Vector<K, V, R>
+impl<'a, K, V> Get<'a, K, V> for Vector<K, V>
 where
     K: Eq,
-    V: 'a,
-    R: Reference<V>,
+    V: 'a + Ord,
 {
     type Item = &'a mut V;
     fn get(&'a mut self, key: &K) -> Option<&'a mut V> {
         match self.values.iter().position(|(k, _)| k == key) {
             None => None,
-            Some(i) => Some(self.values[i].1.deref_mut()),
+            Some(i) => Some(&mut self.values[i].1),
         }
     }
 }
 
-impl<K, V, R> Packed<K, V> for Vector<K, V, R>
+impl<K, V> Packed<K, V> for Vector<K, V>
 where
     K: Eq,
-    R: Reference<V>,
+    V: Ord,
 {
 }

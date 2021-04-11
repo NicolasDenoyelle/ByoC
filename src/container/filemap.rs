@@ -552,8 +552,8 @@ impl<K, V> Drop for FileMapValue<K, V> {
 
 impl<'a, K, V> Get<'a, K, V> for FileMap
 where
-    K: Sized + Eq,
-    V: Sized + Ord,
+    K: Sized + Eq + 'a,
+    V: Sized + Ord + 'a,
 {
     type Item = FileMapValue<K, V>;
     fn get(&'a mut self, key: &K) -> Option<Self::Item> {
