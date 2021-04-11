@@ -21,33 +21,32 @@ use std::time::Instant;
 /// # Examples
 ///
 /// ```
-/// use cache::container::{Container, Get, Map, Profiler};
-/// use cache::reference::Default;
+/// use cache::container::{Container, Get, Vector, Profiler};
 ///
 /// // Build a cache:
-/// let map = Map::<_,Default<_>>::new(2);
+/// let c = Vector::new(1);
 ///
 /// // Wrap it into a profiler.
-/// let mut p = &mut Profiler::new(map);
+/// let mut c = Profiler::new(c);
 ///
 /// // Populate Container
-/// p.push("first", 0);
-/// p.push("second", 1);
+/// c.push("first", 0);
+/// c.push("second", 1);
 ///
 /// // look at statistics
-/// assert_eq!(p.access(), 2);
-/// assert_eq!(p.hit(), 0);
-/// assert_eq!(p.miss(), 2);
+/// assert_eq!(c.access(), 2);
+/// assert_eq!(c.hit(), 0);
+/// assert_eq!(c.miss(), 2);
 ///
 /// // Do some access
-/// assert!(p.get(&"third").is_none());
-/// assert_eq!(p.access(), 3);
-/// assert_eq!((&p).hit(), 0);
-/// assert_eq!((&p).miss(), 3);
-/// assert!((&mut p).get(&"first").is_some());
-/// assert_eq!((&p).access(), 4);
-/// assert_eq!((&p).hit(), 1);
-/// assert_eq!((&p).miss(), 3);
+/// assert!(c.get(&"third").is_none());
+/// assert_eq!(c.access(), 3);
+/// assert_eq!((&c).hit(), 0);
+/// assert_eq!((&c).miss(), 3);
+/// assert!((&mut c).get(&"first").is_some());
+/// assert_eq!((&c).access(), 4);
+/// assert_eq!((&c).hit(), 1);
+/// assert_eq!((&c).miss(), 3);
 ///
 /// // pretty print statistics.
 /// println!("{}", p);

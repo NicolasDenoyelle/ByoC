@@ -13,50 +13,38 @@ use std::marker::Sync;
 /// multiple sets.
 ///
 /// Associative container is an array of containers. Whenever an element
-/// is to be insered/looked up, the key is hashed (`key.into() % n_sets`)
-/// to choose the set where container
-/// [reference](../../reference/trait.Reference.html) will be stored.
+/// is to be insered/looked up, the key is hashed to choose the set where
+/// container key/value pair will be stored.
 /// On insertion, if the target set is full, an element is popped from the
-/// same set.
+/// same set. Therefore, the container may pop while not being fulled.
 ///
-/// When invoking `pop()` to evict a container
-/// [reference](../reference/trait.Reference.html), `pop()` on all sets.
-/// A victim is elected then all elements that are not elected are
-/// reinserted inside the container.
-///
-/// When invoking `push()`, only the container matching the key is
-/// affected and only this container may `pop()` a value.
+/// When invoking `pop()` to evict a container element `pop()` is called
+/// on all sets. A victim is elected then all elements that are not elected
+/// are reinserted inside the container.
 ///
 /// ## Generics:
 ///
-/// * `K`: The type of key to use. Keys must implement `Clone` trait and
-/// `Hash` trait to compute the set index from key.
-/// * `V`: Value type stored in
-/// [container reference](../../reference/trait.Reference.html).
-/// * `R`: A type of container
-/// [reference](../../reference/trait.Reference.html).
-/// * `C`: A type of [Container](../trait.Container.html).
+/// * `H`: The hasher type to hash keys.
 ///
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Map, Associative};
+/// use cache::container::{Container, Vector, Associative};
 /// use std::collections::hash_map::DefaultHasher;
-/// use cache::reference::Default;
 ///
-/// // Build a Map cache of 2 sets. Each set hold one element.
-/// let mut c = Associative::<_,Default<_>,_,_>::new(2, 2, |n|{Map::new(n)}, DefaultHasher::new());
+/// // Build a Vector cache of 2 sets. Each set hold one element.
+/// let mut c = Associative::new(2, 2, |n|{Vector::new(n)}, DefaultHasher::new());
 ///
 /// // Container as room for first and second element and returns None.
-/// assert!(c.push(0u16, 4).is_none());
-/// assert!(c.push(1u16, 12).is_none());
+/// assert!(c.push(0, 4).is_none());
+/// assert!(c.push(1, 12).is_none());
 ///
 /// // Then we don't know if a set is full. Next insertion may pop:
-/// match c.push(2u16, 14) {
+/// match c.push(2, 14) {
 ///       None => { println!("Still room for one more"); }
 ///       Some((key, value)) => {
-///             assert!(key == 2u16);
-///             assert!(*value == 14);
+///             assert!(key == 1);
+///             assert!(value == 12);
 ///       }
 /// }
 ///```

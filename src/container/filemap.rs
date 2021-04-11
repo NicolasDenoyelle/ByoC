@@ -167,9 +167,9 @@ where
 /// let mut container = unsafe {
 ///     FileMap::new("example_filemap", 2, false).unwrap()
 /// };
-/// assert!(container.push(0usize, 0usize).is_none());
-/// assert!(container.push(1usize, 1usize).is_none());
-/// assert!(container.push(2usize, 2usize).unwrap().1 == 1usize);
+/// assert!(container.push(0, 0).is_none());
+/// assert!(container.push(1, 1).is_none());
+/// assert!(container.push(2, 2).unwrap().1 == 1);
 /// ```
 pub struct FileMap {
     file: File,

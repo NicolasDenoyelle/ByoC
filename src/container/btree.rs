@@ -27,20 +27,19 @@ use std::collections::{BTreeMap, BTreeSet};
 ///
 /// ```
 /// use cache::container::{Container, BTree};
-/// use cache::reference::{Reference, Default};
 ///
 /// // container with only 1 element.
 /// let mut c = BTree::new(1);
 ///
 /// // Container as room for first element and returns None.
-/// assert!(c.push("first", Default::new(4u32)).is_none());
+/// assert!(c.push("first", 4).is_none());
 ///
 /// // Container is full and pops a victim.
-/// let (key, value) = c.push("second", Default::new(12u32)).unwrap();
+/// let (key, value) = c.push("second", 12).unwrap();
 ///
 /// // The victim is the second reference because its value is greater.
 /// assert!(key == "second");
-/// assert!(*value == 12u32);
+/// assert!(*value == 12);
 /// ```
 pub struct BTree<K, V>
 where

@@ -18,17 +18,16 @@ use std::marker::Sync;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Concurrent, Map, Sequential};
-/// use cache::reference::Default;
+/// use cache::container::{Container, Concurrent, Vector, Sequential};
 ///
-/// // Build a Map cache of 2 sets. Each set hold one element.
-/// let mut c = Sequential::<_,Default<_>,_>::new(Map::new(1));
+/// // Build a concurrent Vector cache.
+/// let mut c1 = Sequential::new(Vector::new(1));
+/// let mut c2 = c1.clone();
 ///
-/// // Container as room for first and second element and returns None.
-/// assert!(c.push(0u16, 4).is_none());
-/// assert!(c.push(1u16, 12).is_some());
-/// assert!(c.get(&0u16).is_some());
-/// assert!(c.get(&1u16).is_none());
+/// assert!(c1.push(0u16, 4).is_none());
+/// let (key, value) = c2.push(1u16, 12).unwrap();
+/// assert_eq!(key, 1u16);
+/// assert_eq!(value, 12);
 ///```
 pub struct Sequential<C> {
     container: CloneCell<C>,
