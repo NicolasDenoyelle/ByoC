@@ -122,17 +122,19 @@ where
                 ret
             }
             None => {
+                let out = if self.references.len() >= self.capacity {
+                    self.pop()
+                } else {
+                    None
+                };
+
                 self.references.push((key, reference));
                 let n = self.references.len() - 1;
                 assert!(self.map.insert(key, n).is_none());
                 assert!(self
                     .set
                     .insert((OrdPtr::new(&self.references[n].1), key)));
-                if self.references.len() > self.capacity {
-                    self.pop()
-                } else {
-                    None
-                }
+                out
             }
         }
     }
