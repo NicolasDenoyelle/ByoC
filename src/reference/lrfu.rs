@@ -61,21 +61,23 @@ impl<T: Timestamp + Copy> Stats<T> {
 ///
 /// ```
 /// use cache::reference::{Reference, LRFU};
-/// use cache::timestamp::{Timestamp, Clock};
+/// use cache::timestamp::{Timestamp, Counter};
 ///
 /// // Least Recently Used cache reference storing f32 values and
 /// // counting time with Counter.
-/// let mut r0 = LRFU::<u32, Clock>::new(999, 2.0);
-/// let mut r1 = LRFU::<u32, Clock>::new(666, 2.0);
+/// let mut r0 = LRFU::<u32, Counter>::new(999, 2.0);
+/// let mut r1 = LRFU::<u32, Counter>::new(666, 2.0);
 /// *r0;
 /// assert!( r0 < r1 ); // r0 is the most frequently and recently touched.
 /// *r1;
-/// assert!( r1 < r0 ); // r0 and r1 are as frequently used but r1 is more recent.
+/// assert!( r1 < r0 ); // r0 and r1 are as frequently used but r1 is more
+/// // recent.
 /// *r0;
 /// assert!( r0 < r1 ); // r0 is the most frequently and recently touched.
 /// *r0;
 /// *r1;
-/// assert!( r0 < r1 ); // r0 is more frequently and slightly older than r1.
+/// assert!( r0 < r1 ); // r0 is more frequently and only slightly older than
+/// // r1.
 /// ```
 #[derive(Debug)]
 pub struct LRFU<V, T: Timestamp + Copy> {
