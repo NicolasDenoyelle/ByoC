@@ -25,12 +25,14 @@ pub enum LockError<T> {
 }
 
 /// A custom Read Write Lock implementation based on Rust Atomic primitives.
-/// Unlike Rust RWLock interface, this RWLock allow to call `unlock()` after `lock()`.
-/// This comes with a [RWLockGuard](struct.RWLockGuard.html) companion, that allows
-/// creation of objects that call `unlock()` on a RWLock when they go out of scope.
+/// Unlike Rust RWLock interface, this RWLock allow to call `unlock()`
+/// after `lock()`.
+/// This comes with a [RWLockGuard](struct.RWLockGuard.html) companion,
+/// that allows creation of objects that call `unlock()` on a RWLock when
+/// they go out of scope.
 ///
 /// # Examples
-/// ``` ignore
+/// ```ignore
 /// use cache::lock::RWLock;
 /// let lock = RWLock::new();
 ///
@@ -131,7 +133,9 @@ impl RWLock {
             Err(TryLockError::WouldBlock(_)) => {
                 Err(TryLockError::WouldBlock(t))
             }
-            Err(TryLockError::Poisoned(_)) => Err(TryLockError::Poisoned(t)),
+            Err(TryLockError::Poisoned(_)) => {
+                Err(TryLockError::Poisoned(t))
+            }
         }
     }
 
@@ -176,7 +180,9 @@ impl RWLock {
     ) -> Result<RWLockGuard<T>, TryLockError<T>> {
         match self.try_lock_mut() {
             Ok(_) => Ok(RWLockGuard::new(self, t)),
-            Err(TryLockError::Poisoned(_)) => Err(TryLockError::Poisoned(t)),
+            Err(TryLockError::Poisoned(_)) => {
+                Err(TryLockError::Poisoned(t))
+            }
             Err(TryLockError::WouldBlock(_)) => {
                 Err(TryLockError::WouldBlock(t))
             }
@@ -210,7 +216,10 @@ impl RWLock {
     /// operation on the lock or if a thread owning a clone of this
     /// lock panicked. In such a case, the input is returned wrapped
     /// inside an error.
-    pub fn lock_for<T>(&self, t: T) -> Result<RWLockGuard<T>, LockError<T>> {
+    pub fn lock_for<T>(
+        &self,
+        t: T,
+    ) -> Result<RWLockGuard<T>, LockError<T>> {
         match self.lock() {
             Ok(_) => Ok(RWLockGuard::new(self, t)),
             Err(LockError::Poisoned(_)) => Err(LockError::Poisoned(t)),
@@ -293,7 +302,7 @@ impl RWLock {
 /// # Examples
 ///
 /// ```ignore
-/// use cache::utils::lock::{RWLock, RWLockGuard};
+/// use cache::lock::{RWLock, RWLockGuard};
 /// let lock = RWLock::new();
 /// lock.lock_mut();
 ///
@@ -353,7 +362,8 @@ mod tests {
     fn test_lock() {
         let lock = RWLock::new();
         let num_threads = 1024;
-        let mut threads: Vec<JoinHandle<_>> = Vec::with_capacity(num_threads);
+        let mut threads: Vec<JoinHandle<_>> =
+            Vec::with_capacity(num_threads);
 
         for _ in 0..num_threads {
             let local_lock = lock.clone();
