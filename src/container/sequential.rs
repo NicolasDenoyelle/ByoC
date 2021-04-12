@@ -112,7 +112,7 @@ where
     }
 }
 
-impl<C: Clone> Clone for Sequential<C> {
+impl<C> Clone for Sequential<C> {
     fn clone(&self) -> Self {
         Sequential {
             container: self.container.clone(),
@@ -135,7 +135,7 @@ unsafe impl<C> Sync for Sequential<C> {}
 impl<K, V, C> Concurrent<K, V> for Sequential<C>
 where
     V: Ord,
-    C: Container<K, V> + Clone,
+    C: Container<K, V>,
 {
 }
 

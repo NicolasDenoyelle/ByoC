@@ -1,4 +1,3 @@
-use cache::reference::Default;
 use cache::timestamp::{Counter, Timestamp};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::BTreeSet;
@@ -14,17 +13,17 @@ fn rand(a: u64, b: u64) -> u64 {
     (hasher.finish() % (b - a) + a) as u64
 }
 
-pub fn rand_set(n: usize) -> Vec<(u16, Default<u32>)> {
+pub fn rand_set(n: usize) -> Vec<(u16, u32)> {
     let mut set = BTreeSet::new();
     for _ in 0..n {
         while !set.insert(rand(0, n as u64) as u16) {}
     }
 
     set.into_iter()
-        .map(|k| (k, Default::new(rand(0, n as u64) as u32)))
+        .map(|k| (k, rand(0, n as u64) as u32))
         .collect()
 }
 
-pub fn range_set(n: usize) -> Vec<(u16, Default<u32>)> {
-    (0..n).map(|i| (i as u16, Default::new(i as u32))).collect()
+pub fn range_set(n: usize) -> Vec<(u16, u32)> {
+    (0..n).map(|i| (i as u16, i as u32)).collect()
 }

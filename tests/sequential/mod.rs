@@ -1,5 +1,5 @@
 use cache::container::Container;
-use cache::timestamp::Counter;
+use cache::timestamp::{Counter, Timestamp};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::vec::Vec;
@@ -18,15 +18,14 @@ fn test_push<C>(c: &mut C, key: u16, value: u32)
 where
     C: Container<u16, u32>,
 {
-    let reference = Default::new(value);
-
-    match c.push(key.clone(), reference.clone()) {
+    match c.push(key.clone(), value.clone()) {
         None => (),
         Some((k, v)) => {
-            if k != key || v != reference {
+            if k != key || v != value {
                 assert!(c.take(&k).is_none());
                 assert!(c.contains(&key));
-                assert!(c.push(k, c.take(&key).unwrap()).is_none());
+                let v = c.take(&key).unwrap();
+                assert!(c.push(k, v).is_none());
             }
         }
     };

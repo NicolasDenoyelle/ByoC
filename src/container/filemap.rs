@@ -641,26 +641,30 @@ mod tests {
 
     #[test]
     fn test_filemap() {
-        let mut fm = unsafe {
-            FileMap::<usize, usize>::new("test_filemap", 10, false)
-                .unwrap()
-        };
+        let mut fm =
+            unsafe { FileMap::new("test_filemap", 10, false).unwrap() };
         // Push test
         for i in (0usize..10usize).rev() {
-            assert!(fm.push(i, i).is_none());
+            assert!(
+                Container::<usize, usize>::push(&mut fm, i, i).is_none()
+            );
         }
         // Pop test
-        assert_eq!(fm.pop().unwrap().0, 9usize);
+        assert_eq!(
+            Container::<usize, usize>::pop(&mut fm).unwrap().0,
+            9usize
+        );
         // Contains test
         for i in 0usize..9usize {
-            assert!(fm.contains(&i));
+            assert!(Container::<usize, usize>::contains(&mut fm, &i));
         }
         let i = 9usize;
-        assert!(!fm.contains(&i));
+        assert!(!Container::<usize, usize>::contains(&mut fm, &i));
 
         // Test pop on push when full.
-        assert!(fm.push(9usize, 9usize).is_none());
-        match fm.push(11usize, 11usize) {
+        assert!(Container::<usize, usize>::push(&mut fm, 9usize, 9usize)
+            .is_none());
+        match Container::<usize, usize>::push(&mut fm, 11usize, 11usize) {
             None => panic!("Full filemap not popping."),
             Some((k, _)) => {
                 assert_eq!(k, 9usize);
@@ -668,7 +672,7 @@ mod tests {
         }
 
         // Test pop on push of an existing key.
-        match fm.push(4usize, 4usize) {
+        match Container::<usize, usize>::push(&mut fm, 4usize, 4usize) {
             None => panic!("Full filemap not popping."),
             Some((k, _)) => {
                 assert_eq!(k, 4usize);
@@ -676,11 +680,17 @@ mod tests {
         }
 
         // Test empty container.
-        assert_eq!(fm.pop().unwrap().0, 11usize);
+        assert_eq!(
+            Container::<usize, usize>::pop(&mut fm).unwrap().0,
+            11usize
+        );
         for i in (0usize..9usize).rev() {
-            assert_eq!(fm.pop().unwrap().0, i);
+            assert_eq!(
+                Container::<usize, usize>::pop(&mut fm).unwrap().0,
+                i
+            );
         }
-        assert!(fm.pop().is_none());
-        assert_eq!(fm.count(), 0);
+        assert!(Container::<usize, usize>::pop(&mut fm).is_none());
+        assert_eq!(Container::<usize, usize>::count(&mut fm), 0);
     }
 }

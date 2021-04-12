@@ -137,8 +137,12 @@ where
     }
 
     fn take(&mut self, key: &K) -> Option<V> {
-        let i = self.set(key.clone());
-        self.containers[i].take(key)
+        if self.n_sets * self.set_size == 0 {
+            None
+        } else {
+            let i = self.set(key.clone());
+            self.containers[i].take(key)
+        }
     }
 
     fn pop(&mut self) -> Option<(K, V)> {

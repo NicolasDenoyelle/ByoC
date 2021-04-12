@@ -31,14 +31,10 @@ pub trait Container<K, V> {
         while self.pop().is_some() {}
     }
 
-    /// Insert a value in the container.
-    /// Ownership on value is taken.
-    /// If a value with the same key is present,
-    /// it is returned after replacing it with the new
-    /// value.
-    /// If the container is full, then the new value is inserted
-    /// and an evicted value is returned.
-    /// If none of these cases is encountered, None is returned.
+    /// Insert a value in the container. If an equivalent key already
+    /// exists in the container then it is removed before insertion
+    /// and returned. Else, if the container was full, a victim is
+    /// removed before insertion then returned.
     ///
     /// * `key`: The key associated with the value to insert.
     /// * `value`: The cache value to insert.
