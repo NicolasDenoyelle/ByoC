@@ -1,12 +1,7 @@
 pub mod rand;
 
-use cache::{
-    container::{Concurrent, Container},
-    reference::Default,
-};
+use cache::{container::Container, marker::Concurrent};
 use std::{cmp::min, sync::mpsc::channel, thread, vec::Vec};
-
-type Reference = Default<u32>;
 
 fn test_after_push<C>(
     mut c: C,
@@ -14,9 +9,7 @@ fn test_after_push<C>(
     keys: Vec<u16>,
     popped_keys: Vec<u16>,
 ) where
-    C: 'static
-        + Container<u16, Default<u32>>
-        + Concurrent<u16, u32, Default<u32>>,
+    C: 'static + Container<u16, u32> + Concurrent<u16, u32>,
 {
     // Test container count is the incremented count.
     assert!(c.count() == count);
@@ -25,12 +18,13 @@ fn test_after_push<C>(
 
     // Test popped keys and inside keys do not overlap.
     for key in keys {
-        match c.get_mut(&key) {
+        match c.take(&key) {
             None => {
                 assert!(popped_keys.contains(&key));
             }
-            Some(_) => {
+            Some(v) => {
                 assert!(!popped_keys.contains(&key));
+                c.push(key, v);
             }
         }
     }
@@ -39,11 +33,9 @@ fn test_after_push<C>(
     assert!(c.count() <= c.capacity());
 }
 
-pub fn push_concurrent<C>(c: C, mut set: Vec<(u16, Reference)>, num_thread: u8)
+pub fn push_concurrent<C>(c: C, mut set: Vec<(u16, u32)>, num_thread: u8)
 where
-    C: 'static
-        + Container<u16, Default<u32>>
-        + Concurrent<u16, u32, Default<u32>>,
+    C: 'static + Container<u16, u32> + Concurrent<u16, u32>,
 {
     // Not more threads than elements.
     let num_thread = min(num_thread as usize, set.len()) as u8;
@@ -93,11 +85,9 @@ where
     );
 }
 
-pub fn test_concurrent<C>(c: C, set: Vec<(u16, Reference)>, num_thread: u8)
+pub fn test_concurrent<C>(c: C, set: Vec<(u16, u32)>, num_thread: u8)
 where
-    C: 'static
-        + Container<u16, Default<u32>>
-        + Concurrent<u16, u32, Default<u32>>,
+    C: 'static + Container<u16, u32> + Concurrent<u16, u32>,
 {
     push_concurrent(c, set, num_thread);
 }

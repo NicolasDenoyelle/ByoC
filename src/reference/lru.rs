@@ -1,5 +1,6 @@
-use crate::reference::{FromValue, Reference};
+use crate::reference::Reference;
 use crate::timestamp::{Counter, Timestamp};
+use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
 
@@ -9,7 +10,7 @@ use std::ops::{Deref, DerefMut};
 /// ## Details
 ///
 /// `LRU` references implement an order based on the Least Recently Used (LRU) policy.
-/// It tries to keep in cache elements that were recently touched.
+/// It tries to keep in cache elements that were recently accessed.
 ///
 /// ## Generics
 ///
@@ -22,60 +23,37 @@ use std::ops::{Deref, DerefMut};
 /// let mut lfu_0 = LRU::<u32>::new(999);
 /// let mut lfu_1 = LRU::<u32>::new(666);
 /// assert!( lfu_0 > lfu_1 ); // lfu_1 is the most recently created.
-/// lfu_0.touch();
+/// *lfu_0;
 /// assert!( lfu_0 < lfu_1 ); // lfu_0 is the most recently used.
 /// ```
 
 #[derive(Debug)]
 pub struct LRU<V> {
     value: V,
-    /// Last `touch()` time.
-    timestamp: Counter,
+    /// Last access time.
+    timestamp: Cell<Counter>,
 }
 
 impl<V> LRU<V> {
     pub fn new(e: V) -> Self {
         LRU {
             value: e,
-            timestamp: Counter::new(),
+            timestamp: Cell::new(Counter::new()),
         }
-    }
-}
-
-impl<V> FromValue<V> for LRU<V> {
-    fn from_value(v: V) -> Self {
-        LRU::new(v)
-    }
-}
-
-impl<V> Reference<V> for LRU<V> {
-    fn unwrap(self) -> V {
-        self.value
-    }
-    fn touch(&mut self) -> &mut Self {
-        self.timestamp = Counter::new();
-        self
-    }
-    fn from_ref(value: V, other: &Self) -> Self {
-        LRU {
-            value: value,
-            timestamp: other.timestamp.clone(),
-        }
-    }
-    fn replace(&mut self, value: V) -> V {
-        std::mem::replace(&mut self.value, value)
     }
 }
 
 impl<V> Deref for LRU<V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
+        self.timestamp.set(Counter::new());
         &self.value
     }
 }
 
 impl<V> DerefMut for LRU<V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        self.timestamp.set(Counter::new());
         &mut self.value
     }
 }
@@ -103,3 +81,5 @@ impl<V> PartialEq for LRU<V> {
 }
 
 impl<V> Eq for LRU<V> {}
+
+impl<V> Reference<V> for LRU<V> {}

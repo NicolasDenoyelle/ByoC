@@ -1,49 +1,46 @@
-use crate::container::{Container, Get, Insert, Packed};
-use crate::reference::{FromValue, Reference};
+use crate::container::Container;
+use crate::marker::Packed;
 use crate::utils::ptr::OrdPtr;
 use std::collections::{BTreeMap, BTreeSet};
 
-//----------------------------------------------------------------------------//
-// Ordered set of references and key value map.                               //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Ordered set of references and key value map.                           //
+//------------------------------------------------------------------------//
 
-/// [`Container`](../trait.Container.html) with ordered keys and [references](../../reference/trait.Reference.html).
+/// [`Container`](../trait.Container.html) with ordered keys and
+/// [references](../../reference/trait.Reference.html).
 ///
 /// BTree is a container organized with binary tree structures.
-/// Cache [references](../reference/trait.Reference.html) are kept in a binary tree
-/// for fast search of
-/// eviction candidates.
+/// Values are kept in a binary tree for fast search of eviction candidates.
 /// A binary tree map <key, value> is also maintained to enable
 /// fast cache lookups.
-/// As a result, insertions, removal, lookup and evictions are O(1).
+/// As a result, insertions, removal, lookup and evictions are O(log(n)).
 /// However, this implementation require to store an additional pointer and
-/// key per [cache reference](../reference/trait.Reference.html).
+/// key per key/value pair.
 ///
 /// ## Generics:
 ///
-/// * `K`: The type of key to use. Keys must implement `Copy` trait and `Ord`
-/// trait to be work with `BTreeMap`.
-/// * `V`: Value type stored in [cache reference](../reference/trait.Reference.html).
-/// * `R`: A type of [cache reference](../reference/trait.Reference.html).
+/// * `K`: The type of key to use.
+/// * `V`: Value type stored.
 ///
 /// ## Examples
 ///
 /// ```
 /// use cache::container::{Container, BTree};
-/// use cache::reference::{Reference, Default};
 ///
 /// // container with only 1 element.
 /// let mut c = BTree::new(1);
 ///
 /// // Container as room for first element and returns None.
-/// assert!(c.push("first", Default::new(4u32)).is_none());
+/// assert!(c.push("first", 4).is_none());
 ///
 /// // Container is full and pops a victim.
-/// let (key, value) = c.push("second", Default::new(12u32)).unwrap();
+/// let (key, value) = c.push("second", 12).unwrap();
 ///
-/// // The victim is the second reference because its value is greater.
-/// assert!(key == "second");
-/// assert!(*value == 12u32);
+/// // The victim is the first reference because eviction happens before
+/// // insertion.
+/// assert!(key == "first");
+/// assert!(value == 4);
 /// ```
 pub struct BTree<K, V>
 where
@@ -75,14 +72,9 @@ where
     }
 }
 
-//----------------------------------------------------------------------------//
-//  Container implementation.                                                 //
-//----------------------------------------------------------------------------//
-
-impl<K: Copy + Ord, V, R: Reference<V> + FromValue<V>> Insert<K, V, R>
-    for BTree<K, R>
-{
-}
+//------------------------------------------------------------------------//
+//  Container implementation.                                             //
+//------------------------------------------------------------------------//
 
 impl<K, V> Container<K, V> for BTree<K, V>
 where
@@ -131,17 +123,19 @@ where
                 ret
             }
             None => {
+                let out = if self.references.len() >= self.capacity {
+                    self.pop()
+                } else {
+                    None
+                };
+
                 self.references.push((key, reference));
                 let n = self.references.len() - 1;
                 assert!(self.map.insert(key, n).is_none());
                 assert!(self
                     .set
                     .insert((OrdPtr::new(&self.references[n].1), key)));
-                if self.references.len() > self.capacity {
-                    self.pop()
-                } else {
-                    None
-                }
+                out
             }
         }
     }
@@ -190,43 +184,15 @@ where
                     assert!(self.set.remove(&(r_last, k_last)));
                     self.map.insert(k_last, i);
                     let (_, reference) = self.references.swap_remove(i);
-                    assert!(self
-                        .set
-                        .insert((OrdPtr::new(&self.references[i].1), k_last)));
+                    assert!(self.set.insert((
+                        OrdPtr::new(&self.references[i].1),
+                        k_last
+                    )));
                     Some(reference)
                 } else {
                     let (_, reference) = self.references.swap_remove(i);
                     Some(reference)
                 }
-            }
-        }
-    }
-}
-
-impl<K, V, R> Get<K, V, R> for BTree<K, R>
-where
-    K: Copy + Ord,
-    R: Reference<V>,
-{
-    fn get(&mut self, key: &K) -> Option<&V> {
-        match self.get_mut(key) {
-            None => None,
-            Some(v) => Some(v),
-        }
-    }
-
-    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        match self.map.get(key) {
-            None => None,
-            Some(i) => {
-                assert!(self
-                    .set
-                    .remove(&(OrdPtr::new(&self.references[*i].1), *key)));
-                self.references[*i].1.touch();
-                assert!(self
-                    .set
-                    .insert((OrdPtr::new(&self.references[*i].1), *key)));
-                Some(self.references[*i].1.deref_mut())
             }
         }
     }

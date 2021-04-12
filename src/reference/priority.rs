@@ -1,11 +1,10 @@
-use crate::reference::{FromValue, Reference};
+use crate::reference::Reference;
 use std::cmp::{Ord, Ordering};
-use std::default::Default;
 use std::ops::{Deref, DerefMut};
 
-//----------------------------------------------------------------------------//
-// Priority based policy on cache references                                  //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Priority based policy on cache references                              //
+//------------------------------------------------------------------------//
 
 /// Implementation of [`Reference`](trait.Reference.html) with
 /// an eviction policy based on fixed priority.
@@ -21,8 +20,7 @@ use std::ops::{Deref, DerefMut};
 /// * `V`: The type of the value held in the
 /// [`Reference`](trait.Reference.html).
 /// * `P`: The type of priority. P implementation of `Ord` is used
-/// to implement this reference `Ord` trait. P implementation
-/// of `Default` is used to provide a default constructor.
+/// to implement this reference `Ord` trait.
 ///
 /// ## Examples
 ///
@@ -49,24 +47,6 @@ impl<V, P: Ord + Clone> Priority<V, P> {
         Priority {
             value: v,
             priority: p,
-        }
-    }
-}
-
-impl<V, P: Ord + Clone + Default> FromValue<V> for Priority<V, P> {
-    fn from_value(v: V) -> Self {
-        Priority::new(v, P::default())
-    }
-}
-
-impl<V, P: Ord + Clone> Reference<V> for Priority<V, P> {
-    fn unwrap(self) -> V {
-        self.value
-    }
-    fn from_ref(value: V, other: &Self) -> Self {
-        Priority {
-            value: value,
-            priority: other.priority.clone(),
         }
     }
 }
@@ -103,6 +83,8 @@ impl<V, P: Ord + Clone> PartialEq for Priority<V, P> {
 }
 
 impl<V, P: Ord + Clone> Eq for Priority<V, P> {}
+
+impl<V, P: Ord + Clone> Reference<V> for Priority<V, P> {}
 
 #[cfg(test)]
 mod tests {

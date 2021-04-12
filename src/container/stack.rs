@@ -1,32 +1,34 @@
-use crate::container::{Container, Get, Insert, Packed};
-use crate::reference::{FromValue, Reference};
+use crate::container::{Container, Get};
+use crate::marker::Packed;
 use std::cmp::Eq;
-use std::marker::PhantomData;
 
-//----------------------------------------------------------------------------//
-// Constiner Stack                                                            //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Container Stack                                                        //
+//------------------------------------------------------------------------//
 
-/// [`Container`](../trait.Container.html) wrapper to build multi-level cache.
+/// [`Container`](../trait.Container.html) wrapper to build multi-level
+/// cache.
 ///
 /// Stack container implements a stack of 2 containers.
 /// It is a non-inclusive container, i.e a key cannot be present in multiple
 /// containers of the stack.
 ///
 /// Insertions will be performed at the bottom of the stack.
-/// Pops on insertions are propagated from the bottom to the top of the stack.
+/// Pops on insertions are propagated from the bottom to the top of the
+/// stack.
 ///
-/// Container lookups will look from the bottom to the top of the stack for matches.
+/// Container lookups will look from the bottom to the top of the stack
+/// for matches.
 /// Whenever a match is found, the reference is taken out of the container,
 /// unwrapped and reinserted at the bottom of the container stack.
 ///
-/// `pop()` invocation will search from the top to the bottom of the stack for
-/// an element to evict.
+/// `pop()` invocation will search from the top to the bottom of the stack
+/// for an element to evict.
 ///
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Insert, Get, Stack, Vector, Map};
+/// use cache::container::{Container, Get, Stack, Vector, Map};
 /// use cache::reference::Default;
 ///
 /// // Create cache
@@ -36,60 +38,32 @@ use std::marker::PhantomData;
 /// assert_eq!(cache.capacity(), 2);
 ///
 /// // Populate cache
-/// assert!(cache.insert("first", 0).is_none());
-/// assert!(cache.insert("second", 3).is_none());
+/// assert!(cache.push("first", 0).is_none());
+/// assert!(cache.push("second", 3).is_none());
 /// let mut first = cache.get_mut(&"first");
 ///
 /// // Cache overflow. Victim is the Least Recently used, i.e "second".
-/// let victim = cache.insert("third", 2).unwrap();
+/// let victim = cache.push("third", 2).unwrap();
 /// assert_eq!(victim.0, "second");
 /// ```
-pub struct Stack<K, V, C1, C2>
-where
-    K: Clone + Eq,
-    V: Ord,
-    C1: Container<K, V>,
-    C2: Container<K, V>,
-{
+pub struct Stack<C1, C2> {
     l1: C1,
     l2: C2,
-    unused_k: PhantomData<K>,
-    unused_v: PhantomData<V>,
 }
 
-impl<K, V, R, C1, C2> Insert<K, V, R> for Stack<K, R, C1, C2>
-where
-    K: Clone + Eq,
-    R: Reference<V> + FromValue<V>,
-    C1: Container<K, R>,
-    C2: Container<K, R>,
-{
-}
-
-impl<K, V, C1, C2> Stack<K, V, C1, C2>
-where
-    K: Clone + Eq,
-    V: Ord,
-    C1: Container<K, V>,
-    C2: Container<K, V>,
-{
+impl<C1, C2> Stack<C1, C2> {
     /// Construct a Stack Cache.
     ///
     /// The stack spans from bottom (first element) to top (last) element
     /// of the list of containers provided as input.
     ///
     /// * `containers`: The list of containers composing the stack.
-    pub fn new(l1: C1, l2: C2) -> Stack<K, V, C1, C2> {
-        Stack {
-            l1: l1,
-            l2: l2,
-            unused_k: PhantomData,
-            unused_v: PhantomData,
-        }
+    pub fn new(l1: C1, l2: C2) -> Stack<C1, C2> {
+        Stack { l1: l1, l2: l2 }
     }
 }
 
-impl<K, V, C1, C2> Container<K, V> for Stack<K, V, C1, C2>
+impl<K, V, C1, C2> Container<K, V> for Stack<C1, C2>
 where
     K: Clone + Eq,
     V: Ord,
@@ -131,9 +105,21 @@ where
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
-        match self.l2.pop() {
-            None => self.l1.pop(),
-            Some(r) => Some(r),
+        let x1 = self.l1.pop();
+        let x2 = self.l2.pop();
+        match (x1, x2) {
+            (None, None) => None,
+            (None, Some(x)) => Some(x),
+            (Some(x), None) => Some(x),
+            (Some((k1, v1)), Some((k2, v2))) => {
+                if v1 <= v2 {
+                    assert!(self.l1.push(k1, v1).is_none());
+                    Some((k2, v2))
+                } else {
+                    assert!(self.l2.push(k2, v2).is_none());
+                    Some((k1, v1))
+                }
+            }
         }
     }
 
@@ -156,7 +142,7 @@ where
     }
 }
 
-impl<K, V, C1, C2> Packed<K, V> for Stack<K, V, C1, C2>
+impl<K, V, C1, C2> Packed<K, V> for Stack<C1, C2>
 where
     K: Clone + Eq,
     V: Ord,
@@ -165,37 +151,48 @@ where
 {
 }
 
-impl<K, V, R, C1, C2> Get<K, V, R> for Stack<K, R, C1, C2>
+impl<'a, K, V, C1, C2, T> Get<'a, K, V> for Stack<C1, C2>
 where
     K: Clone + Eq,
-    R: Reference<V>,
-    C1: Container<K, R> + Get<K, V, R>,
-    C2: Container<K, R> + Get<K, V, R>,
+    V: Ord,
+    C1: Container<K, V> + Get<'a, K, V, Item = T>,
+    C2: Container<K, V>,
+    T: 'a,
 {
-    fn get(&mut self, key: &K) -> Option<&V> {
-        match self.get_mut(key) {
-            None => None,
-            Some(v) => Some(v),
-        }
-    }
-
-    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
+    type Item = T;
+    fn get(&'a mut self, key: &K) -> Option<T> {
+        // Start with first container
         if self.l1.contains(key) {
-            self.l1.get_mut(key)
-        } else {
-            match self.l2.take(key) {
-                None => None,
-                Some(r) => match self.l1.push(key.clone(), r) {
-                    None => self.l1.get_mut(key),
-                    Some((k, v2)) => {
-                        assert!(self.l2.push(k.clone(), v2).is_none());
-                        if &k == key {
-                            self.l2.get_mut(key)
-                        } else {
-                            self.l1.get_mut(key)
-                        }
+            // Found! Stop here.
+            return self.l1.get(key);
+        }
+
+        // Not Found. Find in l2 and move to l1.
+        match self.l2.take(key) {
+            // Not Found. Stop here.
+            None => None,
+            // Found!
+            Some(v2) => {
+                // Make some room in l1
+                match self.l1.pop() {
+                    // We made room in l1. Push result to l2.
+                    Some((k1, v1)) => {
+                        assert!(self.l2.push(k1, v1).is_none());
                     }
-                },
+                    // l1 was empty already.
+                    None => (),
+                }
+                // Push found value into l1 inorder to invoke get.
+                match self.l1.push(key.clone(), v2) {
+                    // Worked, return get method result.
+                    None => self.l1.get(key),
+                    // l1 cannot store elements at all.
+                    // We put element back in l2.
+                    Some((k2, v2)) => {
+                        assert!(self.l2.push(k2, v2).is_none());
+                        None
+                    }
+                }
             }
         }
     }

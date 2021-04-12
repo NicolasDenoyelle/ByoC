@@ -1,4 +1,4 @@
-use crate::reference::{FromValue, Reference};
+use crate::reference::Reference;
 use std::cmp::Ord;
 use std::ops::{Deref, DerefMut};
 
@@ -36,21 +36,6 @@ impl<V: Ord> Default<V> {
     }
 }
 
-impl<V: Ord> FromValue<V> for Default<V> {
-    fn from_value(v: V) -> Self {
-        Default::new(v)
-    }
-}
-
-impl<V: Ord> Reference<V> for Default<V> {
-    fn unwrap(self) -> V {
-        self.value
-    }
-    fn from_ref(value: V, _other: &Self) -> Self {
-        Default { value: value }
-    }
-}
-
 impl<V: Ord> Deref for Default<V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
@@ -63,3 +48,5 @@ impl<V: Ord> DerefMut for Default<V> {
         &mut self.value
     }
 }
+
+impl<V: Ord> Reference<V> for Default<V> {}

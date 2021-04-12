@@ -1,4 +1,5 @@
-use cache::container::{Container, Packed};
+use cache::container::Container;
+use cache::marker::Packed;
 use cache::reference::Default;
 use cache::timestamp::{Counter, Timestamp};
 use std::collections::hash_map::DefaultHasher;

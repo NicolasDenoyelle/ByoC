@@ -1,13 +1,13 @@
-use crate::container::{Concurrent, Container, Get};
-use crate::lock::{RWLock, RWLockGuard};
-use crate::reference::Reference;
+use crate::container::{Container, Get};
+use crate::lock::RWLock;
+use crate::marker::Concurrent;
 use std::boxed::Box;
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
 
-//------------------------------------------------------------------------------------//
-//                      Ref counted cell inside clonable struct                       //
-//------------------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+//                 Ref counted cell inside clonable struct                //
+//------------------------------------------------------------------------//
 
 struct InnerClone<V> {
     value: V,
@@ -51,9 +51,9 @@ impl<V> InnerClone<V> {
     }
 }
 
-//------------------------------------------------------------------------------------//
-//                                 Public clonable struct                             //
-//------------------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+//                            Public clonable struct                      //
+//------------------------------------------------------------------------//
 
 /// CloneCell is a generic wrapper to break the mutability rules.
 /// CloneCell stores a raw pointer to its content and copies the pointer
@@ -130,13 +130,12 @@ impl<V> DerefMut for CloneCell<V> {
 unsafe impl<V: Send> Send for CloneCell<V> {}
 unsafe impl<V: Sync> Sync for CloneCell<V> {}
 
-//------------------------------------------------------------------------------------//
-//                                 Container implementation                           //
-//------------------------------------------------------------------------------------//
+//-------------------------------------------------------------------------
+//                         Container implementation
+//-------------------------------------------------------------------------
 
 impl<'a, K, V, C> Container<K, V> for CloneCell<C>
 where
-    V: Ord,
     C: Container<K, V>,
 {
     fn capacity(&self) -> usize {
@@ -168,36 +167,22 @@ where
     }
 }
 
-impl<'a, K, V, R, C> Concurrent<K, V, R> for CloneCell<C>
-where
-    R: Reference<V>,
-    C: Container<K, R> + Concurrent<K, V, R>,
-{
-    fn get(&mut self, key: &K) -> Option<RWLockGuard<&V>> {
-        unsafe { (*self.ptr).get(key) }
-    }
+impl<K, V, C> Concurrent<K, V> for CloneCell<C> where C: Concurrent<K, V> {}
 
-    fn get_mut(&mut self, key: &K) -> Option<RWLockGuard<&mut V>> {
-        unsafe { (*self.ptr).get_mut(key) }
+impl<'a, K, V, T, C> Get<'a, K, V> for CloneCell<C>
+where
+    C: Get<'a, K, V, Item = T>,
+    T: 'a,
+{
+    type Item = T;
+    fn get(&'a mut self, key: &K) -> Option<T> {
+        unsafe { (*self.ptr).get(key) }
     }
 }
 
-impl<'a, K, V, R, C> Get<K, V, R> for CloneCell<C>
-where
-    R: Reference<V>,
-    C: Container<K, R> + Get<K, V, R>,
-{
-    fn get(&mut self, key: &K) -> Option<&V> {
-        unsafe { (*self.ptr).get(key) }
-    }
-    fn get_mut(&mut self, key: &K) -> Option<&mut V> {
-        unsafe { (*self.ptr).get_mut(key) }
-    }
-}
-
-//------------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 // Tests
-//------------------------------------------------------------------------------
+//-------------------------------------------------------------------------
 
 #[cfg(tests)]
 mod tests {
