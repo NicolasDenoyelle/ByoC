@@ -36,15 +36,6 @@ impl<V: Ord> Default<V> {
     }
 }
 
-impl<V: Ord> Reference<V> for Default<V> {
-    fn unwrap(self) -> V {
-        self.value
-    }
-    fn clone(&self, value: V) -> Self {
-        Default { value: value }
-    }
-}
-
 impl<V: Ord> Deref for Default<V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
@@ -57,3 +48,5 @@ impl<V: Ord> DerefMut for Default<V> {
         &mut self.value
     }
 }
+
+impl<V: Ord> Reference<V> for Default<V> {}

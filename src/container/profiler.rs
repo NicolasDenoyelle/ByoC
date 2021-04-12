@@ -24,7 +24,7 @@ use std::time::Instant;
 /// use cache::container::{Container, Get, Vector, Profiler};
 ///
 /// // Build a cache:
-/// let c = Vector::new(1);
+/// let c = Vector::new(3);
 ///
 /// // Wrap it into a profiler.
 /// let mut c = Profiler::new(c);
@@ -49,7 +49,7 @@ use std::time::Instant;
 /// assert_eq!((&c).miss(), 3);
 ///
 /// // pretty print statistics.
-/// println!("{}", p);
+/// println!("{}", c);
 /// ```
 
 struct Stats {

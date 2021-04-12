@@ -4,9 +4,9 @@ use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
 
-//----------------------------------------------------------------------------//
-// Least Frequently Used Policy on cache references                           //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Least Frequently Used Policy on cache references                       //
+//------------------------------------------------------------------------//
 
 #[derive(Clone, Debug, Copy)]
 pub struct Stats<T: Timestamp + Copy> {
@@ -67,14 +67,14 @@ impl<T: Timestamp + Copy> Stats<T> {
 /// // counting time with Counter.
 /// let mut r0 = LRFU::<u32, Clock>::new(999, 2.0);
 /// let mut r1 = LRFU::<u32, Clock>::new(666, 2.0);
-/// r0.touch();
+/// *r0;
 /// assert!( r0 < r1 ); // r0 is the most frequently and recently touched.
-/// r1.touch();
+/// *r1;
 /// assert!( r1 < r0 ); // r0 and r1 are as frequently used but r1 is more recent.
-/// r0.touch();
+/// *r0;
 /// assert!( r0 < r1 ); // r0 is the most frequently and recently touched.
-/// r0.touch();
-/// r1.touch();
+/// *r0;
+/// *r1;
 /// assert!( r0 < r1 ); // r0 is more frequently and slightly older than r1.
 /// ```
 #[derive(Debug)]
@@ -115,22 +115,6 @@ impl<V, T: Timestamp + Copy> LRFU<V, T> {
         unsafe {
             (*self.stats.as_ptr()).touch();
         }
-    }
-}
-
-impl<V, T: Timestamp + Copy> Reference<V> for LRFU<V, T> {
-    fn clone(&self, value: V) -> Self {
-        LRFU {
-            value: value,
-            stats: Cell::new(self.stats.get()),
-        }
-    }
-    fn unwrap(self) -> V {
-        self.value
-    }
-
-    fn replace(&mut self, value: V) -> V {
-        std::mem::replace(&mut self.value, value)
     }
 }
 
@@ -175,3 +159,5 @@ impl<V, T: Timestamp + Copy> PartialEq for LRFU<V, T> {
 }
 
 impl<V, T: Timestamp + Copy> Eq for LRFU<V, T> {}
+
+impl<V, T: Timestamp + Copy> Reference<V> for LRFU<V, T> {}

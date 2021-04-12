@@ -18,7 +18,8 @@ use std::marker::Sync;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Concurrent, Vector, Sequential};
+/// use cache::marker::Concurrent;
+/// use cache::container::{Container, Vector, Sequential};
 ///
 /// // Build a concurrent Vector cache.
 /// let mut c1 = Sequential::new(Vector::new(1));
@@ -26,8 +27,8 @@ use std::marker::Sync;
 ///
 /// assert!(c1.push(0u16, 4).is_none());
 /// let (key, value) = c2.push(1u16, 12).unwrap();
-/// assert_eq!(key, 1u16);
-/// assert_eq!(value, 12);
+/// assert_eq!(key, 0u16);
+/// assert_eq!(value, 4);
 ///```
 pub struct Sequential<C> {
     container: CloneCell<C>,

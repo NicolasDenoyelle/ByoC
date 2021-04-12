@@ -47,18 +47,6 @@ impl<V> FIFO<V> {
     }
 }
 
-impl<V> Reference<V> for FIFO<V> {
-    fn unwrap(self) -> V {
-        self.value
-    }
-    fn clone(&self, value: V) -> Self {
-        FIFO {
-            value: value,
-            timestamp: self.timestamp,
-        }
-    }
-}
-
 impl<V> Deref for FIFO<V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
@@ -97,3 +85,5 @@ impl<V> PartialEq for FIFO<V> {
 }
 
 impl<V> Eq for FIFO<V> {}
+
+impl<V> Reference<V> for FIFO<V> {}

@@ -2,9 +2,9 @@ use crate::reference::Reference;
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
 
-//----------------------------------------------------------------------------//
-// Priority based policy on cache references                                  //
-//----------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+// Priority based policy on cache references                              //
+//------------------------------------------------------------------------//
 
 /// Implementation of [`Reference`](trait.Reference.html) with
 /// an eviction policy based on fixed priority.
@@ -51,15 +51,6 @@ impl<V, P: Ord + Clone> Priority<V, P> {
     }
 }
 
-impl<V, P: Ord + Clone> Reference<V> for Priority<V, P> {
-    fn unwrap(self) -> V {
-        self.value
-    }
-    fn clone(&self, v: V) -> Self {
-        Priority::new(v, self.priority.clone())
-    }
-}
-
 impl<V, P: Ord + Clone> Deref for Priority<V, P> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
@@ -92,6 +83,8 @@ impl<V, P: Ord + Clone> PartialEq for Priority<V, P> {
 }
 
 impl<V, P: Ord + Clone> Eq for Priority<V, P> {}
+
+impl<V, P: Ord + Clone> Reference<V> for Priority<V, P> {}
 
 #[cfg(test)]
 mod tests {

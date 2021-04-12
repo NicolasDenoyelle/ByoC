@@ -10,7 +10,7 @@ use std::ops::{Deref, DerefMut};
 /// ## Details
 ///
 /// `LRU` references implement an order based on the Least Recently Used (LRU) policy.
-/// It tries to keep in cache elements that were recently touched.
+/// It tries to keep in cache elements that were recently accessed.
 ///
 /// ## Generics
 ///
@@ -23,14 +23,14 @@ use std::ops::{Deref, DerefMut};
 /// let mut lfu_0 = LRU::<u32>::new(999);
 /// let mut lfu_1 = LRU::<u32>::new(666);
 /// assert!( lfu_0 > lfu_1 ); // lfu_1 is the most recently created.
-/// lfu_0.touch();
+/// *lfu_0;
 /// assert!( lfu_0 < lfu_1 ); // lfu_0 is the most recently used.
 /// ```
 
 #[derive(Debug)]
 pub struct LRU<V> {
     value: V,
-    /// Last `touch()` time.
+    /// Last access time.
     timestamp: Cell<Counter>,
 }
 
@@ -40,21 +40,6 @@ impl<V> LRU<V> {
             value: e,
             timestamp: Cell::new(Counter::new()),
         }
-    }
-}
-
-impl<V> Reference<V> for LRU<V> {
-    fn unwrap(self) -> V {
-        self.value
-    }
-    fn clone(&self, value: V) -> Self {
-        LRU {
-            value: value,
-            timestamp: self.timestamp.clone(),
-        }
-    }
-    fn replace(&mut self, value: V) -> V {
-        std::mem::replace(&mut self.value, value)
     }
 }
 
@@ -96,3 +81,5 @@ impl<V> PartialEq for LRU<V> {
 }
 
 impl<V> Eq for LRU<V> {}
+
+impl<V> Reference<V> for LRU<V> {}

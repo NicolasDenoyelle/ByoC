@@ -37,9 +37,10 @@ use std::collections::{BTreeMap, BTreeSet};
 /// // Container is full and pops a victim.
 /// let (key, value) = c.push("second", 12).unwrap();
 ///
-/// // The victim is the second reference because its value is greater.
-/// assert!(key == "second");
-/// assert!(*value == 12);
+/// // The victim is the first reference because eviction happens before
+/// // insertion.
+/// assert!(key == "first");
+/// assert!(value == 4);
 /// ```
 pub struct BTree<K, V>
 where

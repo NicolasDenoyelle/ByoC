@@ -19,17 +19,9 @@ use std::ops::{Deref, DerefMut};
 /// * `Ord`: The cache eviction policy. Maximum element is the next cache victim.
 /// * `Deref<Target = V>`: Read-only access to the value held in the cache Reference.
 /// * `DerefMut<Target = V>`: Write access to the value held in the cache Reference.
-pub trait Reference<V>: Ord + Deref<Target = V> + DerefMut<Target = V> {
-    /// Copy this reference and wrap it around a different value.
-    fn clone(&self, value: V) -> Self;
-
-    /// Consume the cache reference and get ownership its inner value.
-    fn unwrap(self) -> V;
-
-    /// Replace the value inside a reference with another value.
-    fn replace(&mut self, value: V) -> V {
-        std::mem::replace(self.deref_mut(), value)
-    }
+pub trait Reference<V>:
+    Ord + Deref<Target = V> + DerefMut<Target = V>
+{
 }
 
 mod priority;

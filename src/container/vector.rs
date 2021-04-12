@@ -36,8 +36,8 @@ use std::vec::Vec;
 /// let (key, value) = c.push("second", 12).unwrap();
 ///
 /// // The victim is the second reference because it has a greater value.
-/// assert!(key == "second");
-/// assert!(*value == 12);
+/// assert!(key == "first");
+/// assert!(value == 4);
 /// ```
 pub struct Vector<V> {
     capacity: usize,
@@ -114,7 +114,7 @@ where
         }
 
         self.values.push((reference, key));
-        if self.values.len() < self.capacity {
+        if self.values.len() <= self.capacity {
             return None;
         } else {
             let (v, k) = self.values.swap_remove(victim);
