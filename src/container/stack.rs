@@ -162,9 +162,9 @@ where
     type Item = T;
     fn get(&'a mut self, key: &K) -> Option<T> {
         // Start with first container
-        if let Some(v1) = self.l1.get(key) {
+        if self.l1.contains(key) {
             // Found! Stop here.
-            return Some(v1);
+            return self.l1.get(key);
         }
 
         // Not Found. Find in l2 and move to l1.
