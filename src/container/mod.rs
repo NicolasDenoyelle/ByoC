@@ -26,7 +26,10 @@ pub trait Container<'a, K: 'a, V: 'a> {
 
     /// Remove all values from the container.
     fn clear(&mut self) {
-        while self.pop().is_some() {}
+        #[allow(unused_must_use)]
+        {
+            self.flush();
+        }
     }
 
     /// Insert a value in the container. If an equivalent key already
@@ -38,7 +41,10 @@ pub trait Container<'a, K: 'a, V: 'a> {
     /// * `value`: The cache value to insert.
     fn push(&mut self, key: K, value: V) -> Option<(K, V)>;
 
-    /// Empty the container and retrieve all elements inside a vector.
+    /// Empty the container and retrieve all of its elements.
+    /// The container becomes empty and available at the end of the call.
+    /// This functions yields an iterator because the amount of items to
+    /// iterate over might exceed the size of computer memory.
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
 }
 

@@ -16,9 +16,9 @@ pub fn rand(a: u64, b: u64) -> u64 {
 
 type Reference = Default<u32>;
 
-fn test_is_max<C>(c: &mut C, value: &Default<u32>, inserted_key: u16)
+fn test_is_max<'a, C>(c: &mut C, value: &Default<u32>, inserted_key: u16)
 where
-    C: Container<u16, Reference> + Packed<u16, Reference>,
+    C: Container<'a, u16, Reference> + Packed<'a, u16, Reference>,
 {
     let mut elements = Vec::new();
     let count = c.count();
@@ -41,9 +41,9 @@ where
     }
 }
 
-fn test_push<C>(c: &mut C, key: u16, value: u32)
+fn test_push<'a, C>(c: &mut C, key: u16, value: u32)
 where
-    C: Container<u16, Reference> + Packed<u16, Reference>,
+    C: Container<'a, u16, Reference> + Packed<'a, u16, Reference>,
 {
     let count = c.count();
     let reference = Default::new(value);
@@ -75,9 +75,9 @@ where
     }
 }
 
-fn test_n_container<C>(c: &mut C, n: usize)
+fn test_n_container<'a, C>(c: &mut C, n: usize)
 where
-    C: Container<u16, Reference> + Packed<u16, Reference>,
+    C: Container<'a, u16, Reference> + Packed<'a, u16, Reference>,
 {
     let elements: Vec<(u16, u32)> = (0..n as u64)
         .map(|i| (i as u16, rand(0, n as u64) as u32))
@@ -88,9 +88,9 @@ where
     c.clear();
 }
 
-pub fn test_container<C>(mut c: C)
+pub fn test_container<'a, C>(mut c: C)
 where
-    C: Container<u16, Reference> + Packed<u16, Reference>,
+    C: Container<'a, u16, Reference> + Packed<'a, u16, Reference>,
 {
     let mut n = 0;
     test_n_container(&mut c, n);

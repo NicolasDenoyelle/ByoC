@@ -29,19 +29,18 @@ use std::cmp::Eq;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Get, Stack, Vector, Map};
-/// use cache::reference::Default;
+/// use cache::container::{Container, Get, Stack, Vector};
 ///
 /// // Create cache
-/// let mut l1 = Vector::<_,Default<_>>::new(1);
-/// let mut stack = Map::<_,Default<_>>::new(1);
-/// let mut cache = Stack::new(l1, stack);
+/// let mut l1 = Vector::new(1);
+/// let mut l2 = Vector::new(1);
+/// let mut cache = Stack::new(l1, l2);
 /// assert_eq!(cache.capacity(), 2);
 ///
 /// // Populate cache
 /// assert!(cache.push("first", 0).is_none());
 /// assert!(cache.push("second", 3).is_none());
-/// let mut first = cache.get_mut(&"first");
+/// let mut first = cache.get(&"first");
 ///
 /// // Cache overflow. Victim is the Least Recently used, i.e "second".
 /// let victim = cache.push("third", 2).unwrap();

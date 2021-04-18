@@ -171,7 +171,7 @@ where
 /// };
 /// assert!(container.push(0, 0).is_none());
 /// assert!(container.push(1, 1).is_none());
-/// assert!(container.push(2, 2).unwrap().1 == 1);
+/// assert!(container.push(2, 2).unwrap() == (1,1));
 /// ```
 pub struct FileMap {
     file: File,

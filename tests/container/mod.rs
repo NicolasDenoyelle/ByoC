@@ -1,5 +1,4 @@
 use cache::container::Container;
-use cache::reference::Default;
 use cache::timestamp::{Counter, Timestamp};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
@@ -15,11 +14,9 @@ pub fn rand(a: u64, b: u64) -> u64 {
     hasher.finish() % (b - a) + a
 }
 
-type Reference = Default<u32>;
-
-fn test_is_min<C>(c: &mut C, value: &Default<u32>)
+fn test_is_min<'a, C>(c: &mut C, value: &u32)
 where
-    C: Container<u16, Reference>,
+    C: Container<'a, u16, u32>,
 {
     let mut elements = Vec::new();
     let count = c.count();
@@ -38,38 +35,43 @@ where
     }
 }
 
-fn test_push<C>(c: &mut C, key: u16, value: u32)
+fn test_push<'a, C>(c: &mut C, key: u16, value: u32)
 where
-    C: Container<u16, Reference>,
+    C: Container<'a, u16, u32>,
 {
     let count = c.count();
-    let reference = Default::new(value);
 
     if c.contains(&key) || count == c.capacity() {
-        let out = c.push(key, reference).unwrap();
-        if out.0 != key && out.1 < Default::new(value) {
+        let out = c.push(key, value).unwrap();
+        if out.0 != key && out.1 < value {
             test_is_min(c, &out.1);
         }
         assert_eq!(c.count(), count);
     }
 }
 
-fn test_n_container<C>(c: &mut C, n: usize)
+fn test_n_container<'a, C>(c: &mut C, n: usize)
 where
-    C: Container<u16, Reference>,
+    C: Container<'a, u16, u32>,
 {
     let elements: Vec<(u16, u32)> = (0..n as u64)
         .map(|i| (i as u16, rand(0, n as u64) as u32))
         .collect();
-    for (k, v) in elements {
-        test_push(c, k, v);
+    for (k, v) in elements.iter() {
+        test_push(c, *k, *v);
     }
-    c.clear();
+
+    for (k, v) in c.flush() {
+        assert!(elements
+            .iter()
+            .find(|(_k, _v)| { _k == &k && _v == &v })
+            .is_some());
+    }
 }
 
-pub fn test_container<C>(mut c: C)
+pub fn test_container<'a, C>(mut c: C)
 where
-    C: Container<u16, Reference>,
+    C: Container<'a, u16, u32>,
 {
     let mut n = 0;
     test_n_container(&mut c, n);

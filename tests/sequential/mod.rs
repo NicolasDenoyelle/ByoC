@@ -14,9 +14,9 @@ pub fn rand(a: u64, b: u64) -> u64 {
     hasher.finish() % (b - a) + a
 }
 
-fn test_push<C>(c: &mut C, key: u16, value: u32)
+fn test_push<'a, C>(c: &mut C, key: u16, value: u32)
 where
-    C: Container<u16, u32>,
+    C: Container<'a, u16, u32>,
 {
     match c.push(key.clone(), value.clone()) {
         None => (),
@@ -31,9 +31,9 @@ where
     };
 }
 
-fn test_n_sequential<C>(c: &mut C, n: usize)
+fn test_n_sequential<'a, C>(c: &mut C, n: usize)
 where
-    C: Container<u16, u32>,
+    C: Container<'a, u16, u32>,
 {
     let elements: Vec<(u16, u32)> = (0..n as u64)
         .map(|i| (i as u16, rand(0, n as u64) as u32))
@@ -44,9 +44,9 @@ where
     c.clear();
 }
 
-pub fn test_sequential<C>(mut c: C)
+pub fn test_sequential<'a, C>(mut c: C)
 where
-    C: Container<u16, u32>,
+    C: Container<'a, u16, u32>,
 {
     let mut n = 0;
     test_n_sequential(&mut c, n);

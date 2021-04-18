@@ -9,7 +9,9 @@ fn test_after_push<C>(
     keys: Vec<u16>,
     popped_keys: Vec<u16>,
 ) where
-    C: 'static + Container<u16, u32> + Concurrent<u16, u32>,
+    C: 'static
+        + Container<'static, u16, u32>
+        + Concurrent<'static, u16, u32>,
 {
     // Test container count is the incremented count.
     assert!(c.count() == count);
@@ -35,7 +37,9 @@ fn test_after_push<C>(
 
 pub fn push_concurrent<C>(c: C, mut set: Vec<(u16, u32)>, num_thread: u8)
 where
-    C: 'static + Container<u16, u32> + Concurrent<u16, u32>,
+    C: 'static
+        + Container<'static, u16, u32>
+        + Concurrent<'static, u16, u32>,
 {
     // Not more threads than elements.
     let num_thread = min(num_thread as usize, set.len()) as u8;
@@ -87,7 +91,9 @@ where
 
 pub fn test_concurrent<C>(c: C, set: Vec<(u16, u32)>, num_thread: u8)
 where
-    C: 'static + Container<u16, u32> + Concurrent<u16, u32>,
+    C: 'static
+        + Container<'static, u16, u32>
+        + Concurrent<'static, u16, u32>,
 {
     push_concurrent(c, set, num_thread);
 }
