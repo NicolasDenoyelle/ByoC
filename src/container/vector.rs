@@ -57,21 +57,21 @@ impl<V> Vector<V> {
 //  Container implementation.                                             //
 //------------------------------------------------------------------------//
 
-impl<K, V> Container<K, V> for Vector<(V, K)>
+impl<'a, K, V> Container<'a, K, V> for Vector<(K, V)>
 where
-    K: Eq,
-    V: Ord,
+    K: 'a + Eq,
+    V: 'a + Ord,
 {
     fn capacity(&self) -> usize {
         return self.capacity;
     }
 
-    fn flush(&mut self) -> Vec<(K, V)> {
-        self.values.drain(..).map(|(v, k)| (k, v)).collect()
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        Box::new(self.values.split_off(0).into_iter())
     }
 
     fn contains(&self, key: &K) -> bool {
-        self.values.iter().any(|(_, k)| k == key)
+        self.values.iter().any(|(k, _)| k == key)
     }
 
     fn count(&self) -> usize {
@@ -88,12 +88,11 @@ where
         }
         let mut v = 0;
         for i in 1..self.count() {
-            if self.values[i].0 > self.values[v].0 {
+            if self.values[i].1 > self.values[v].1 {
                 v = i
             }
         }
-        let (v, k) = self.values.swap_remove(v);
-        Some((k, v))
+        Some(self.values.swap_remove(v))
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
@@ -103,50 +102,48 @@ where
 
         let mut victim = 0;
 
-        for (i, (v, k)) in self.values.iter().enumerate() {
+        for (i, (k, v)) in self.values.iter().enumerate() {
             if k == &key {
-                self.values.push((reference, key));
-                let (v, k) = self.values.swap_remove(victim);
-                return Some((k, v));
-            } else if v > &self.values[victim].0 {
+                self.values.push((key, reference));
+                return Some(self.values.swap_remove(i));
+            } else if v > &self.values[victim].1 {
                 victim = i;
             }
         }
 
-        self.values.push((reference, key));
+        self.values.push((key, reference));
         if self.values.len() <= self.capacity {
             return None;
         } else {
-            let (v, k) = self.values.swap_remove(victim);
-            return Some((k, v));
+            return Some(self.values.swap_remove(victim));
         }
     }
 
     fn take(&mut self, key: &K) -> Option<V> {
-        match self.values.iter().position(|(_, k)| k == key) {
+        match self.values.iter().position(|(k, _)| k == key) {
             None => None,
-            Some(i) => Some(self.values.swap_remove(i).0),
+            Some(i) => Some(self.values.swap_remove(i).1),
         }
     }
 }
 
-impl<'a, K, V> Get<'a, K, V> for Vector<(V, K)>
+impl<'a, K, V> Get<'a, K, V> for Vector<(K, V)>
 where
-    K: Eq,
+    K: 'a + Eq,
     V: 'a + Ord,
 {
     type Item = &'a mut V;
     fn get(&'a mut self, key: &K) -> Option<&'a mut V> {
-        match self.values.iter().position(|(_, k)| k == key) {
+        match self.values.iter().position(|(k, _)| k == key) {
             None => None,
-            Some(i) => Some(&mut self.values[i].0),
+            Some(i) => Some(&mut self.values[i].1),
         }
     }
 }
 
-impl<K, V> Packed<K, V> for Vector<(V, K)>
+impl<'a, K, V> Packed<'a, K, V> for Vector<(K, V)>
 where
-    K: Eq,
-    V: Ord,
+    K: 'a + Eq,
+    V: 'a + Ord,
 {
 }

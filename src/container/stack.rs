@@ -1,5 +1,6 @@
 use crate::container::{Container, Get};
 use crate::marker::Packed;
+use crate::utils::flush::VecFlushIterator;
 use std::cmp::Eq;
 
 //------------------------------------------------------------------------//
@@ -63,21 +64,21 @@ impl<C1, C2> Stack<C1, C2> {
     }
 }
 
-impl<K, V, C1, C2> Container<K, V> for Stack<C1, C2>
+impl<'a, K, V, C1, C2> Container<'a, K, V> for Stack<C1, C2>
 where
-    K: Clone + Eq,
-    V: Ord,
-    C1: Container<K, V>,
-    C2: Container<K, V>,
+    K: 'a + Clone + Eq,
+    V: 'a + Ord,
+    C1: Container<'a, K, V>,
+    C2: Container<'a, K, V>,
 {
     fn capacity(&self) -> usize {
         self.l1.capacity() + self.l2.capacity()
     }
 
-    fn flush(&mut self) -> Vec<(K, V)> {
-        let mut v = self.l1.flush();
-        v.append(&mut self.l2.flush());
-        v
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        Box::new(VecFlushIterator {
+            it: vec![self.l1.flush(), self.l2.flush()],
+        })
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -142,21 +143,21 @@ where
     }
 }
 
-impl<K, V, C1, C2> Packed<K, V> for Stack<C1, C2>
+impl<'a, K, V, C1, C2> Packed<'a, K, V> for Stack<C1, C2>
 where
-    K: Clone + Eq,
-    V: Ord,
-    C1: Container<K, V> + Packed<K, V>,
-    C2: Container<K, V> + Packed<K, V>,
+    K: 'a + Clone + Eq,
+    V: 'a + Ord,
+    C1: Container<'a, K, V> + Packed<'a, K, V>,
+    C2: Container<'a, K, V> + Packed<'a, K, V>,
 {
 }
 
 impl<'a, K, V, C1, C2, T> Get<'a, K, V> for Stack<C1, C2>
 where
-    K: Clone + Eq,
-    V: Ord,
-    C1: Container<K, V> + Get<'a, K, V, Item = T>,
-    C2: Container<K, V>,
+    K: 'a + Clone + Eq,
+    V: 'a + Ord,
+    C1: Container<'a, K, V> + Get<'a, K, V, Item = T>,
+    C2: Container<'a, K, V>,
     T: 'a,
 {
     type Item = T;

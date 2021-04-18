@@ -334,6 +334,13 @@ impl<'a, V> Deref for RWLockGuard<'a, V> {
     }
 }
 
+impl<'a, T, V: Iterator<Item = T>> Iterator for RWLockGuard<'a, V> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.value.next()
+    }
+}
+
 /// Access inner value
 impl<'a, V> DerefMut for RWLockGuard<'a, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {

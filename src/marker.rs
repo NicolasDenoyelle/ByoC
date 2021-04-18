@@ -7,8 +7,11 @@ use crate::container::Container;
 /// In the container. This is specifically NOT used in
 /// [Associative](struct.Associative.html) containers that will pop when
 /// inserting in a full set/bucket.
-pub trait Packed<K, V>: Container<K, V> {}
+pub trait Packed<'a, K: 'a, V: 'a>: Container<'a, K, V> {}
 
 /// Concurrent containers implement `Clone` trait and allow concurrent
 /// access in between clones.
-pub trait Concurrent<K, V>: Container<K, V> + Clone + Send + Sync {}
+pub trait Concurrent<'a, K: 'a, V: 'a>:
+    Container<'a, K, V> + Clone + Send + Sync
+{
+}

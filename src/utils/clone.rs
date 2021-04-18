@@ -134,9 +134,11 @@ unsafe impl<V: Sync> Sync for CloneCell<V> {}
 //                         Container implementation
 //-------------------------------------------------------------------------
 
-impl<'a, K, V, C> Container<K, V> for CloneCell<C>
+impl<'a, K, V, C> Container<'a, K, V> for CloneCell<C>
 where
-    C: Container<K, V>,
+    K: 'a,
+    V: 'a,
+    C: Container<'a, K, V>,
 {
     fn capacity(&self) -> usize {
         self.deref().capacity()
@@ -165,12 +167,23 @@ where
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
         self.deref_mut().push(key, reference)
     }
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        self.deref_mut().flush()
+    }
 }
 
-impl<K, V, C> Concurrent<K, V> for CloneCell<C> where C: Concurrent<K, V> {}
+impl<'a, K, V, C> Concurrent<'a, K, V> for CloneCell<C>
+where
+    K: 'a,
+    V: 'a,
+    C: Concurrent<'a, K, V>,
+{
+}
 
 impl<'a, K, V, T, C> Get<'a, K, V> for CloneCell<C>
 where
+    K: 'a,
+    V: 'a,
     C: Get<'a, K, V, Item = T>,
     T: 'a,
 {

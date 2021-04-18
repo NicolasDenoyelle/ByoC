@@ -187,11 +187,45 @@ impl<K, V, C: Clone> Clone for Profiler<K, V, C> {
     }
 }
 
+struct ProfilerFlushIter<'a, K, V> {
+    elements: Box<dyn Iterator<Item = (K, V)> + 'a>,
+    stats: CloneCell<Stats>,
+}
+
+//------------------------------------------------------------------------//
+// Flush iterator
+//------------------------------------------------------------------------//
+
+impl<'a, K, V> Iterator for ProfilerFlushIter<'a, K, V> {
+    type Item = (K, V);
+    fn next(&mut self) -> Option<Self::Item> {
+        let t0 = Instant::now();
+        let item = self.elements.next();
+        let tf = t0.elapsed().as_millis();
+        match item {
+            Some(v) => {
+                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
+                self.stats
+                    .tot_millis
+                    .fetch_add(tf as u64, Ordering::SeqCst);
+                self.stats.take_fn.push(tf as f64);
+                Some(v)
+            }
+            None => None,
+        }
+    }
+}
+
 //------------------------------------------------------------------------//
 // Display Implementation                                                 //
 //------------------------------------------------------------------------//
 
-impl<K, V, C: Container<K, V>> std::fmt::Debug for Profiler<K, V, C> {
+impl<'a, K, V, C> std::fmt::Debug for Profiler<K, V, C>
+where
+    K: 'a,
+    V: 'a,
+    C: Container<'a, K, V>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -205,7 +239,12 @@ impl<K, V, C: Container<K, V>> std::fmt::Debug for Profiler<K, V, C> {
     }
 }
 
-impl<K, V, C: Container<K, V>> std::fmt::Display for Profiler<K, V, C> {
+impl<'a, K, V, C> std::fmt::Display for Profiler<K, V, C>
+where
+    K: 'a,
+    V: 'a,
+    C: Container<'a, K, V>,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "---------------------------------------------------")?;
         write!(f, "Cache profile summary")?;
@@ -272,9 +311,11 @@ impl<K, V, C: Container<K, V>> std::fmt::Display for Profiler<K, V, C> {
 // Container implementation                                               //
 //------------------------------------------------------------------------//
 
-impl<K, V, C> Container<K, V> for Profiler<K, V, C>
+impl<'a, K, V, C> Container<'a, K, V> for Profiler<K, V, C>
 where
-    C: Container<K, V>,
+    K: 'a,
+    V: 'a,
+    C: Container<'a, K, V>,
 {
     fn capacity(&self) -> usize {
         self.cache.capacity()
@@ -312,14 +353,11 @@ where
         }
     }
 
-    fn flush(&mut self) -> Vec<(K, V)> {
-        let t0 = Instant::now();
-        let v = self.cache.flush();
-        let tf = t0.elapsed().as_millis();
-        self.stats.hit.fetch_add(v.len() as u64, Ordering::SeqCst);
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.pop_fn.push(tf as f64);
-        v
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        Box::new(ProfilerFlushIter {
+            elements: self.cache.flush(),
+            stats: self.stats.clone(),
+        })
     }
 
     /// Counts for one cache access and one hit.
@@ -362,6 +400,8 @@ where
 
 impl<'a, K, V, C, T> Get<'a, K, V> for Profiler<K, V, C>
 where
+    K: 'a,
+    V: 'a,
     C: Get<'a, K, V, Item = T>,
     T: 'a,
 {
@@ -395,4 +435,10 @@ unsafe impl<K, V, C: Send> Send for Profiler<K, V, C> {}
 
 unsafe impl<K, V, C: Sync> Sync for Profiler<K, V, C> {}
 
-impl<K, V, C: Concurrent<K, V>> Concurrent<K, V> for Profiler<K, V, C> {}
+impl<'a, K, V, C> Concurrent<'a, K, V> for Profiler<K, V, C>
+where
+    K: 'a,
+    V: 'a,
+    C: Container<'a, K, V> + Concurrent<'a, K, V>,
+{
+}
