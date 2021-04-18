@@ -1,14 +1,16 @@
 use crate::container::{Container, Get};
 use crate::marker::Packed;
+use tempfile::{NamedTempFile, TempPath};
+
 use std::{
     cmp::Eq,
     fs::{remove_file, File, OpenOptions},
     io::{Read, Result, Seek, SeekFrom, Write},
+    marker::PhantomData,
     mem::{size_of, MaybeUninit},
     ops::{Deref, DerefMut, Drop},
-    path::PathBuf,
+    path::{Path, PathBuf},
     slice,
-    string::String,
 };
 
 /// Structure with specified contiguous memory layout
@@ -173,17 +175,15 @@ where
 /// ```
 pub struct FileMap {
     file: File,
-    persistant: Option<String>,
+    path: PathBuf,
+    persistant: bool,
     capacity: usize,
 }
 
 impl Drop for FileMap {
     fn drop(&mut self) {
-        match &self.persistant {
-            Some(filename) => {
-                remove_file(filename).unwrap();
-            }
-            None => (),
+        if self.persistant {
+            remove_file(&self.path).unwrap();
         }
     }
 }
@@ -233,20 +233,18 @@ impl FileMap {
         capacity: usize,
         persistant: bool,
     ) -> Result<Self> {
+        let pb = PathBuf::from(filename);
         match OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)
-            .open(PathBuf::from(filename))
+            .open(&pb)
         {
             Ok(f) => Ok(FileMap {
                 file: f,
+                path: pb,
                 capacity: capacity,
-                persistant: if !persistant {
-                    Some(String::from(filename))
-                } else {
-                    None
-                },
+                persistant: persistant,
             }),
             Err(e) => Err(e),
         }
@@ -257,10 +255,32 @@ impl FileMap {
 // Container impl
 //------------------------------------------------------------------------//
 
-impl<K, V> Container<K, V> for FileMap
+pub struct FileMapFlushIterator<K: Sized, V: Sized> {
+    file: File,
+    // When dropped, the temp file is deleted.
+    #[allow(dead_code)]
+    path: TempPath,
+    unused_k: PhantomData<K>,
+    unused_v: PhantomData<V>,
+}
+
+impl<K: Sized, V: Sized> Iterator for FileMapFlushIterator<K, V> {
+    type Item = (K, V);
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match FileMapElement::<K, V>::read(&mut self.file) {
+                Err(_) => return None,
+                Ok(Some(e)) => return Some(e.into_kv()),
+                Ok(None) => {}
+            }
+        }
+    }
+}
+
+impl<'a, K, V> Container<'a, K, V> for FileMap
 where
-    K: Sized + Eq,
-    V: Sized + Ord,
+    K: 'a + Sized + Eq,
+    V: 'a + Sized + Ord,
 {
     fn capacity(&self) -> usize {
         self.capacity
@@ -291,17 +311,27 @@ where
         }
     }
 
-    fn flush(&mut self) -> Vec<(K, V)> {
-        self.file.flush().unwrap();
-        self.file.seek(SeekFrom::Start(0)).unwrap();
-        let mut v = Vec::new();
-        loop {
-            match FileMapElement::<K, V>::read(&mut self.file) {
-                Err(_) => break v,
-                Ok(None) => (),
-                Ok(Some(x)) => v.push(x.into_kv()),
-            }
-        }
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        let tmp_path = NamedTempFile::new().unwrap().into_temp_path();
+        std::fs::rename(&self.path, AsRef::<Path>::as_ref(&tmp_path))
+            .unwrap();
+
+        self.file = OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .open(&self.path)
+            .unwrap();
+
+        let tp = String::from(
+            AsRef::<Path>::as_ref(&tmp_path).to_str().unwrap(),
+        );
+        Box::new(FileMapFlushIterator {
+            file: OpenOptions::new().read(true).open(tp).unwrap(),
+            path: tmp_path,
+            unused_k: PhantomData,
+            unused_v: PhantomData,
+        })
     }
 
     fn take(&mut self, key: &K) -> Option<V> {
@@ -477,10 +507,10 @@ where
     }
 }
 
-impl<K, V> Packed<K, V> for FileMap
+impl<'a, K, V> Packed<'a, K, V> for FileMap
 where
-    K: Sized + Eq,
-    V: Sized + Ord,
+    K: 'a + Sized + Eq,
+    V: 'a + Sized + Ord,
 {
 }
 
@@ -538,7 +568,7 @@ impl<K: Sized, V: Sized> DerefMut for FileMapValue<K, V> {
     }
 }
 
-impl<K, V> Drop for FileMapValue<K, V> {
+impl<K: Sized, V: Sized> Drop for FileMapValue<K, V> {
     fn drop(&mut self) {
         self.file.seek(SeekFrom::Start(self.offset)).unwrap();
         FileMapElement::<K, V>::write_kv(

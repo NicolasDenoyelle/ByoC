@@ -76,10 +76,10 @@ where
 //  Container implementation.                                             //
 //------------------------------------------------------------------------//
 
-impl<K, V> Container<K, V> for BTree<K, V>
+impl<'a, K, V> Container<'a, K, V> for BTree<K, V>
 where
-    K: Copy + Ord,
-    V: Ord,
+    K: 'a + Copy + Ord,
+    V: 'a + Ord,
 {
     fn capacity(&self) -> usize {
         return self.capacity;
@@ -89,10 +89,15 @@ where
         return self.references.len();
     }
 
-    fn flush(&mut self) -> Vec<(K, V)> {
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
         self.map.clear();
         self.set.clear();
-        self.references.drain(..).collect()
+        Box::new(
+            self.references
+                .drain(..)
+                .collect::<Vec<(K, V)>>()
+                .into_iter(),
+        )
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -198,9 +203,9 @@ where
     }
 }
 
-impl<K, V> Packed<K, V> for BTree<K, V>
+impl<'a, K, V> Packed<'a, K, V> for BTree<K, V>
 where
-    K: Ord + Copy,
-    V: Ord,
+    K: 'a + Ord + Copy,
+    V: 'a + Ord,
 {
 }

@@ -1,7 +1,7 @@
 use crate::container::{Container, Get, Sequential};
 use crate::lock::RWLockGuard;
 use crate::marker::Concurrent;
-use crate::utils::clone::CloneCell;
+use crate::utils::{clone::CloneCell, flush::VecFlushIterator};
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
 
@@ -98,27 +98,21 @@ impl<C, H: Hasher + Clone> Associative<C, H> {
     }
 }
 
-unsafe impl<C, H: Hasher + Clone> Send for Associative<C, H> {}
-
-unsafe impl<C, H: Hasher + Clone> Sync for Associative<C, H> {}
-
-impl<K, V, C, H> Container<K, V> for Associative<C, H>
+impl<'a, K, V, C, H> Container<'a, K, V> for Associative<C, H>
 where
-    K: Clone + Hash,
-    V: Ord,
-    C: Container<K, V>,
+    K: 'a + Clone + Hash,
+    V: 'a + Ord,
+    C: Container<'a, K, V>,
     H: Hasher + Clone,
 {
     fn capacity(&self) -> usize {
         return self.n_sets * self.set_size;
     }
 
-    fn flush(&mut self) -> Vec<(K, V)> {
-        let mut v = Vec::with_capacity(self.capacity());
-        for i in 0..self.n_sets {
-            v.append(&mut self.containers[i].flush());
-        }
-        v
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        Box::new(VecFlushIterator {
+            it: self.containers.iter_mut().map(|c| c.flush()).collect(),
+        })
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -211,20 +205,24 @@ where
     }
 }
 
-impl<K, V, C, H> Concurrent<K, V> for Associative<C, H>
+unsafe impl<C, H: Hasher + Clone> Send for Associative<C, H> {}
+
+unsafe impl<C, H: Hasher + Clone> Sync for Associative<C, H> {}
+
+impl<'a, K, V, C, H> Concurrent<'a, K, V> for Associative<C, H>
 where
-    K: Clone + Hash,
-    V: Ord,
-    C: Container<K, V>,
+    K: 'a + Hash + Clone,
+    V: 'a + Ord,
+    C: Container<'a, K, V>,
     H: Hasher + Clone,
 {
 }
 
 impl<'a, K, V, C, H, T> Get<'a, K, V> for Associative<C, H>
 where
-    K: Clone + Hash,
-    V: Ord,
-    C: Container<K, V> + Get<'a, K, V, Item = T>,
+    K: 'a + Clone + Hash,
+    V: 'a + Ord,
+    C: Get<'a, K, V, Item = T>,
     H: Hasher + Clone,
     T: 'a,
 {

@@ -3,3 +3,6 @@ name = "cache"
 version = "0.1.0"
 authors = ["ndenoyelle <ndenoyel@anl.gov>"]
 edition = "2018"
+
+[dependencies]
+tempfile = "3.2.0"

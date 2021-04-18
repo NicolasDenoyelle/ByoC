@@ -65,21 +65,22 @@ impl<C> Sequential<C> {
     }
 }
 
-impl<K, V, C> Container<K, V> for Sequential<C>
+impl<'a, K, V, C> Container<'a, K, V> for Sequential<C>
 where
-    V: Ord,
-    C: Container<K, V>,
+    K: 'a,
+    V: 'a + Ord,
+    C: Container<'a, K, V>,
 {
     fn capacity(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
         self.container.capacity()
     }
 
-    fn flush(&mut self) -> Vec<(K, V)> {
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
         self.lock.lock().unwrap();
-        let v = self.container.flush();
+        let out = Box::new(self.container.flush());
         self.lock.unlock();
-        v
+        out
     }
 
     fn count(&self) -> usize {
@@ -122,10 +123,11 @@ impl<C> Clone for Sequential<C> {
     }
 }
 
-impl<K, V, C> Packed<K, V> for Sequential<C>
+impl<'a, K, V, C> Packed<'a, K, V> for Sequential<C>
 where
-    V: Ord,
-    C: Container<K, V> + Packed<K, V>,
+    K: 'a,
+    V: 'a + Ord,
+    C: Container<'a, K, V> + Packed<'a, K, V>,
 {
 }
 
@@ -133,17 +135,19 @@ unsafe impl<C> Send for Sequential<C> {}
 
 unsafe impl<C> Sync for Sequential<C> {}
 
-impl<K, V, C> Concurrent<K, V> for Sequential<C>
+impl<'a, K, V, C> Concurrent<'a, K, V> for Sequential<C>
 where
-    V: Ord,
-    C: Container<K, V>,
+    K: 'a,
+    V: 'a + Ord,
+    C: Container<'a, K, V>,
 {
 }
 
 impl<'a, K, V, C, T> Get<'a, K, V> for Sequential<C>
 where
-    V: Ord,
-    C: Container<K, V> + Get<'a, K, V, Item = T>,
+    K: 'a,
+    V: 'a + Ord,
+    C: Get<'a, K, V, Item = T>,
     T: 'a,
 {
     type Item = RWLockGuard<'a, T>;

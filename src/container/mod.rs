@@ -1,12 +1,10 @@
-use std::vec::Vec;
-
 /// Container trait.
 ///
 /// ## Generics:
 ///
 /// * `K`: Is the key type, used for cache lookups.
 /// * `V`: Value to insert in container.
-pub trait Container<K, V> {
+pub trait Container<'a, K: 'a, V: 'a> {
     /// Get the number of elements fitting in the container.
     fn capacity(&self) -> usize;
 
@@ -41,15 +39,7 @@ pub trait Container<K, V> {
     fn push(&mut self, key: K, value: V) -> Option<(K, V)>;
 
     /// Empty the container and retrieve all elements inside a vector.
-    fn flush(&mut self) -> Vec<(K, V)> {
-        let mut v = Vec::new();
-        loop {
-            match self.pop() {
-                None => break v,
-                Some(x) => v.push(x),
-            }
-        }
-    }
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
 }
 
 /// `get()` method for [containers](trait.Container.html).
@@ -65,7 +55,7 @@ pub trait Container<K, V> {
 /// their metadata when they are dereferenced.
 /// 2. A returned smart pointer may allow to access a mutable reference
 /// to its content.
-pub trait Get<'a, K, V>: Container<K, V> {
+pub trait Get<'a, K: 'a, V: 'a>: Container<'a, K, V> {
     type Item: 'a;
     /// Get an item with matching key from cache.
     /// If not found, None is returned.
@@ -73,6 +63,7 @@ pub trait Get<'a, K, V>: Container<K, V> {
     fn get(&'a mut self, key: &K) -> Option<Self::Item>;
 }
 
+// Containers implementations.
 mod associative;
 pub use crate::container::associative::Associative;
 mod btree;
