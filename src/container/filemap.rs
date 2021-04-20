@@ -3,7 +3,7 @@ use crate::marker::Packed;
 use std::{
     cmp::{Eq, Ordering},
     fs::{remove_file, File, OpenOptions},
-    io::{BufReader, BufWriter, Read, Result, Seek, SeekFrom, Write},
+    io::{BufReader, Read, Result, Seek, SeekFrom, Write},
     mem::{size_of, MaybeUninit},
     ops::{Deref, DerefMut, Drop},
     path::{Path, PathBuf},
@@ -89,18 +89,18 @@ where
     ) -> Result<usize> {
         let e = unsafe {
             let mut e = MaybeUninit::<Self>::uninit();
-            (*e.as_mut_ptr()).set = true;
+            (*(e.as_mut_ptr())).set = true;
             std::ptr::copy_nonoverlapping(
                 key,
-                &mut (*e.as_mut_ptr()).key as *mut K,
+                &mut (*(e.as_mut_ptr())).key as *mut K,
                 std::mem::size_of::<K>(),
             );
             std::ptr::copy_nonoverlapping(
                 value,
-                &mut (*e.as_mut_ptr()).value as *mut V,
+                &mut (*(e.as_mut_ptr())).value as *mut V,
                 std::mem::size_of::<V>(),
             );
-            e.assume_init();
+            e.assume_init()
         };
 
         // SAFETY: slice representation is safe because self is
@@ -113,6 +113,28 @@ where
         };
         stream.write(s)
     }
+
+    // /// Write a key/value `(K,V)` pair wrapped into a
+    // /// `FileMapElement<(K,V)>` to `stream`.
+    // pub fn write_buf(
+    //     stream: &mut dyn Write,
+    //     elements: Vec<(K, V)>,
+    // ) -> Result<usize> {
+    //     let elements: Vec<FileMapElement<K, V>> = elements
+    //         .into_iter()
+    //         .map(|(k, v)| FileMapElement {
+    //             set: true,
+    //             key: k,
+    //             value: v,
+    //         })
+    //         .collect();
+    //     unsafe {
+    //         stream.write(std::slice::from_raw_parts(
+    //             elements.as_ptr() as *const u8,
+    //             elements.len() * FileMapElement::<K, V>::size(),
+    //         ))
+    //     }
+    // }
 
     /// Tag next element in `stream` as not set.
     /// On success, stream is forwarded by element size.
@@ -243,7 +265,6 @@ impl<'a, K: 'a + Sized, V: 'a + Sized> Iterator
 /// ```
 pub struct FileMap {
     file: File,
-    // ostream: BufWriter<File>,
     path: PathBuf,
     persistant: bool,
     capacity: usize,
@@ -292,7 +313,6 @@ impl FileMap {
 
         Ok(FileMap {
             file: file.try_clone().unwrap(),
-            // ostream: BufWriter::with_capacity(buffer_size, file),
             path: pb,
             capacity: capacity,
             persistant: persistant,
@@ -489,20 +509,26 @@ where
 
         match (victim, spot) {
             // No victim and no spot... It means the file is empty.
-            // Then we append element at the end of the file.
             (None, None) => {
-                self.file.seek(SeekFrom::End(0)).unwrap();
-                FileMapElement::<K, V>::write(
-                    &mut self.file,
-                    &key,
-                    &reference,
-                )
-                .unwrap();
-                None
+                // If there is room, we append element at the end of the file.
+                if file_size < max_size {
+                    self.file.seek(SeekFrom::End(0)).unwrap();
+                    FileMapElement::<K, V>::write(
+                        &mut self.file,
+                        &key,
+                        &reference,
+                    )
+                    .unwrap();
+                    None
+                }
+                // Else we return input.
+                else {
+                    Some((key, reference))
+                }
             }
             // No victim but a spot, then insert in the spot.
-            (None, Some(offset)) => {
-                self.file.seek(SeekFrom::Start(offset)).unwrap();
+            (None, Some(off)) => {
+                self.file.seek(SeekFrom::Start(off)).unwrap();
                 FileMapElement::<K, V>::write(
                     &mut self.file,
                     &key,
@@ -538,7 +564,16 @@ where
             // If the container is full, then we replace the victim else
             // we append at the end of the file.
             (Some((off, (k, v))), None) => {
-                if file_size >= max_size {
+                if k == key {
+                    self.file.seek(SeekFrom::Start(off)).unwrap();
+                    FileMapElement::<K, V>::write(
+                        &mut self.file,
+                        &key,
+                        &reference,
+                    )
+                    .unwrap();
+                    Some((k, v))
+                } else if file_size >= max_size {
                     self.file.seek(SeekFrom::Start(off)).unwrap();
                     FileMapElement::<K, V>::write(
                         &mut self.file,
@@ -671,58 +706,60 @@ where
 mod tests {
     use super::{FileMap, FileMapElement};
     use crate::container::Container;
-    use std::fs::{remove_file, File, OpenOptions};
+    use std::fs::{remove_file, OpenOptions};
     use std::io::{Seek, SeekFrom, Write};
 
-    fn setup(filename: &str) -> File {
-        OpenOptions::new()
+    #[test]
+    fn test_filemap_element() {
+        let filename: &str = "test_filemap_element";
+        let mut file = OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)
             .truncate(true)
             .open(filename)
-            .unwrap()
-    }
+            .unwrap();
 
-    fn teardown(filename: &str) {
-        remove_file(filename).unwrap();
-    }
+        std::panic::set_hook(Box::new(|_| {
+            #[allow(unused_must_use)]
+            {
+                remove_file("test_filemap_element");
+            }
+        }));
 
-    fn write_filemap_element(file: &mut File) {
-        file.seek(SeekFrom::Start(0)).unwrap();
-        for i in 0usize..16usize {
-            FileMapElement::write(file, &i, &i).unwrap();
+        // Write elements to file.
+        let input: Vec<(usize, usize)> =
+            (0usize..16usize).map(|i| (i, i)).collect();
+        for (k, v) in input.iter() {
+            FileMapElement::<usize, usize>::write(&mut file, k, v)
+                .unwrap();
         }
         file.flush().unwrap();
-    }
 
-    fn read_filemap_element(
-        file: &mut File,
-    ) -> Vec<(usize, Option<(usize, usize)>)> {
-        let size = FileMapElement::<usize, usize>::size() * 16;
-        let mut buf = vec![0u8; size];
-        file.seek(SeekFrom::Start(0)).unwrap();
-        unsafe {
-            FileMapElement::<usize, usize>::read(file, buf.as_mut_slice())
-                .unwrap()
-                .into_iter()
-                .map(|(_, x)| x)
-                .enumerate()
-                .collect()
-        }
-    }
+        // Read elements from file.
+        let mut buf = vec![
+            0u8;
+            input.len()
+                * FileMapElement::<usize, usize>::size()
+        ];
 
-    #[test]
-    fn test_filemap_element() {
-        let filename: &str = "test_filemap_element";
-        let mut file = setup(filename);
-        write_filemap_element(&mut file);
-        for (i, e) in read_filemap_element(&mut file) {
-            let (k, v) = e.unwrap();
-            assert_eq!(k, i);
-            assert_eq!(v, i);
+        (&file).seek(SeekFrom::Start(0)).unwrap();
+        let output = unsafe {
+            FileMapElement::<usize, usize>::read(
+                &mut file,
+                buf.as_mut_slice(),
+            )
+            .unwrap()
+            .into_iter()
+            .map(|(_, opt)| opt.unwrap())
+        };
+
+        // Check elements are the same.
+        for ((k1, v1), (k2, v2)) in input.into_iter().zip(output) {
+            assert_eq!(k1, k2);
+            assert_eq!(v1, v2);
         }
-        teardown(filename);
+        remove_file(filename).unwrap();
     }
 
     #[test]
@@ -731,6 +768,14 @@ mod tests {
             FileMap::new::<usize, usize>("test_filemap", 10, false, 1024)
                 .unwrap()
         };
+
+        std::panic::set_hook(Box::new(|_| {
+            #[allow(unused_must_use)]
+            {
+                remove_file("test_filemap");
+            }
+        }));
+
         // Push test
         for i in (0usize..10usize).rev() {
             assert!(
