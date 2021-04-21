@@ -12,10 +12,12 @@ fn filemap_container_test_0() {
         .unwrap()
     };
 
-    #[allow(unused_must_use)]
-    {
-        std::fs::remove_file("filemap_container_test_0");
-    }
+    std::panic::set_hook(Box::new(|_| {
+        #[allow(unused_must_use)]
+        {
+            std::fs::remove_file("filemap_container_test_0");
+        }
+    }));
 
     packed::test_container(container);
 }
@@ -31,9 +33,12 @@ fn filemap_container_test_small() {
         )
         .unwrap()
     };
-    #[allow(unused_must_use)]
-    {
-        std::fs::remove_file("filemap_container_test_small");
-    }
+
+    std::panic::set_hook(Box::new(|_| {
+        #[allow(unused_must_use)]
+        {
+            std::fs::remove_file("filemap_container_test_small");
+        }
+    }));
     packed::test_container(container);
 }

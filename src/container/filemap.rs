@@ -255,10 +255,12 @@ impl<'a, K: 'a + Sized, V: 'a + Sized> Iterator
 /// };
 ///
 /// // If test fails, delete created file because destructor is not called.
-/// #[allow(unused_must_use)]
-/// {
+/// std::panic::set_hook(Box::new(|_| {
+///   #[allow(unused_must_use)]
+///   {
 ///     std::fs::remove_file("filemap_container_test_0");
-/// }
+///   }
+/// }));
 ///
 /// assert!(container.push(0, 0).is_none());
 /// assert!(container.push(1, 1).is_none());
