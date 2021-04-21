@@ -31,7 +31,7 @@ where
     K: Sized,
     V: Sized,
 {
-    pub fn size() -> usize {
+    fn size() -> usize {
         std::mem::size_of::<FileMapElement<K, V>>()
     }
 
@@ -165,7 +165,7 @@ enum FileMapIteratorPath {
     PhantomPath,
 }
 
-pub struct FileMapIterator<'a, K: 'a + Sized, V: 'a + Sized> {
+struct FileMapIterator<'a, K: 'a + Sized, V: 'a + Sized> {
     file: File,
     // When dropped, the temp file is deleted.
     #[allow(dead_code)]
@@ -253,6 +253,13 @@ impl<'a, K: 'a + Sized, V: 'a + Sized> Iterator
 /// let mut container = unsafe {
 ///     FileMap::new::<u32,u32>("example_filemap", 2, false, 1024).unwrap()
 /// };
+///
+/// // If test fails, delete created file because destructor is not called.
+/// #[allow(unused_must_use)]
+/// {
+///     std::fs::remove_file("filemap_container_test_0");
+/// }
+///
 /// assert!(container.push(0, 0).is_none());
 /// assert!(container.push(1, 1).is_none());
 /// assert!(container.push(2, 2).unwrap() == (1,1));
