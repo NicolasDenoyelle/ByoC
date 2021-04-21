@@ -3,7 +3,7 @@ use crate::marker::Packed;
 use std::{
     cmp::{Eq, Ordering},
     fs::{remove_file, File, OpenOptions},
-    io::{BufReader, Read, Result, Seek, SeekFrom, Write},
+    io::{Read, Result, Seek, SeekFrom, Write},
     mem::{size_of, MaybeUninit},
     ops::{Deref, DerefMut, Drop},
     path::{Path, PathBuf},
@@ -166,7 +166,7 @@ enum FileMapIteratorPath {
 }
 
 pub struct FileMapIterator<'a, K: 'a + Sized, V: 'a + Sized> {
-    file: BufReader<File>,
+    file: File,
     // When dropped, the temp file is deleted.
     #[allow(dead_code)]
     path: FileMapIteratorPath,
@@ -181,7 +181,7 @@ impl<'a, K: 'a + Sized, V: 'a + Sized> FileMapIterator<'a, K, V> {
         buffer_size: usize,
     ) -> Self {
         FileMapIterator {
-            file: BufReader::with_capacity(buffer_size, file),
+            file: file,
             path: path,
             buffer: Box::new(Vec::new().into_iter()),
             bytes: vec![0u8; buffer_size],
@@ -196,32 +196,26 @@ impl<'a, K: 'a + Sized, V: 'a + Sized> Iterator
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let result = self.buffer.find(|(_, e)| e.is_some());
-
-            match result {
-                Some(e) => {
-                    break Some(e);
-                }
-                None => {
-                    let result = unsafe {
-                        FileMapElement::<K, V>::read(
-                            &mut self.file,
-                            self.bytes.as_mut_slice(),
-                        )
-                    };
-
-                    match result {
-                        Err(_) => break None,
-                        Ok(e) => {
-                            if e.len() == 0 {
-                                break None;
-                            } else {
-                                self.buffer = Box::new(e.into_iter());
-                            }
+            let e = self.buffer.next();
+            if e.is_some() {
+                break e;
+            } else {
+                match unsafe {
+                    FileMapElement::<K, V>::read(
+                        &mut self.file,
+                        self.bytes.as_mut_slice(),
+                    )
+                } {
+                    Err(_) => break None,
+                    Ok(e) => {
+                        if e.len() == 0 {
+                            break None;
+                        } else {
+                            self.buffer = Box::new(e.into_iter());
                         }
                     }
                 }
-            };
+            }
         }
     }
 }
@@ -257,7 +251,7 @@ impl<'a, K: 'a + Sized, V: 'a + Sized> Iterator
 /// use cache::container::{Container, FileMap};
 ///
 /// let mut container = unsafe {
-///     FileMap::new("example_filemap", 2, false).unwrap()
+///     FileMap::new::<u32,u32>("example_filemap", 2, false, 1024).unwrap()
 /// };
 /// assert!(container.push(0, 0).is_none());
 /// assert!(container.push(1, 1).is_none());
@@ -344,6 +338,7 @@ where
             FileMapIteratorPath::PhantomPath,
             self.buffer_size,
         )
+        .filter(|(_, x)| x.is_some())
         .count()
     }
 
@@ -744,7 +739,7 @@ mod tests {
         ];
 
         (&file).seek(SeekFrom::Start(0)).unwrap();
-        let output = unsafe {
+        let output: Vec<(usize, usize)> = unsafe {
             FileMapElement::<usize, usize>::read(
                 &mut file,
                 buf.as_mut_slice(),
@@ -752,13 +747,9 @@ mod tests {
             .unwrap()
             .into_iter()
             .map(|(_, opt)| opt.unwrap())
+            .collect()
         };
-
-        // Check elements are the same.
-        for ((k1, v1), (k2, v2)) in input.into_iter().zip(output) {
-            assert_eq!(k1, k2);
-            assert_eq!(v1, v2);
-        }
+        assert_eq!(input, output);
         remove_file(filename).unwrap();
     }
 
@@ -825,5 +816,6 @@ mod tests {
         }
         assert!(Container::<usize, usize>::pop(&mut fm).is_none());
         assert_eq!(Container::<usize, usize>::count(&mut fm), 0);
+        remove_file("test_filemap").unwrap();
     }
 }
