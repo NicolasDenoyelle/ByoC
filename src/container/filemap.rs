@@ -39,8 +39,12 @@ where
     /// using intermediate `buffer` to store read elements. When elements
     /// are tagged as unset, None is pushed into returned `Vec` instead of
     /// a key/value pair.
+    ///
+    /// Safety:
     /// This method is safe only if `stream` has been exclusively written
     /// with the same `FileMapElement<K,V>` type and binary representation.
+    /// The stream cursor must also be pointing at the beginning of next element
+    /// or stream end.
     pub unsafe fn read<F: Read + Seek>(
         stream: &mut F,
         buffer: &mut [u8],
@@ -58,9 +62,11 @@ where
 
     /// Read raw bytes, make a list of consecutive `FileMapElements` out
     /// of it and return their key/value pair when their `set` flag is set.
-    /// This method assumes that `bytes` contains consecutive raw
-    /// initialized FileMapElement<K,V>. If not, using this function is
-    /// undefined behaviour.
+    ///
+    /// Safety:
+    /// This method assumes that `bytes` point at the beginning of a valid
+    /// initialized FileMapElement<K,V> and elements in `bytes` are
+    /// consecutive.
     unsafe fn from_bytes(bytes: &[u8]) -> Vec<Option<(K, V)>> {
         let mut ret: Vec<Option<(K, V)>> = Vec::new();
         for c in bytes.chunks_exact(Self::size()) {
@@ -103,8 +109,7 @@ where
             e.assume_init()
         };
 
-        // SAFETY: slice representation is safe because self is
-        // initialized.
+        // SAFETY: slice representation is initialized above.
         let s = unsafe {
             slice::from_raw_parts(
                 &e as *const _ as *const u8,
@@ -137,7 +142,7 @@ where
     // }
 
     /// Tag next element in `stream` as not set.
-    /// On success, stream is forwarded by element size.
+    /// On success, stream is forwarded by the size of one element.
     pub fn unset(stream: &mut dyn Write) -> Result<usize> {
         // SAFETY: We write exactly one element with flag `set` set
         // to false. When this element get read later on, its other
@@ -165,9 +170,18 @@ enum FileMapIteratorPath {
     PhantomPath,
 }
 
+/// Iterator over a file containing consecutive `FileMapElement<K,V>`.
+/// This iterator returns a tuple where first element is the offset
+/// of the item in file and second element is a `FileMapElement<K,V>`
+/// `Option`. The file may contain holes (unset elements) in which case
+/// the second element is None. This iterator buffers file read in
+/// an internal `bytes` buffer to land file reads and a `buffer` iterator
+/// containing elements read in `bytes`.
 struct FileMapIterator<'a, K: 'a + Sized, V: 'a + Sized> {
     file: File,
     // When dropped, the temp file is deleted.
+    // This is used mainly to flush the container in a temporary
+    // file.
     #[allow(dead_code)]
     path: FileMapIteratorPath,
     buffer: Box<dyn Iterator<Item = (u64, Option<(K, V)>)> + 'a>,
@@ -223,28 +237,22 @@ impl<'a, K: 'a + Sized, V: 'a + Sized> Iterator
 /// A [`Container`](../trait.Container.html) for key value store with a
 /// maximum size stored into a file.
 ///
-/// The container has tiny memory
-/// footprint. However, it is not optimized to limit IO operations.
+/// The container has small memory footprint, since the bulk of it is stored
+/// in a file. Eventhough IO reads operation are buffered, nearly
+/// all [`Container`](../trait.Container.html) methods will
+/// require to read the entire file. The file where this container
+/// is mapped contains only consecutive elements that may be unset and
+/// leave a whole in the file for insertions. This is intended to limit
+/// file growth and improve performance since the file will be read entirely
+/// once on almost all operation.
 /// Elements are stored to fit any hole in the file so that the
 /// container does not pop until the file is filled with elements.
-/// This container is extremely slow, i.e almost all methods will
-/// require to cross the entire file.
 /// This container is intended to be optimized by combining it with:
 /// in-memory cache multiple files/sets in concurrent associative container,
 /// optimized replacement policy, and so on...
 /// This container implements the marker trait `Packed` which means,
 /// that it will accept new elements with non existing keys as long
 /// as it is not full.
-///
-/// ## Generics:
-///
-/// * `K`: The type of key to use.
-/// Keys must have a set size known at compile time and must not contain
-/// pointers that would be invalid to read later from a file.
-/// Keys must be comparable with `Eq` trait.
-/// * `V`: The value type stored.
-/// Values must have a set size known at compile time and must not contain
-/// pointers that would be invalid to read later from a file.
 ///
 /// ## Example:
 /// ```
@@ -262,9 +270,9 @@ impl<'a, K: 'a + Sized, V: 'a + Sized> Iterator
 ///   }
 /// }));
 ///
-/// assert!(container.push(0, 0).is_none());
-/// assert!(container.push(1, 1).is_none());
-/// assert!(container.push(2, 2).unwrap() == (1,1));
+/// assert!(container.push(0u32, 0u32).is_none());
+/// assert!(container.push(1u32, 1u32).is_none());
+/// assert!(container.push(2u32, 2u32).unwrap() == (1u32,1u32));
 /// ```
 pub struct FileMap {
     file: File,
@@ -276,7 +284,7 @@ pub struct FileMap {
 
 impl Drop for FileMap {
     fn drop(&mut self) {
-        if self.persistant {
+        if !self.persistant {
             remove_file(&self.path).unwrap();
         }
     }
@@ -286,7 +294,9 @@ impl FileMap {
     /// Instanciate a new [`FileMap`](struct.FileMap.html) with a maximum
     /// of `capacity` keys, stored with their value in the file
     /// named `filename`. If `persistant` is `true`, the inner file will
-    /// not be deleted when the container is dropped.
+    /// not be deleted when the container is dropped. When walking the file
+    /// to perform container operations, [`FileMap`](struct.FileMap.html) will
+    /// use `buffer_size` bytes of space to buffer IO operations.
     ///
     /// SAFETY:
     /// Keys and values must be safely writable and readable in-place, i.e.
@@ -294,15 +304,19 @@ impl FileMap {
     /// file and they have a fixed size, e.g they are not dynamically
     /// sized strings or vectors. Keys and Values must also have a
     /// consistent struct layout across compilations if the underlying
-    /// `FileMap` file is going to be used by in this context.
-    pub unsafe fn new<K, V>(
+    /// `FileMap` file is going to be used by in this context. If the file
+    /// already exists it must not be corrupted and only contains zero or
+    /// several valid or unset consecutive elements.
+    pub unsafe fn new<K: Sized, V: Sized>(
         filename: &str,
         capacity: usize,
         persistant: bool,
         buffer_size: usize,
     ) -> Result<Self> {
-        let buffer_size =
-            std::cmp::min(buffer_size, FileMapElement::<K, V>::size());
+        let buffer_size = std::cmp::min(
+            buffer_size - buffer_size % FileMapElement::<K, V>::size(),
+            FileMapElement::<K, V>::size(),
+        );
         let pb = PathBuf::from(filename);
         let file = match OpenOptions::new()
             .write(true)
@@ -825,6 +839,5 @@ mod tests {
         }
         assert!(Container::<usize, usize>::pop(&mut fm).is_none());
         assert_eq!(Container::<usize, usize>::count(&mut fm), 0);
-        remove_file("test_filemap").unwrap();
     }
 }
