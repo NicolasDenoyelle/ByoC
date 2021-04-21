@@ -258,7 +258,7 @@ impl<'a, K: 'a + Sized, V: 'a + Sized> Iterator
 /// std::panic::set_hook(Box::new(|_| {
 ///   #[allow(unused_must_use)]
 ///   {
-///     std::fs::remove_file("filemap_container_test_0");
+///     std::fs::remove_file("example_filemap");
 ///   }
 /// }));
 ///
