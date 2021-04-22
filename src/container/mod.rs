@@ -74,8 +74,6 @@ mod associative;
 pub use crate::container::associative::Associative;
 mod btree;
 pub use crate::container::btree::BTree;
-mod filemap;
-pub use crate::container::filemap::FileMap;
 mod profiler;
 pub use crate::container::profiler::Profiler;
 mod sequential;
@@ -84,3 +82,7 @@ mod stack;
 pub use crate::container::stack::Stack;
 mod vector;
 pub use crate::container::vector::Vector;
+#[cfg(feature = "filemap")]
+mod filemap;
+#[cfg(feature = "filemap")]
+pub use crate::container::filemap::FileMap;
