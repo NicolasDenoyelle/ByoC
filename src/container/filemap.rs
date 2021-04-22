@@ -3,7 +3,6 @@ use crate::marker::Packed;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
     cmp::{Eq, Ordering},
-    fmt::Debug,
     fs::{remove_file, File, OpenOptions},
     io::{BufReader, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
@@ -16,15 +15,9 @@ use tempfile::{NamedTempFile, TempPath};
 /// representing an element key / value.
 /// The struct is an option specifying weather this
 /// element is a valid initialized element or a hole.
-struct FileMapElement<T> {
-    unused_t: PhantomData<T>,
-}
+struct FileMapElement {}
 
-impl<'a, T> FileMapElement<T>
-where
-    T: 'a + Serialize + DeserializeOwned + Debug,
-    &'a T: Serialize,
-{
+impl FileMapElement {
     /// Read a `stream` and retrieve consecutive key/value `(K,V)` pairs
     /// using intermediate `buffer` to store read elements. When elements
     /// are tagged as unset, None is pushed into returned `Vec` instead of
@@ -35,7 +28,7 @@ where
     /// with the same `FileMapElement<K,V>` type and binary representation.
     /// The stream cursor must also be pointing at the beginning of next element
     /// or stream end.
-    pub fn read<F: Read + Seek>(
+    pub fn read<F: Read + Seek, T: DeserializeOwned>(
         stream: &mut F,
     ) -> Result<(u64, Option<T>), ()> {
         let pos = stream.seek(SeekFrom::Current(0)).unwrap();
@@ -49,7 +42,7 @@ where
     }
 
     /// Write an element to `stream`.
-    pub fn write<F: Write>(
+    pub fn write<'a, F: Write, T: Serialize>(
         stream: &mut F,
         value: &'a T,
     ) -> Result<(), ()> {
@@ -64,7 +57,9 @@ where
 
     /// Tag next element in `stream` as not set.
     /// On success, stream is forwarded by the size of one element.
-    pub fn unset<F: Write>(stream: &mut F) -> Result<(), ()> {
+    pub fn unset<F: Write, T: Serialize>(
+        stream: &mut F,
+    ) -> Result<(), ()> {
         // SAFETY: We write exactly one element with flag `set` set
         // to false. When this element get read later on, its other
         // fields will not be accesed due to this flag. Therefore
@@ -94,7 +89,7 @@ enum FileMapIteratorPath {
 /// containing elements read in `bytes`.
 struct FileMapIterator<T, F>
 where
-    T: Serialize + DeserializeOwned + Debug,
+    T: DeserializeOwned,
     F: Read + Seek,
 {
     file: F,
@@ -108,7 +103,7 @@ where
 
 impl<T, F> FileMapIterator<T, F>
 where
-    T: Serialize + DeserializeOwned + Debug,
+    T: DeserializeOwned,
     F: Read + Seek,
 {
     fn new(file: F, path: FileMapIteratorPath) -> Self {
@@ -122,13 +117,13 @@ where
 
 impl<T, F> Iterator for FileMapIterator<T, F>
 where
-    T: Serialize + DeserializeOwned + Debug,
+    T: DeserializeOwned + Serialize,
     F: Read + Seek,
 {
     type Item = (u64, Option<T>);
 
     fn next(&mut self) -> Option<Self::Item> {
-        match FileMapElement::<T>::read(&mut self.file) {
+        match FileMapElement::read::<_, T>(&mut self.file) {
             Err(_) => None,
             Ok(x) => Some(x),
         }
@@ -206,16 +201,12 @@ impl FileMap {
     /// `FileMap` file is going to be used by in this context. If the file
     /// already exists it must not be corrupted and only contains zero or
     /// several valid or unset consecutive elements.
-    pub fn new<K, V>(
+    pub fn new(
         filename: &str,
         capacity: usize,
         persistant: bool,
         buffer_size: usize,
-    ) -> Result<Self, std::io::Error>
-    where
-        K: Serialize + DeserializeOwned + Debug,
-        V: Serialize + DeserializeOwned + Debug,
-    {
+    ) -> Result<Self, std::io::Error> {
         let pb = PathBuf::from(filename);
         let file = match OpenOptions::new()
             .write(true)
@@ -243,10 +234,8 @@ impl FileMap {
 
 impl<'a, K, V> Container<'a, K, V> for FileMap
 where
-    K: 'a + Debug + Eq + Serialize + DeserializeOwned,
-    V: 'a + Debug + Ord + Serialize + DeserializeOwned,
-    &'a K: Serialize,
-    &'a V: Serialize,
+    K: 'a + Eq + DeserializeOwned + Serialize,
+    V: 'a + Ord + DeserializeOwned + Serialize,
 {
     fn capacity(&self) -> usize {
         self.capacity
@@ -328,7 +317,8 @@ where
         }) {
             Some((off, Some((_, v)))) => {
                 self.file.seek(SeekFrom::Start(off)).unwrap();
-                FileMapElement::<(K, V)>::unset(&mut self.file).unwrap();
+                FileMapElement::unset::<_, (K, V)>(&mut self.file)
+                    .unwrap();
                 Some(v)
             }
             _ => None,
@@ -365,7 +355,8 @@ where
             Some((_, None)) => None,
             Some((off, Some((k, v)))) => {
                 self.file.seek(SeekFrom::Start(off)).unwrap();
-                FileMapElement::<(K, V)>::unset(&mut self.file).unwrap();
+                FileMapElement::unset::<_, (K, V)>(&mut self.file)
+                    .unwrap();
                 Some((k, v))
             }
         }
@@ -510,10 +501,8 @@ where
 
 impl<'a, K, V> Packed<'a, K, V> for FileMap
 where
-    K: 'a + Debug + Eq + Serialize + DeserializeOwned,
-    V: 'a + Debug + Ord + Serialize + DeserializeOwned,
-    &'a K: Serialize,
-    &'a V: Serialize,
+    K: 'a + Eq + DeserializeOwned + Serialize,
+    V: 'a + Ord + DeserializeOwned + Serialize,
 {
 }
 
@@ -538,7 +527,7 @@ where
 /// its content to the FileMap.
 pub struct FileMapValue<'a, T>
 where
-    T: 'a + Serialize + DeserializeOwned + Debug,
+    T: 'a + Serialize,
 {
     file: File,
     offset: u64,
@@ -548,7 +537,7 @@ where
 
 impl<'a, T> FileMapValue<'a, T>
 where
-    T: 'a + Serialize + DeserializeOwned + Debug,
+    T: 'a + Serialize,
 {
     fn new(file_handle: &File, offset: u64, value: T) -> Self {
         FileMapValue {
@@ -562,10 +551,8 @@ where
 
 impl<'a, K, V> Deref for FileMapValue<'a, (K, V)>
 where
-    K: 'a + Debug + Eq + Serialize + DeserializeOwned,
-    V: 'a + Debug + Ord + Serialize + DeserializeOwned,
-    &'a K: Serialize,
-    &'a V: Serialize,
+    K: 'a + Eq + Serialize,
+    V: 'a + Ord + Serialize,
 {
     type Target = V;
     fn deref(&self) -> &Self::Target {
@@ -575,10 +562,8 @@ where
 
 impl<'a, K, V> DerefMut for FileMapValue<'a, (K, V)>
 where
-    K: 'a + Debug + Eq + Serialize + DeserializeOwned,
-    V: 'a + Debug + Ord + Serialize + DeserializeOwned,
-    &'a K: Serialize,
-    &'a V: Serialize,
+    K: 'a + Eq + Serialize,
+    V: 'a + Ord + Serialize,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.value.1
@@ -587,7 +572,7 @@ where
 
 impl<'a, T> Drop for FileMapValue<'a, T>
 where
-    T: 'a + Serialize + DeserializeOwned + Debug,
+    T: 'a + Serialize,
 {
     fn drop(&mut self) {
         self.file.seek(SeekFrom::Start(self.offset)).unwrap();
@@ -597,10 +582,8 @@ where
 
 impl<'a, K, V> Get<'a, K, V> for FileMap
 where
-    K: 'a + Debug + Eq + Serialize + DeserializeOwned,
-    V: 'a + Debug + Ord + Serialize + DeserializeOwned,
-    &'a K: Serialize,
-    &'a V: Serialize,
+    K: 'a + Eq + DeserializeOwned + Serialize,
+    V: 'a + Ord + DeserializeOwned + Serialize,
 {
     type Item = FileMapValue<'a, (K, V)>;
     fn get(&'a mut self, key: &K) -> Option<Self::Item> {
@@ -680,8 +663,7 @@ mod tests {
     #[test]
     fn test_filemap() {
         let mut fm =
-            FileMap::new::<usize, usize>("test_filemap", 10, false, 1024)
-                .unwrap();
+            FileMap::new("test_filemap", 10, false, 1024).unwrap();
 
         std::panic::set_hook(Box::new(|_| {
             #[allow(unused_must_use)]
