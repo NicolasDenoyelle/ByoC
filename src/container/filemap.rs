@@ -168,15 +168,16 @@ where
 /// assert!(container.push(1u32, 1u32).is_none());
 /// assert!(container.push(2u32, 2u32).unwrap() == (1u32,1u32));
 /// ```
-pub struct FileMap {
+pub struct FileMap<T: Serialize + DeserializeOwned> {
     file: File,
     path: PathBuf,
     persistant: bool,
     capacity: usize,
     buffer_size: usize,
+    unused_t: PhantomData<T>,
 }
 
-impl Drop for FileMap {
+impl<T: Serialize + DeserializeOwned> Drop for FileMap<T> {
     fn drop(&mut self) {
         if !self.persistant {
             remove_file(&self.path).unwrap();
@@ -184,7 +185,7 @@ impl Drop for FileMap {
     }
 }
 
-impl FileMap {
+impl<T: Serialize + DeserializeOwned> FileMap<T> {
     /// Instanciate a new [`FileMap`](struct.FileMap.html) with a maximum
     /// of `capacity` keys, stored with their value in the file
     /// named `filename`. If `persistant` is `true`, the inner file will
@@ -224,6 +225,7 @@ impl FileMap {
             capacity: capacity,
             persistant: persistant,
             buffer_size: buffer_size,
+            unused_t: PhantomData,
         })
     }
 }
@@ -232,7 +234,7 @@ impl FileMap {
 // Container impl
 //------------------------------------------------------------------------//
 
-impl<'a, K, V> Container<'a, K, V> for FileMap
+impl<'a, K, V> Container<'a, K, V> for FileMap<(K, V)>
 where
     K: 'a + Eq + DeserializeOwned + Serialize,
     V: 'a + Ord + DeserializeOwned + Serialize,
@@ -499,7 +501,7 @@ where
     }
 }
 
-impl<'a, K, V> Packed<'a, K, V> for FileMap
+impl<'a, K, V> Packed<'a, K, V> for FileMap<(K, V)>
 where
     K: 'a + Eq + DeserializeOwned + Serialize,
     V: 'a + Ord + DeserializeOwned + Serialize,
@@ -580,7 +582,7 @@ where
     }
 }
 
-impl<'a, K, V> Get<'a, K, V> for FileMap
+impl<'a, K, V> Get<'a, K, V> for FileMap<(K, V)>
 where
     K: 'a + Eq + DeserializeOwned + Serialize,
     V: 'a + Ord + DeserializeOwned + Serialize,
