@@ -1,252 +1,292 @@
 use crate::container::{Container, Get};
 use crate::marker::Packed;
-use tempfile::{NamedTempFile, TempPath};
-
+use serde::{de::DeserializeOwned, Serialize};
 use std::{
-    cmp::Eq,
+    cmp::{Eq, Ordering},
     fs::{remove_file, File, OpenOptions},
-    io::{Read, Result, Seek, SeekFrom, Write},
+    io::{BufReader, Read, Seek, SeekFrom, Write},
     marker::PhantomData,
-    mem::{size_of, MaybeUninit},
     ops::{Deref, DerefMut, Drop},
     path::{Path, PathBuf},
-    slice,
 };
+use tempfile::{NamedTempFile, TempPath};
 
 /// Structure with specified contiguous memory layout
 /// representing an element key / value.
-/// The struct also contains a boolean specifying weather this
-/// element is a valid initialized element or not.
-#[repr(C, packed)]
-struct FileMapElement<K, V>
-where
-    K: Sized,
-    V: Sized,
-{
-    set: bool,
-    key: K,
-    value: V,
-}
+/// The struct is an option specifying weather this
+/// element is a valid initialized element or a hole.
+struct FileMapElement {}
 
-impl<K, V> FileMapElement<K, V>
-where
-    K: Sized,
-    V: Sized,
-{
-    pub fn size() -> usize {
-        size_of::<FileMapElement<K, V>>()
-    }
-
-    /// Create a new valid initialized element.
-    fn new(key: K, value: V) -> Self {
-        FileMapElement {
-            set: true,
-            key: key,
-            value: value,
-        }
-    }
-
-    /// Discard this element and output its key
-    /// and value.
-    pub fn into_kv(self) -> (K, V) {
-        (self.key, self.value)
-    }
-
-    /// Read a file at current position and output
-    /// the element contained at this position.
-    /// If the boolean flag `set` from the byte
-    /// stream read is not set then the function returns None
-    /// to denote that it read an invalid representation.
-    /// SAFETY:
-    /// 1. Reading a stream of bytes that does not represent an
-    /// actual FileMapElement of the same type will result in undefined
-    /// behaviour.
-    /// 2. If the key type `K` or value type `V` of this element
-    /// contains pointers that do not point to a valid initialized
-    /// memory area then the behaviour of this function is also undefined.
-    pub fn read(f: &mut File) -> Result<Option<Self>> {
-        let mut uninit = MaybeUninit::<Self>::uninit();
-
-        // SAFETY: uninit as enough space to fit Self bytes
-        let s = unsafe {
-            slice::from_raw_parts_mut(
-                uninit.as_mut_ptr() as *mut u8,
-                size_of::<Self>(),
-            )
-        };
-
-        match f.read(s) {
-            Ok(s) => {
-                if s < size_of::<Self>() {
-                    Err(std::io::Error::new(
-                        std::io::ErrorKind::UnexpectedEof,
-                        "End of File",
-                    ))
-                } else {
-                    // This the unsafe part.
-                    // What is read in file must be absolutely
-                    // initialized either with `set` flag to false
-                    // or with a valid file element.
-                    let ret = unsafe { uninit.assume_init() };
-                    if ret.set {
-                        Ok(Some(ret))
-                    } else {
-                        Ok(None)
+impl FileMapElement {
+    /// Read a `stream` and retrieve consecutive key/value `(K,V)` pairs
+    /// using intermediate `buffer` to store read elements. When elements
+    /// are tagged as unset, None is pushed into returned `Vec` instead of
+    /// a key/value pair.
+    ///
+    /// Safety:
+    /// This method is safe only if `stream` has been exclusively written
+    /// with the same `FileMapElement<K,V>` type and binary representation.
+    /// The stream cursor must also be pointing at the beginning of next element
+    /// or stream end.
+    pub fn read<F: Read + Seek, T: DeserializeOwned>(
+        stream: &mut F,
+    ) -> Result<(u64, Option<T>), ()> {
+        let pos = stream.seek(SeekFrom::Current(0)).unwrap();
+        match bincode::deserialize_from::<&mut F, bool>(stream) {
+            Err(_) => {
+                stream.seek(SeekFrom::Start(pos)).unwrap();
+                Err(())
+            }
+            Ok(set) => {
+                match bincode::deserialize_from::<&mut F, T>(stream) {
+                    Err(_) => {
+                        stream.seek(SeekFrom::Start(pos)).unwrap();
+                        Err(())
+                    }
+                    Ok(v) => {
+                        if !set {
+                            Ok((pos, None))
+                        } else {
+                            Ok((pos, Some(v)))
+                        }
                     }
                 }
             }
-            Err(e) => Err(e),
         }
     }
 
-    /// Write initialized FileMapElement to file.
-    pub fn write(&self, f: &mut File) -> Result<usize> {
-        // SAFETY: slice representation is safe because self is
-        // initialized.
-        let s = unsafe {
-            slice::from_raw_parts(
-                self as *const _ as *const u8,
-                size_of::<Self>(),
-            )
-        };
-        f.write(s)
+    /// Write an element to `stream`.
+    pub fn write<'a, F: Seek + Write, T: Serialize>(
+        stream: &mut F,
+        value: &'a T,
+    ) -> Result<(), ()> {
+        let pos = stream.seek(SeekFrom::Current(0)).unwrap();
+        let set = true;
+        match bincode::serialize_into::<&mut F, bool>(stream, &set) {
+            Err(_) => {
+                stream.seek(SeekFrom::Start(pos)).unwrap();
+                Err(())
+            }
+            Ok(_) => {
+                match bincode::serialize_into::<&mut F, &'a T>(
+                    stream, &value,
+                ) {
+                    Err(_) => {
+                        stream.seek(SeekFrom::Start(pos)).unwrap();
+                        Err(())
+                    }
+                    Ok(_) => Ok(()),
+                }
+            }
+        }
     }
 
-    pub fn write_kv(
-        f: &mut File,
-        key: &mut K,
-        value: &mut V,
-    ) -> Result<usize> {
-        let uninit = MaybeUninit::<FileMapElement<K, V>>::uninit();
-        // SAFETY: Initialization below
-        let mut init = unsafe { uninit.assume_init() };
-        init.set = true;
-        unsafe {
-            std::mem::swap(&mut init.key, key);
-            std::mem::swap(&mut init.value, value);
-        };
-        let out = (&init).write(f);
-
-        // Restore input.
-        unsafe {
-            std::mem::swap(&mut init.key, key);
-            std::mem::swap(&mut init.value, value);
-        };
-        out
+    /// Tag next element in `stream` as not set.
+    /// On success, stream is forwarded by the size of one element.
+    pub fn unset<
+        F: Read + Seek + Write,
+        T: Serialize + DeserializeOwned,
+    >(
+        stream: &mut F,
+    ) -> Result<(), ()> {
+        let pos = stream.seek(SeekFrom::Current(0)).unwrap();
+        let set = false;
+        match bincode::serialize_into::<&mut F, bool>(stream, &set) {
+            Err(_) => {
+                stream.seek(SeekFrom::Start(pos)).unwrap();
+                Err(())
+            }
+            Ok(_) => Ok(()),
+        }
     }
 }
 
-/// A [`Container`](../trait.Container.html) for key value store with a
-/// maximum size stored into a file.
+//------------------------------------------------------------------------//
+// Iterator over a file.
+//------------------------------------------------------------------------//
+
+enum FileMapIteratorPath {
+    TmpPath(TempPath),
+    PhantomPath,
+}
+
+/// Iterator over a file containing consecutive elements.
+/// This iterator returns a tuple where first element is the offset
+/// of the item in file and second element is an optional value that
+/// has been read from the file.
+/// The file may contain holes (unset elements) in which case
+/// the second element is None. This iterator can buffer reads if provided
+/// stream is buffered.
+pub struct FileMapIterator<T, F>
+where
+    T: DeserializeOwned,
+    F: Read + Seek,
+{
+    file: F,
+    // When dropped, the temp file is deleted.
+    // This is used mainly to flush the container in a temporary
+    // file.
+    #[allow(dead_code)]
+    path: FileMapIteratorPath,
+    unused_t: PhantomData<T>,
+}
+
+impl<T, F> FileMapIterator<T, F>
+where
+    T: DeserializeOwned,
+    F: Read + Seek,
+{
+    fn new(file: F, path: FileMapIteratorPath) -> Self {
+        FileMapIterator {
+            file: file,
+            path: path,
+            unused_t: PhantomData,
+        }
+    }
+}
+
+impl<T, F> Iterator for FileMapIterator<T, F>
+where
+    T: DeserializeOwned + Serialize,
+    F: Read + Seek,
+{
+    type Item = (u64, Option<T>);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match FileMapElement::read::<_, T>(&mut self.file) {
+            Err(_) => None,
+            Ok(x) => Some(x),
+        }
+    }
+}
+
+/// A [`Container`](../trait.Container.html) implementation for key/value
+/// elements stored into a file.
 ///
-/// The container has tiny memory
-/// footprint. However, it is not optimized to limit IO operations.
-/// Elements are stored to fit any hole in the file so that the
-/// container does not pop until the file is filled with elements.
-/// This container is extremely slow, i.e almost all methods will
-/// require to cross the entire file.
+/// [`FileMap`](../struct.FileMap.html) container is a file where elements
+/// are stored contiguously. Elements stored inside a
+/// [`FileMap`](../struct.FileMap.html) are assumed to
+/// [`Serialize`](../../serde/trait.Serialize.html) to elements of the
+/// [same binary size](../../bincode/fn.serialized_size.html).  
+/// When an element is taken out of the container, it leaves a hole that
+/// may be filled on future insertion of a non existing key.  
+/// The container has a small memory footprint, since the bulk of it is stored
+/// in a file. While using a [`FileMap`](../struct.FileMap.html) container,
+/// temporary additional buffer size is created to buffer IO read operations.
 /// This container is intended to be optimized by combining it with:
 /// in-memory cache multiple files/sets in concurrent associative container,
-/// optimized replacement policy, and so on...
-/// This container implements the marker trait `Packed` which means,
-/// that it will accept new elements with non existing keys as long
-/// as it is not full.
-///
-/// ## Generics:
-///
-/// * `K`: The type of key to use.
-/// Keys must have a set size known at compile time and must not contain
-/// pointers that would be invalid to read later from a file.
-/// Keys must be comparable with `Eq` trait.
-/// * `V`: The value type stored.
-/// Values must have a set size known at compile time and must not contain
-/// pointers that would be invalid to read later from a file.
+/// optimized replacement policy, and so on...  
+/// [`FileMap`](../struct.FileMap.html) container implements the marker trait
+/// [`Packed`](../marker/trait.Packed.html). Therefore, it will accept new
+/// elements with non existing keys as long as it is not full.  
+/// It also implements the trait [`Get`](trait.Get.html).
+/// [`Get`](trait.Get.html) trait will return values wrapped into a smart
+/// pointer. When the smart pointer goes out of scope, the value is written
+/// back to the file to update values possibly wrapped into a
+/// [`Reference`](../reference/trait.Reference.html) with interior mutability.
 ///
 /// ## Example:
 /// ```
 /// use cache::container::{Container, FileMap};
 ///
-/// let mut container = unsafe {
-///     FileMap::new("example_filemap", 2, false).unwrap()
-/// };
-/// assert!(container.push(0, 0).is_none());
-/// assert!(container.push(1, 1).is_none());
-/// assert!(container.push(2, 2).unwrap() == (1,1));
+/// let mut container = FileMap::new("example_filemap", 2, false, 1024).unwrap();
+///
+/// // If test fails, delete created file because destructor is not called.
+/// std::panic::set_hook(Box::new(|_| {
+///   #[allow(unused_must_use)]
+///   {
+///     std::fs::remove_file("example_filemap");
+///   }
+/// }));
+///
+/// assert!(container.push(0u32, 0u32).is_none());
+/// assert!(container.push(1u32, 1u32).is_none());
+/// assert!(container.push(2u32, 2u32).unwrap() == (1u32,1u32));
 /// ```
-pub struct FileMap {
+pub struct FileMap<T: Serialize + DeserializeOwned> {
     file: File,
     path: PathBuf,
     persistant: bool,
     capacity: usize,
+    buffer_size: usize,
+    serialized_size: u64,
+    unused_t: PhantomData<T>,
 }
 
-impl Drop for FileMap {
+impl<T: Serialize + DeserializeOwned> Drop for FileMap<T> {
     fn drop(&mut self) {
-        if self.persistant {
+        if !self.persistant {
             remove_file(&self.path).unwrap();
         }
     }
 }
 
-impl FileMap {
-    /// Invalidate one FileMapElement in a FileMap file.
-    fn zero(file: &mut File) -> Result<usize> {
-        let s: u8 = 0;
-        file.write(slice::from_ref(&s))
-    }
-
-    /// Read File Represented by this [`FileMap`](struct.FileMap.html)
-    /// and look for key `key`. If the key is found, the function return
-    /// owned value matching to the first found `key`. If no `key` is found
-    /// this function returns `None`.
-    pub fn get<K: Sized + Eq, V: Sized>(&self, key: &K) -> Option<V> {
-        let mut f = self.file.try_clone().unwrap();
-        f.seek(SeekFrom::Start(0)).unwrap();
-        loop {
-            match FileMapElement::<K, V>::read(&mut f) {
-                Err(_) => break None,
-                Ok(None) => (),
-                Ok(Some(e)) => {
-                    let (k, v) = e.into_kv();
-                    if &k == key {
-                        break Some(v);
-                    }
-                }
-            }
-        }
-    }
-
+impl<T: Serialize + DeserializeOwned> FileMap<T> {
     /// Instanciate a new [`FileMap`](struct.FileMap.html) with a maximum
     /// of `capacity` keys, stored with their value in the file
     /// named `filename`. If `persistant` is `true`, the inner file will
-    /// not be deleted when the container is dropped.
-    ///
-    /// SAFETY:
-    /// Keys and values must be safely writable and readable in-place, i.e.
-    /// they do not contain pointers that would be invalid to read from a
-    /// file and they have a fixed size, e.g they are not dynamically
-    /// sized strings or vectors. Keys and Values must also have a
-    /// consistent struct layout across compilations if the underlying
-    /// `FileMap` file is going to be used by in this context.
-    pub unsafe fn new(
+    /// not be deleted when the container is dropped. When walking the file
+    /// to perform container operations, [`FileMap`](struct.FileMap.html) will
+    /// use `buffer_size` bytes of space to buffer IO operations.
+    pub fn new(
         filename: &str,
         capacity: usize,
         persistant: bool,
-    ) -> Result<Self> {
+        buffer_size: usize,
+    ) -> Result<Self, std::io::Error> {
         let pb = PathBuf::from(filename);
-        match OpenOptions::new()
+        let file = match OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)
             .open(&pb)
         {
-            Ok(f) => Ok(FileMap {
-                file: f,
-                path: pb,
-                capacity: capacity,
-                persistant: persistant,
-            }),
-            Err(e) => Err(e),
+            Ok(f) => f,
+            Err(e) => return Err(e),
+        };
+
+        Ok(FileMap {
+            file: file.try_clone().unwrap(),
+            path: pb,
+            capacity: capacity,
+            persistant: persistant,
+            buffer_size: buffer_size,
+            serialized_size: 0u64,
+            unused_t: PhantomData,
+        })
+    }
+
+    /// Get an `Iterator` over a clone of the
+    /// [`FileMap`](../struct.FileMap.html) file to read its elements.
+    /// Elements returned by the iterator are copies of elements in the file
+    /// and are never written back to the file if modified.
+    /// Elements returned by the iterator are tuple where first element
+    /// is the offset of element in file and second element is an `Option`
+    /// over element's value which is either `None` if the iteration encountered
+    /// a hole, else the value at that offset.
+    pub fn iter_owned(&self) -> FileMapIterator<T, BufReader<File>> {
+        let mut f = self.file.try_clone().unwrap();
+        f.flush().unwrap();
+        f.seek(SeekFrom::Start(0)).unwrap();
+
+        FileMapIterator::new(
+            BufReader::with_capacity(self.buffer_size, f),
+            FileMapIteratorPath::PhantomPath,
+        )
+    }
+
+    /// Write an element at desired `offset`.
+    /// This function is only used internally to factorize code.
+    fn write(&mut self, offset: SeekFrom, t: &T) {
+        let serialized_size = bincode::serialized_size(t).unwrap();
+        if self.serialized_size == 0 {
+            self.serialized_size = serialized_size;
+        }
+        if self.serialized_size != serialized_size {
+            panic!("Trying to write elements with different sizes in FileMap container {:?}", self.path);
+        } else {
+            self.file.seek(offset).unwrap();
+            FileMapElement::write(&mut self.file, t).unwrap();
         }
     }
 }
@@ -255,67 +295,35 @@ impl FileMap {
 // Container impl
 //------------------------------------------------------------------------//
 
-pub struct FileMapFlushIterator<K: Sized, V: Sized> {
-    file: File,
-    // When dropped, the temp file is deleted.
-    #[allow(dead_code)]
-    path: TempPath,
-    unused_k: PhantomData<K>,
-    unused_v: PhantomData<V>,
-}
-
-impl<K: Sized, V: Sized> Iterator for FileMapFlushIterator<K, V> {
-    type Item = (K, V);
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match FileMapElement::<K, V>::read(&mut self.file) {
-                Err(_) => return None,
-                Ok(Some(e)) => return Some(e.into_kv()),
-                Ok(None) => {}
-            }
-        }
-    }
-}
-
-impl<'a, K, V> Container<'a, K, V> for FileMap
+impl<'a, K, V> Container<'a, K, V> for FileMap<(K, V)>
 where
-    K: 'a + Sized + Eq,
-    V: 'a + Sized + Ord,
+    K: 'a + Eq + DeserializeOwned + Serialize,
+    V: 'a + Ord + DeserializeOwned + Serialize,
 {
     fn capacity(&self) -> usize {
         self.capacity
     }
 
     fn count(&self) -> usize {
-        let mut count = 0usize;
-        let mut file = self.file.try_clone().unwrap();
-        file.flush().unwrap();
-        file.seek(SeekFrom::Start(0)).unwrap();
-        loop {
-            match FileMapElement::<K, V>::read(&mut file) {
-                Err(_) => break,
-                Ok(None) => (),
-                Ok(Some(_)) => {
-                    count += 1;
-                }
-            }
-        }
-        count
+        self.iter_owned().filter(|(_, x)| x.is_some()).count()
     }
 
     fn contains(&self, key: &K) -> bool {
-        self.file.try_clone().unwrap().flush().unwrap();
-        match self.get::<K, V>(key) {
-            None => false,
-            Some(_) => true,
-        }
+        self.iter_owned()
+            .any(|(_, e): (u64, Option<(K, V)>)| match e {
+                None => false,
+                Some((k, _)) => &k == key,
+            })
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        // Create temporary file path
         let tmp_path = NamedTempFile::new().unwrap().into_temp_path();
+        // Move container file to temporary file.
         std::fs::rename(&self.path, AsRef::<Path>::as_ref(&tmp_path))
             .unwrap();
 
+        // Create empty file for container.
         self.file = OpenOptions::new()
             .write(true)
             .read(true)
@@ -323,38 +331,36 @@ where
             .open(&self.path)
             .unwrap();
 
-        let tp = String::from(
+        // Open temporary file of flush iterator.
+        let tmp_string = String::from(
             AsRef::<Path>::as_ref(&tmp_path).to_str().unwrap(),
         );
-        Box::new(FileMapFlushIterator {
-            file: OpenOptions::new().read(true).open(tp).unwrap(),
-            path: tmp_path,
-            unused_k: PhantomData,
-            unused_v: PhantomData,
-        })
+        let file = OpenOptions::new().read(true).open(tmp_string).unwrap();
+
+        // Map temporary file iterator to return only set valid items.
+        Box::new(
+            FileMapIterator::<(K, V), _>::new(
+                BufReader::with_capacity(self.buffer_size, file),
+                FileMapIteratorPath::TmpPath(tmp_path),
+            )
+            .filter_map(|(_, e)| e),
+        )
     }
 
     fn take(&mut self, key: &K) -> Option<V> {
-        self.file.flush().unwrap();
-        self.file.seek(SeekFrom::Start(0)).unwrap();
-        loop {
-            match FileMapElement::<K, V>::read(&mut self.file) {
-                Err(_) => break None,
-                Ok(None) => (),
-                Ok(Some(e)) => {
-                    let (k, v) = e.into_kv();
-                    if &k == key {
-                        self.file
-                            .seek(SeekFrom::Current(
-                                -1 * (FileMapElement::<K, V>::size()
-                                    as i64),
-                            ))
-                            .unwrap();
-                        FileMap::zero(&mut self.file).unwrap();
-                        break Some(v);
-                    }
-                }
+        match self.iter_owned().find(|(_, e): &(u64, Option<(K, V)>)| {
+            match e {
+                None => false,
+                Some((k, _)) => k == key,
             }
+        }) {
+            Some((off, Some((_, v)))) => {
+                self.file.seek(SeekFrom::Start(off)).unwrap();
+                FileMapElement::unset::<_, (K, V)>(&mut self.file)
+                    .unwrap();
+                Some(v)
+            }
+            _ => None,
         }
     }
 
@@ -363,75 +369,48 @@ where
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
-        self.file.flush().unwrap();
-        self.file.seek(SeekFrom::Start(0)).unwrap();
-
-        let file_size = self.file.metadata().unwrap().len();
-        let mut victim: Option<(u64, (K, V))> = None;
-
-        for off in (0..file_size).step_by(FileMapElement::<K, V>::size()) {
-            victim = match (
-                &victim,
-                FileMapElement::<K, V>::read(&mut self.file),
-            ) {
-                (_, Err(_)) => victim,
-                (_, Ok(None)) => victim,
-                (None, Ok(Some(e))) => Some((off, e.into_kv())),
-                (Some((_, (_, rv))), Ok(Some(e))) => {
-                    let (k, r) = e.into_kv();
-                    if rv < &r {
-                        Some((off, (k, r)))
-                    } else {
-                        victim
-                    }
-                }
-            }
-        }
+        let victim = self.iter_owned().max_by(
+            |(_, o1): &(u64, Option<(K, V)>),
+             (_, o2): &(u64, Option<(K, V)>)| match (o1, o2) {
+                (None, None) => Ordering::Equal,
+                (None, Some(_)) => Ordering::Less,
+                (Some(_), None) => Ordering::Greater,
+                (Some((_, v1)), Some((_, v2))) => (&v1).cmp(&v2),
+            },
+        );
 
         match victim {
             None => None,
-            Some((off, (k, r))) => {
+            Some((_, None)) => None,
+            Some((off, Some((k, v)))) => {
                 self.file.seek(SeekFrom::Start(off)).unwrap();
-                FileMap::zero(&mut self.file).unwrap();
-                Some((k, r))
+                FileMapElement::unset::<_, (K, V)>(&mut self.file)
+                    .unwrap();
+                Some((k, v))
             }
         }
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        // Flush any outstanding write because we want to read the whole
-        // file.
-        self.file.flush().unwrap();
-
-        let file_size = self.file.metadata().unwrap().len();
-        let max_size =
-            self.capacity as u64 * (FileMapElement::<K, V>::size()) as u64;
-
         // Find a victim to evict: Either an element with the same key
         // or the minimum element.
         let mut victim: Option<(u64, (K, V))> = None;
         // If there are holes and the victim does not have the same key
         // Then we insert in a whole.
         let mut spot: Option<u64> = None;
+        // Count number of elements.
+        let mut n_elements = 0usize;
 
         // We start walking the file in search for the same key, holes and
         // potential victims.
-        // Everything is done in one pass.
-        self.file.flush().unwrap();
-        self.file.seek(SeekFrom::Start(0)).unwrap();
-        for off in (0..file_size).step_by(FileMapElement::<K, V>::size()) {
-            match FileMapElement::<K, V>::read(&mut self.file) {
-                // We can't look further in the file.
-                Err(_) => break,
-                // There is a hole, a potential spot for insertion.
-                Ok(None) => {
+        // Everything is one in one pass.
+        for (off, opt) in self.iter_owned() {
+            n_elements += 1;
+            match opt {
+                None => {
                     spot = Some(off);
                 }
-                // There is an element. Does it have the same key or is it
-                // a better victim?
-                Ok(Some(e)) => {
-                    let (k, v) = e.into_kv();
-                    // We found the same key, we stop here with the victim to
+                Some((k, v)) => {
                     // evict.
                     if k == key {
                         victim = Some((off, (k, v)));
@@ -459,32 +438,30 @@ where
 
         match (victim, spot) {
             // No victim and no spot... It means the file is empty.
-            // Then we append element at the end of the file.
             (None, None) => {
-                let e = FileMapElement::new(key, reference);
-                self.file.seek(SeekFrom::End(0)).unwrap();
-                (&e).write(&mut self.file).unwrap();
-                None
+                // If there is room, we append element at the end of the file.
+                if n_elements < self.capacity {
+                    self.write(SeekFrom::End(0), &(key, reference));
+                    None
+                }
+                // Else we return input.
+                else {
+                    Some((key, reference))
+                }
             }
             // No victim but a spot, then insert in the spot.
-            (None, Some(offset)) => {
-                let e = FileMapElement::new(key, reference);
-                self.file.seek(SeekFrom::Start(offset)).unwrap();
-                (&e).write(&mut self.file).unwrap();
+            (None, Some(off)) => {
+                self.write(SeekFrom::Start(off), &(key, reference));
                 None
             }
             // A victim and a spot! If the victim has the same key then
             // We evict the victim, else we fill the spot
             (Some((off, (k, v))), Some(offset)) => {
                 if k == key {
-                    let e = FileMapElement::new(key, reference);
-                    self.file.seek(SeekFrom::Start(off)).unwrap();
-                    (&e).write(&mut self.file).unwrap();
+                    self.write(SeekFrom::Start(off), &(key, reference));
                     Some((k, v))
                 } else {
-                    let e = FileMapElement::new(key, reference);
-                    self.file.seek(SeekFrom::Start(offset)).unwrap();
-                    (&e).write(&mut self.file).unwrap();
+                    self.write(SeekFrom::Start(offset), &(key, reference));
                     None
                 }
             }
@@ -492,14 +469,11 @@ where
             // If the container is full, then we replace the victim else
             // we append at the end of the file.
             (Some((off, (k, v))), None) => {
-                let e = FileMapElement::new(key, reference);
-                if file_size >= max_size {
-                    self.file.seek(SeekFrom::Start(off)).unwrap();
-                    (&e).write(&mut self.file).unwrap();
+                if k == key || n_elements >= self.capacity {
+                    self.write(SeekFrom::Start(off), &(key, reference));
                     Some((k, v))
                 } else {
-                    self.file.seek(SeekFrom::End(0)).unwrap();
-                    (&e).write(&mut self.file).unwrap();
+                    self.write(SeekFrom::End(0), &(key, reference));
                     None
                 }
             }
@@ -507,10 +481,10 @@ where
     }
 }
 
-impl<'a, K, V> Packed<'a, K, V> for FileMap
+impl<'a, K, V> Packed<'a, K, V> for FileMap<(K, V)>
 where
-    K: 'a + Sized + Eq,
-    V: 'a + Sized + Ord,
+    K: 'a + Eq + DeserializeOwned + Serialize,
+    V: 'a + Ord + DeserializeOwned + Serialize,
 {
 }
 
@@ -524,88 +498,97 @@ where
 /// `FileMapValue` struct implements `Deref` and `DerefMut` traits to
 /// access reference to the value it wraps.
 /// The value it wraps originate from a [`FileMap`](struct.FileMap.html)
-/// container. This value is expected to be a cache
+/// container. This value may be a cache
 /// [reference](../reference/trait.Reference.html). References implement
 /// interior mutability such that when they are dereferenced to access their
 /// inner value, they can update their metadata about accesses.
 /// Hence, values wrapped in this struct are expected to be updated.
 /// Therefore, they need to be written back to the file when they cease
 /// to be used to commit their metadata update.
-/// As a consequence, when this structure is dropped, it is writes back
-/// its content to the FileMap.
-pub struct FileMapValue<K, V>
+/// As a consequence, when this structure is dropped, it is written back
+/// to the [`FileMap`](struct.FileMap.html) it was taken from.
+pub struct FileMapValue<'a, T>
 where
-    K: Sized,
-    V: Sized,
+    T: 'a + Serialize,
 {
     file: File,
     offset: u64,
-    key: K,
-    value: V,
+    value: T,
+    unused_lifetime: PhantomData<&'a T>,
 }
 
-impl<K: Sized, V: Sized> FileMapValue<K, V> {
-    fn new(file_handle: &File, offset: u64, key: K, value: V) -> Self {
+impl<'a, T> FileMapValue<'a, T>
+where
+    T: 'a + Serialize,
+{
+    fn new(file_handle: &File, offset: u64, value: T) -> Self {
         FileMapValue {
             file: file_handle.try_clone().unwrap(),
             offset: offset,
-            key: key,
             value: value,
+            unused_lifetime: PhantomData,
         }
     }
 }
 
-impl<K: Sized, V: Sized> Deref for FileMapValue<K, V> {
+impl<'a, K, V> Deref for FileMapValue<'a, (K, V)>
+where
+    K: 'a + Eq + Serialize,
+    V: 'a + Ord + Serialize,
+{
     type Target = V;
     fn deref(&self) -> &Self::Target {
-        &self.value
+        &self.value.1
     }
 }
 
-impl<K: Sized, V: Sized> DerefMut for FileMapValue<K, V> {
+impl<'a, K, V> DerefMut for FileMapValue<'a, (K, V)>
+where
+    K: 'a + Eq + Serialize,
+    V: 'a + Ord + Serialize,
+{
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.value
+        &mut self.value.1
     }
 }
 
-impl<K: Sized, V: Sized> Drop for FileMapValue<K, V> {
+impl<'a, T> Drop for FileMapValue<'a, T>
+where
+    T: 'a + Serialize,
+{
     fn drop(&mut self) {
         self.file.seek(SeekFrom::Start(self.offset)).unwrap();
-        FileMapElement::<K, V>::write_kv(
-            &mut self.file,
-            &mut self.key,
-            &mut self.value,
-        )
-        .unwrap();
+        FileMapElement::write(&mut self.file, &self.value).unwrap();
     }
 }
 
-impl<'a, K, V> Get<'a, K, V> for FileMap
+impl<'a, K, V> Get<'a, K, V> for FileMap<(K, V)>
 where
-    K: Sized + Eq + 'a,
-    V: Sized + Ord + 'a,
+    K: 'a + Eq + DeserializeOwned + Serialize,
+    V: 'a + Ord + DeserializeOwned + Serialize,
 {
-    type Item = FileMapValue<K, V>;
+    type Item = FileMapValue<'a, (K, V)>;
     fn get(&'a mut self, key: &K) -> Option<Self::Item> {
         self.file.flush().unwrap();
         self.file.seek(SeekFrom::Start(0)).unwrap();
 
-        let file_size = self.file.metadata().unwrap().len();
-        for off in (0..file_size).step_by(FileMapElement::<K, V>::size()) {
-            match FileMapElement::<K, V>::read(&mut self.file) {
-                Err(_) => return None,
-                Ok(None) => (),
-                Ok(Some(e)) => {
-                    let (k, v) = e.into_kv();
-                    if &k == key {
-                        return Some(FileMapValue::<K, V>::new(
-                            &self.file, off, k, v,
-                        ));
-                    }
+        FileMapIterator::<(K, V), _>::new(
+            BufReader::with_capacity(
+                self.buffer_size,
+                self.file.try_clone().unwrap(),
+            ),
+            FileMapIteratorPath::PhantomPath,
+        )
+        .find_map(|(off, opt)| match opt {
+            None => None,
+            Some((k, v)) => {
+                if &k == key {
+                    Some(FileMapValue::new(&self.file, off, (k, v)))
+                } else {
+                    None
                 }
             }
-        }
-        None
+        })
     }
 }
 
@@ -617,84 +600,60 @@ where
 mod tests {
     use super::{FileMap, FileMapElement};
     use crate::container::Container;
-    use std::fs::{remove_file, File, OpenOptions};
     use std::io::{Seek, SeekFrom, Write};
-
-    fn setup(filename: &str) -> File {
-        OpenOptions::new()
-            .write(true)
-            .read(true)
-            .create(true)
-            .truncate(true)
-            .open(filename)
-            .unwrap()
-    }
-
-    fn teardown(filename: &str) {
-        remove_file(filename).unwrap();
-    }
-
-    fn write_filemap_element(file: &mut File) {
-        file.seek(SeekFrom::Start(0)).unwrap();
-        for i in 0usize..16usize {
-            FileMapElement::new(i.clone(), i.clone())
-                .write(file)
-                .unwrap();
-        }
-        file.flush().unwrap();
-    }
-
-    fn read_filemap_element(
-        file: &mut File,
-    ) -> Vec<(usize, Option<FileMapElement<usize, usize>>)> {
-        file.seek(SeekFrom::Start(0)).unwrap();
-
-        (0..16)
-            .map(|i| {
-                (i, FileMapElement::<usize, usize>::read(file).unwrap())
-            })
-            .collect()
-    }
+    use std::path::Path;
+    use tempfile::{tempfile, NamedTempFile};
 
     #[test]
     fn test_filemap_element() {
-        let filename: &str = "test_filemap_element";
-        let mut file = setup(filename);
-        write_filemap_element(&mut file);
-        for (i, e) in read_filemap_element(&mut file) {
-            let (k, v) = e.unwrap().into_kv();
-            assert_eq!(k, i);
-            assert_eq!(v, i);
+        let mut file = tempfile().unwrap();
+
+        // Write elements to file.
+        let input: Vec<(usize, usize)> =
+            (0usize..16usize).map(|i| (i, i)).collect();
+        for (k, v) in input.iter() {
+            FileMapElement::write(&mut file, &(*k, *v)).unwrap();
         }
-        teardown(filename);
+        file.flush().unwrap();
+
+        // Read elements from file.
+        (&file).seek(SeekFrom::Start(0)).unwrap();
+        let mut output: Vec<(usize, usize)> = Vec::new();
+        loop {
+            match FileMapElement::read(&mut file) {
+                Err(_) => break,
+                Ok((_, e)) => output.push(e.unwrap()),
+            };
+        }
     }
 
     #[test]
     fn test_filemap() {
-        let mut fm =
-            unsafe { FileMap::new("test_filemap", 10, false).unwrap() };
+        let tmp_path = NamedTempFile::new().unwrap().into_temp_path();
+        let tmp_string = String::from(
+            AsRef::<Path>::as_ref(&tmp_path).to_str().unwrap(),
+        );
+
+        let mut fm = FileMap::new(&tmp_string, 10, false, 1024).unwrap();
+
         // Push test
         for i in (0usize..10usize).rev() {
-            assert!(
-                Container::<usize, usize>::push(&mut fm, i, i).is_none()
-            );
+            assert!(fm.push(i, i).is_none());
         }
+
+        // Contain test
+        for i in (0usize..10usize).rev() {
+            assert!(fm.contains(&i));
+        }
+
         // Pop test
-        assert_eq!(
-            Container::<usize, usize>::pop(&mut fm).unwrap().0,
-            9usize
-        );
-        // Contains test
-        for i in 0usize..9usize {
-            assert!(Container::<usize, usize>::contains(&mut fm, &i));
-        }
+        assert_eq!(fm.pop().unwrap().0, 9usize);
         let i = 9usize;
-        assert!(!Container::<usize, usize>::contains(&mut fm, &i));
+        assert!(!fm.contains(&i));
 
         // Test pop on push when full.
-        assert!(Container::<usize, usize>::push(&mut fm, 9usize, 9usize)
-            .is_none());
-        match Container::<usize, usize>::push(&mut fm, 11usize, 11usize) {
+        assert!(fm.push(9usize, 9usize).is_none());
+        match fm.push(11usize, 11usize) {
             None => panic!("Full filemap not popping."),
             Some((k, _)) => {
                 assert_eq!(k, 9usize);
@@ -702,7 +661,7 @@ mod tests {
         }
 
         // Test pop on push of an existing key.
-        match Container::<usize, usize>::push(&mut fm, 4usize, 4usize) {
+        match fm.push(4usize, 4usize) {
             None => panic!("Full filemap not popping."),
             Some((k, _)) => {
                 assert_eq!(k, 4usize);
@@ -710,17 +669,11 @@ mod tests {
         }
 
         // Test empty container.
-        assert_eq!(
-            Container::<usize, usize>::pop(&mut fm).unwrap().0,
-            11usize
-        );
+        assert_eq!(fm.pop().unwrap().0, 11usize);
         for i in (0usize..9usize).rev() {
-            assert_eq!(
-                Container::<usize, usize>::pop(&mut fm).unwrap().0,
-                i
-            );
+            assert_eq!(fm.pop().unwrap().0, i);
         }
-        assert!(Container::<usize, usize>::pop(&mut fm).is_none());
-        assert_eq!(Container::<usize, usize>::count(&mut fm), 0);
+        assert!(fm.pop().is_none());
+        assert_eq!(fm.count(), 0);
     }
 }
