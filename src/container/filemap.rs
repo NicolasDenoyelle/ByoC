@@ -32,40 +32,70 @@ impl FileMapElement {
         stream: &mut F,
     ) -> Result<(u64, Option<T>), ()> {
         let pos = stream.seek(SeekFrom::Current(0)).unwrap();
-        match bincode::deserialize_from::<&mut F, Option<T>>(stream) {
+        match bincode::deserialize_from::<&mut F, bool>(stream) {
             Err(_) => {
                 stream.seek(SeekFrom::Start(pos)).unwrap();
                 Err(())
             }
-            Ok(e) => Ok((pos, e)),
+            Ok(set) => {
+                match bincode::deserialize_from::<&mut F, T>(stream) {
+                    Err(_) => {
+                        stream.seek(SeekFrom::Start(pos)).unwrap();
+                        Err(())
+                    }
+                    Ok(v) => {
+                        if !set {
+                            Ok((pos, None))
+                        } else {
+                            Ok((pos, Some(v)))
+                        }
+                    }
+                }
+            }
         }
     }
 
     /// Write an element to `stream`.
-    pub fn write<'a, F: Write, T: Serialize>(
+    pub fn write<'a, F: Seek + Write, T: Serialize>(
         stream: &mut F,
         value: &'a T,
     ) -> Result<(), ()> {
-        match bincode::serialize_into::<&mut F, Option<&'a T>>(
-            stream,
-            &Some(value),
-        ) {
-            Err(_) => Err(()),
-            Ok(_) => Ok(()),
+        let pos = stream.seek(SeekFrom::Current(0)).unwrap();
+        let set = true;
+        match bincode::serialize_into::<&mut F, bool>(stream, &set) {
+            Err(_) => {
+                stream.seek(SeekFrom::Start(pos)).unwrap();
+                Err(())
+            }
+            Ok(_) => {
+                match bincode::serialize_into::<&mut F, &'a T>(
+                    stream, &value,
+                ) {
+                    Err(_) => {
+                        stream.seek(SeekFrom::Start(pos)).unwrap();
+                        Err(())
+                    }
+                    Ok(_) => Ok(()),
+                }
+            }
         }
     }
 
     /// Tag next element in `stream` as not set.
     /// On success, stream is forwarded by the size of one element.
-    pub fn unset<F: Write, T: Serialize>(
+    pub fn unset<
+        F: Read + Seek + Write,
+        T: Serialize + DeserializeOwned,
+    >(
         stream: &mut F,
     ) -> Result<(), ()> {
-        // SAFETY: We write exactly one element with flag `set` set
-        // to false. When this element get read later on, its other
-        // fields will not be accesed due to this flag. Therefore
-        // No need to initialize them.
-        match bincode::serialize_into::<&mut F, Option<T>>(stream, &None) {
-            Err(_) => Err(()),
+        let pos = stream.seek(SeekFrom::Current(0)).unwrap();
+        let set = false;
+        match bincode::serialize_into::<&mut F, bool>(stream, &set) {
+            Err(_) => {
+                stream.seek(SeekFrom::Start(pos)).unwrap();
+                Err(())
+            }
             Ok(_) => Ok(()),
         }
     }
@@ -87,7 +117,7 @@ enum FileMapIteratorPath {
 /// the second element is None. This iterator buffers file read in
 /// an internal `bytes` buffer to land file reads and a `buffer` iterator
 /// containing elements read in `bytes`.
-struct FileMapIterator<T, F>
+pub struct FileMapIterator<T, F>
 where
     T: DeserializeOwned,
     F: Read + Seek,
@@ -154,7 +184,7 @@ where
 /// ```
 /// use cache::container::{Container, FileMap};
 ///
-/// let mut container = FileMap::new::<u32,u32>("example_filemap", 2, false, 1024).unwrap();
+/// let mut container = FileMap::new("example_filemap", 2, false, 1024).unwrap();
 ///
 /// // If test fails, delete created file because destructor is not called.
 /// std::panic::set_hook(Box::new(|_| {
@@ -228,6 +258,17 @@ impl<T: Serialize + DeserializeOwned> FileMap<T> {
             unused_t: PhantomData,
         })
     }
+
+    pub fn iter_owned(&self) -> FileMapIterator<T, BufReader<File>> {
+        let mut f = self.file.try_clone().unwrap();
+        f.flush().unwrap();
+        f.seek(SeekFrom::Start(0)).unwrap();
+
+        FileMapIterator::new(
+            BufReader::with_capacity(self.buffer_size, f),
+            FileMapIteratorPath::PhantomPath,
+        )
+    }
 }
 
 //------------------------------------------------------------------------//
@@ -244,31 +285,15 @@ where
     }
 
     fn count(&self) -> usize {
-        let mut f = self.file.try_clone().unwrap();
-        f.flush().unwrap();
-        f.seek(SeekFrom::Start(0)).unwrap();
-
-        FileMapIterator::<(K, V), _>::new(
-            BufReader::with_capacity(self.buffer_size, f),
-            FileMapIteratorPath::PhantomPath,
-        )
-        .filter(|(_, x)| x.is_some())
-        .count()
+        self.iter_owned().filter(|(_, x)| x.is_some()).count()
     }
 
     fn contains(&self, key: &K) -> bool {
-        let mut f = self.file.try_clone().unwrap();
-        f.flush().unwrap();
-        f.seek(SeekFrom::Start(0)).unwrap();
-
-        FileMapIterator::<(K, V), _>::new(
-            BufReader::with_capacity(self.buffer_size, f),
-            FileMapIteratorPath::PhantomPath,
-        )
-        .any(|(_, e): (u64, Option<(K, V)>)| match e {
-            None => false,
-            Some((k, _)) => &k == key,
-        })
+        self.iter_owned()
+            .any(|(_, e): (u64, Option<(K, V)>)| match e {
+                None => false,
+                Some((k, _)) => &k == key,
+            })
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
@@ -303,19 +328,11 @@ where
     }
 
     fn take(&mut self, key: &K) -> Option<V> {
-        self.file.flush().unwrap();
-        self.file.seek(SeekFrom::Start(0)).unwrap();
-
-        match FileMapIterator::<(K, V), _>::new(
-            BufReader::with_capacity(
-                self.buffer_size,
-                self.file.try_clone().unwrap(),
-            ),
-            FileMapIteratorPath::PhantomPath,
-        )
-        .find(|(_, e): &(u64, Option<(K, V)>)| match e {
-            None => false,
-            Some((k, _)) => k == key,
+        match self.iter_owned().find(|(_, e): &(u64, Option<(K, V)>)| {
+            match e {
+                None => false,
+                Some((k, _)) => k == key,
+            }
         }) {
             Some((off, Some((_, v)))) => {
                 self.file.seek(SeekFrom::Start(off)).unwrap();
@@ -332,17 +349,7 @@ where
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
-        self.file.flush().unwrap();
-        self.file.seek(SeekFrom::Start(0)).unwrap();
-
-        let victim = FileMapIterator::<(K, V), _>::new(
-            BufReader::with_capacity(
-                self.buffer_size,
-                self.file.try_clone().unwrap(),
-            ),
-            FileMapIteratorPath::PhantomPath,
-        )
-        .max_by(
+        let victim = self.iter_owned().max_by(
             |(_, o1): &(u64, Option<(K, V)>),
              (_, o2): &(u64, Option<(K, V)>)| match (o1, o2) {
                 (None, None) => Ordering::Equal,
@@ -365,12 +372,6 @@ where
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        // Flush any outstanding write because we want to read the whole
-        // file.
-        self.file.flush().unwrap();
-        // Position ourselves at the beginning of the file.
-        self.file.seek(SeekFrom::Start(0)).unwrap();
-
         // Find a victim to evict: Either an element with the same key
         // or the minimum element.
         let mut victim: Option<(u64, (K, V))> = None;
@@ -383,13 +384,7 @@ where
         // We start walking the file in search for the same key, holes and
         // potential victims.
         // Everything is one in one pass.
-        for (off, opt) in FileMapIterator::<(K, V), _>::new(
-            BufReader::with_capacity(
-                self.buffer_size,
-                self.file.try_clone().unwrap(),
-            ),
-            FileMapIteratorPath::PhantomPath,
-        ) {
+        for (off, opt) in self.iter_owned() {
             n_elements += 1;
             match opt {
                 None => {
@@ -620,26 +615,13 @@ where
 mod tests {
     use super::{FileMap, FileMapElement};
     use crate::container::Container;
-    use std::fs::{remove_file, OpenOptions};
     use std::io::{Seek, SeekFrom, Write};
+    use std::path::Path;
+    use tempfile::{tempfile, NamedTempFile};
 
     #[test]
     fn test_filemap_element() {
-        let filename: &str = "test_filemap_element";
-        let mut file = OpenOptions::new()
-            .write(true)
-            .read(true)
-            .create(true)
-            .truncate(true)
-            .open(filename)
-            .unwrap();
-
-        std::panic::set_hook(Box::new(|_| {
-            #[allow(unused_must_use)]
-            {
-                remove_file("test_filemap_element");
-            }
-        }));
+        let mut file = tempfile().unwrap();
 
         // Write elements to file.
         let input: Vec<(usize, usize)> =
@@ -658,30 +640,27 @@ mod tests {
                 Ok((_, e)) => output.push(e.unwrap()),
             };
         }
-        assert_eq!(input, output);
-        #[allow(unused_must_use)]
-        {
-            remove_file(filename);
-        }
     }
 
     #[test]
     fn test_filemap() {
-        let mut fm =
-            FileMap::new("test_filemap", 10, false, 1024).unwrap();
+        let tmp_path = NamedTempFile::new().unwrap().into_temp_path();
+        let tmp_string = String::from(
+            AsRef::<Path>::as_ref(&tmp_path).to_str().unwrap(),
+        );
 
-        std::panic::set_hook(Box::new(|_| {
-            #[allow(unused_must_use)]
-            {
-                remove_file("test_filemap");
-            }
-        }));
+        let mut fm = FileMap::new(&tmp_string, 10, false, 1024).unwrap();
 
         // Push test
         for i in (0usize..10usize).rev() {
             assert!(fm.push(i, i).is_none());
+        }
+
+        // Contain test
+        for i in (0usize..10usize).rev() {
             assert!(fm.contains(&i));
         }
+
         // Pop test
         assert_eq!(fm.pop().unwrap().0, 9usize);
         let i = 9usize;
