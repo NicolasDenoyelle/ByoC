@@ -3,12 +3,12 @@ mod sequential;
 use cache::container::Vector;
 
 #[test]
-fn filemap_container_test_0() {
+fn packed_container_test_0() {
     packed::test_container(Vector::new(0));
 }
 
 #[test]
-fn filemap_container_test_small() {
+fn packed_container_test_small() {
     packed::test_container(Vector::new(100));
 }
 

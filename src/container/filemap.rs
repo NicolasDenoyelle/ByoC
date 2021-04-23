@@ -110,13 +110,13 @@ enum FileMapIteratorPath {
     PhantomPath,
 }
 
-/// Iterator over a file containing consecutive `FileMapElement<K,V>`.
+/// Iterator over a file containing consecutive elements.
 /// This iterator returns a tuple where first element is the offset
-/// of the item in file and second element is a `FileMapElement<K,V>`
-/// `Option`. The file may contain holes (unset elements) in which case
-/// the second element is None. This iterator buffers file read in
-/// an internal `bytes` buffer to land file reads and a `buffer` iterator
-/// containing elements read in `bytes`.
+/// of the item in file and second element is an optional value that
+/// has been read from the file.
+/// The file may contain holes (unset elements) in which case
+/// the second element is None. This iterator can buffer reads if provided
+/// stream is buffered.
 pub struct FileMapIterator<T, F>
 where
     T: DeserializeOwned,
@@ -160,25 +160,30 @@ where
     }
 }
 
-/// A [`Container`](../trait.Container.html) for key value store with a
-/// maximum size stored into a file.
+/// A [`Container`](../trait.Container.html) implementation for key/value
+/// elements stored into a file.
 ///
-/// The container has small memory footprint, since the bulk of it is stored
-/// in a file. Eventhough IO reads operation are buffered, nearly
-/// all [`Container`](../trait.Container.html) methods will
-/// require to read the entire file. The file where this container
-/// is mapped contains only consecutive elements that may be unset and
-/// leave a whole in the file for insertions. This is intended to limit
-/// file growth and improve performance since the file will be read entirely
-/// once on almost all operation.
-/// Elements are stored to fit any hole in the file so that the
-/// container does not pop until the file is filled with elements.
+/// [`FileMap`](../struct.FileMap.html) container is a file where elements
+/// are stored contiguously. Elements stored inside a
+/// [`FileMap`](../struct.FileMap.html) are assumed to
+/// [`Serialize`](../../serde/trait.Serialize.html) to elements of the
+/// [same binary size](../../bincode/fn.serialized_size.html).  
+/// When an element is taken out of the container, it leaves a hole that
+/// may be filled on future insertion of a non existing key.  
+/// The container has a small memory footprint, since the bulk of it is stored
+/// in a file. While using a [`FileMap`](../struct.FileMap.html) container,
+/// temporary additional buffer size is created to buffer IO read operations.
 /// This container is intended to be optimized by combining it with:
 /// in-memory cache multiple files/sets in concurrent associative container,
-/// optimized replacement policy, and so on...
-/// This container implements the marker trait `Packed` which means,
-/// that it will accept new elements with non existing keys as long
-/// as it is not full.
+/// optimized replacement policy, and so on...  
+/// [`FileMap`](../struct.FileMap.html) container implements the marker trait
+/// [`Packed`](../marker/trait.Packed.html). Therefore, it will accept new
+/// elements with non existing keys as long as it is not full.  
+/// It also implements the trait [`Get`](trait.Get.html).
+/// [`Get`](trait.Get.html) trait will return values wrapped into a smart
+/// pointer. When the smart pointer goes out of scope, the value is written
+/// back to the file to update values possibly wrapped into a
+/// [`Reference`](../reference/trait.Reference.html) with interior mutability.
 ///
 /// ## Example:
 /// ```
@@ -204,6 +209,7 @@ pub struct FileMap<T: Serialize + DeserializeOwned> {
     persistant: bool,
     capacity: usize,
     buffer_size: usize,
+    serialized_size: u64,
     unused_t: PhantomData<T>,
 }
 
@@ -222,16 +228,6 @@ impl<T: Serialize + DeserializeOwned> FileMap<T> {
     /// not be deleted when the container is dropped. When walking the file
     /// to perform container operations, [`FileMap`](struct.FileMap.html) will
     /// use `buffer_size` bytes of space to buffer IO operations.
-    ///
-    /// SAFETY:
-    /// Keys and values must be safely writable and readable in-place, i.e.
-    /// they do not contain pointers that would be invalid to read from a
-    /// file and they have a fixed size, e.g they are not dynamically
-    /// sized strings or vectors. Keys and Values must also have a
-    /// consistent struct layout across compilations if the underlying
-    /// `FileMap` file is going to be used by in this context. If the file
-    /// already exists it must not be corrupted and only contains zero or
-    /// several valid or unset consecutive elements.
     pub fn new(
         filename: &str,
         capacity: usize,
@@ -255,10 +251,19 @@ impl<T: Serialize + DeserializeOwned> FileMap<T> {
             capacity: capacity,
             persistant: persistant,
             buffer_size: buffer_size,
+            serialized_size: 0u64,
             unused_t: PhantomData,
         })
     }
 
+    /// Get an `Iterator` over a clone of the
+    /// [`FileMap`](../struct.FileMap.html) file to read its elements.
+    /// Elements returned by the iterator are copies of elements in the file
+    /// and are never written back to the file if modified.
+    /// Elements returned by the iterator are tuple where first element
+    /// is the offset of element in file and second element is an `Option`
+    /// over element's value which is either `None` if the iteration encountered
+    /// a hole, else the value at that offset.
     pub fn iter_owned(&self) -> FileMapIterator<T, BufReader<File>> {
         let mut f = self.file.try_clone().unwrap();
         f.flush().unwrap();
@@ -268,6 +273,21 @@ impl<T: Serialize + DeserializeOwned> FileMap<T> {
             BufReader::with_capacity(self.buffer_size, f),
             FileMapIteratorPath::PhantomPath,
         )
+    }
+
+    /// Write an element at desired `offset`.
+    /// This function is only used internally to factorize code.
+    fn write(&mut self, offset: SeekFrom, t: &T) {
+        let serialized_size = bincode::serialized_size(t).unwrap();
+        if self.serialized_size == 0 {
+            self.serialized_size = serialized_size;
+        }
+        if self.serialized_size != serialized_size {
+            panic!("Trying to write elements with different sizes in FileMap container {:?}", self.path);
+        } else {
+            self.file.seek(offset).unwrap();
+            FileMapElement::write(&mut self.file, t).unwrap();
+        }
     }
 }
 
@@ -421,12 +441,7 @@ where
             (None, None) => {
                 // If there is room, we append element at the end of the file.
                 if n_elements < self.capacity {
-                    self.file.seek(SeekFrom::End(0)).unwrap();
-                    FileMapElement::write(
-                        &mut self.file,
-                        &(key, reference),
-                    )
-                    .unwrap();
+                    self.write(SeekFrom::End(0), &(key, reference));
                     None
                 }
                 // Else we return input.
@@ -436,29 +451,17 @@ where
             }
             // No victim but a spot, then insert in the spot.
             (None, Some(off)) => {
-                self.file.seek(SeekFrom::Start(off)).unwrap();
-                FileMapElement::write(&mut self.file, &(key, reference))
-                    .unwrap();
+                self.write(SeekFrom::Start(off), &(key, reference));
                 None
             }
             // A victim and a spot! If the victim has the same key then
             // We evict the victim, else we fill the spot
             (Some((off, (k, v))), Some(offset)) => {
                 if k == key {
-                    self.file.seek(SeekFrom::Start(off)).unwrap();
-                    FileMapElement::write(
-                        &mut self.file,
-                        &(key, reference),
-                    )
-                    .unwrap();
+                    self.write(SeekFrom::Start(off), &(key, reference));
                     Some((k, v))
                 } else {
-                    self.file.seek(SeekFrom::Start(offset)).unwrap();
-                    FileMapElement::write(
-                        &mut self.file,
-                        &(key, reference),
-                    )
-                    .unwrap();
+                    self.write(SeekFrom::Start(offset), &(key, reference));
                     None
                 }
             }
@@ -466,29 +469,11 @@ where
             // If the container is full, then we replace the victim else
             // we append at the end of the file.
             (Some((off, (k, v))), None) => {
-                if k == key {
-                    self.file.seek(SeekFrom::Start(off)).unwrap();
-                    FileMapElement::write(
-                        &mut self.file,
-                        &(key, reference),
-                    )
-                    .unwrap();
-                    Some((k, v))
-                } else if n_elements >= self.capacity {
-                    self.file.seek(SeekFrom::Start(off)).unwrap();
-                    FileMapElement::write(
-                        &mut self.file,
-                        &(key, reference),
-                    )
-                    .unwrap();
+                if k == key || n_elements >= self.capacity {
+                    self.write(SeekFrom::Start(off), &(key, reference));
                     Some((k, v))
                 } else {
-                    self.file.seek(SeekFrom::End(0)).unwrap();
-                    FileMapElement::write(
-                        &mut self.file,
-                        &(key, reference),
-                    )
-                    .unwrap();
+                    self.write(SeekFrom::End(0), &(key, reference));
                     None
                 }
             }
@@ -513,15 +498,15 @@ where
 /// `FileMapValue` struct implements `Deref` and `DerefMut` traits to
 /// access reference to the value it wraps.
 /// The value it wraps originate from a [`FileMap`](struct.FileMap.html)
-/// container. This value is expected to be a cache
+/// container. This value may be a cache
 /// [reference](../reference/trait.Reference.html). References implement
 /// interior mutability such that when they are dereferenced to access their
 /// inner value, they can update their metadata about accesses.
 /// Hence, values wrapped in this struct are expected to be updated.
 /// Therefore, they need to be written back to the file when they cease
 /// to be used to commit their metadata update.
-/// As a consequence, when this structure is dropped, it is writes back
-/// its content to the FileMap.
+/// As a consequence, when this structure is dropped, it is written back
+/// to the [`FileMap`](struct.FileMap.html) it was taken from.
 pub struct FileMapValue<'a, T>
 where
     T: 'a + Serialize,
