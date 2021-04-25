@@ -57,6 +57,32 @@ impl<V> Vector<V> {
 //  Container implementation.                                             //
 //------------------------------------------------------------------------//
 
+struct VectorTakeIterator<'a, K: Eq, V: Ord> {
+    vec: &'a mut Vec<(K, V)>,
+    key: &'a K,
+    current: usize,
+}
+
+impl<'a, K: Eq, V: Ord> Iterator for VectorTakeIterator<'a, K, V> {
+    type Item = (K, V);
+    fn next(&mut self) -> Option<Self::Item> {
+        let n = self.vec.len();
+        if n == 0 {
+            None
+        } else {
+            loop {
+                if n <= self.current {
+                    break None;
+                } else if &self.vec[self.current].0 == self.key {
+                    break Some(self.vec.swap_remove(self.current));
+                } else {
+                    self.current += 1;
+                }
+            }
+        }
+    }
+}
+
 impl<'a, K, V> Container<'a, K, V> for Vector<(K, V)>
 where
     K: 'a + Eq,
@@ -83,47 +109,42 @@ where
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
-        if self.count() == 0 {
-            return None;
+        let n = self.values.len();
+        if n == 0 {
+            None
+        } else if n == 1 {
+            Some(self.values.pop().unwrap())
+        } else {
+            let i = self
+                .values
+                .iter()
+                .enumerate()
+                .min_by(|(_, (_, v1)), (_, (_, v2))| v1.cmp(v2))
+                .unwrap()
+                .0;
+            Some(self.values.swap_remove(i))
         }
-        let mut v = 0;
-        for i in 1..self.count() {
-            if self.values[i].1 > self.values[v].1 {
-                v = i
-            }
-        }
-        Some(self.values.swap_remove(v))
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        if self.capacity == 0 {
-            return Some((key, reference));
-        }
-
-        let mut victim = 0;
-
-        for (i, (k, v)) in self.values.iter().enumerate() {
-            if k == &key {
-                self.values.push((key, reference));
-                return Some(self.values.swap_remove(i));
-            } else if v > &self.values[victim].1 {
-                victim = i;
-            }
-        }
-
-        self.values.push((key, reference));
-        if self.values.len() <= self.capacity {
-            return None;
+        let victim = if self.values.len() >= self.capacity {
+            self.pop()
         } else {
-            return Some(self.values.swap_remove(victim));
-        }
+            None
+        };
+        self.values.push((key, reference));
+        victim
     }
 
-    fn take(&mut self, key: &K) -> Option<V> {
-        match self.values.iter().position(|(k, _)| k == key) {
-            None => None,
-            Some(i) => Some(self.values.swap_remove(i).1),
-        }
+    fn take(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        Box::new(VectorTakeIterator {
+            vec: &mut self.values,
+            key: &key,
+            current: 0usize,
+        })
     }
 }
 

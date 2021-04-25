@@ -20,14 +20,7 @@ struct FileMapElement {}
 impl FileMapElement {
     /// Read a `stream` and retrieve consecutive key/value `(K,V)` pairs
     /// using intermediate `buffer` to store read elements. When elements
-    /// are tagged as unset, None is pushed into returned `Vec` instead of
-    /// a key/value pair.
-    ///
-    /// Safety:
-    /// This method is safe only if `stream` has been exclusively written
-    /// with the same `FileMapElement<K,V>` type and binary representation.
-    /// The stream cursor must also be pointing at the beginning of next element
-    /// or stream end.
+    /// are tagged as unset, None is returned instead of a key/value pair.
     pub fn read<F: Read + Seek, T: DeserializeOwned>(
         stream: &mut F,
     ) -> Result<(u64, Option<T>), ()> {
@@ -156,6 +149,47 @@ where
         match FileMapElement::read::<_, T>(&mut self.file) {
             Err(_) => None,
             Ok(x) => Some(x),
+        }
+    }
+}
+
+pub struct FileMapTakeIterator<'a, K, V, F>
+where
+    K: DeserializeOwned + Serialize + Eq,
+    V: DeserializeOwned + Serialize,
+    F: Read + Write + Seek,
+{
+    file: F,
+    key: &'a K,
+    unused_v: PhantomData<V>,
+}
+
+impl<'a, K, V, F> Iterator for FileMapTakeIterator<'a, K, V, F>
+where
+    K: DeserializeOwned + Serialize + Eq,
+    V: DeserializeOwned + Serialize,
+    F: Read + Write + Seek,
+{
+    type Item = (K, V);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match FileMapElement::read::<_, (K, V)>(&mut self.file) {
+                Err(_) => break None,
+                Ok((off, opt)) => match opt {
+                    None => {}
+                    Some((k, v)) => {
+                        if &k == self.key {
+                            self.file.seek(SeekFrom::Start(off)).unwrap();
+                            FileMapElement::unset::<_, (K, V)>(
+                                &mut self.file,
+                            )
+                            .unwrap();
+                            break Some((k, v));
+                        }
+                    }
+                },
+            }
         }
     }
 }
@@ -347,21 +381,15 @@ where
         )
     }
 
-    fn take(&mut self, key: &K) -> Option<V> {
-        match self.iter_owned().find(|(_, e): &(u64, Option<(K, V)>)| {
-            match e {
-                None => false,
-                Some((k, _)) => k == key,
-            }
-        }) {
-            Some((off, Some((_, v)))) => {
-                self.file.seek(SeekFrom::Start(off)).unwrap();
-                FileMapElement::unset::<_, (K, V)>(&mut self.file)
-                    .unwrap();
-                Some(v)
-            }
-            _ => None,
-        }
+    fn take(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        Box::new(FileMapTakeIterator {
+            file: self.file.try_clone().unwrap(),
+            key: key,
+            unused_v: PhantomData,
+        })
     }
 
     fn clear(&mut self) {
@@ -392,43 +420,31 @@ where
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        // Find a victim to evict: Either an element with the same key
-        // or the minimum element.
+        // Find a victim to evict: the minimum element.
         let mut victim: Option<(u64, (K, V))> = None;
-        // If there are holes and the victim does not have the same key
-        // Then we insert in a whole.
+        // If there are holes then we insert in a hole.
         let mut spot: Option<u64> = None;
-        // Count number of elements.
+        // Count number of elements. If container is not full and their is
+        // no hole, we append at the end.
         let mut n_elements = 0usize;
 
-        // We start walking the file in search for the same key, holes and
-        // potential victims.
-        // Everything is one in one pass.
+        // We start walking the file in search for holes and potential
+        // victims.
         for (off, opt) in self.iter_owned() {
             n_elements += 1;
             match opt {
                 None => {
                     spot = Some(off);
+                    break;
                 }
                 Some((k, v)) => {
-                    // evict.
-                    if k == key {
-                        victim = Some((off, (k, v)));
-                        break;
-                    } else {
-                        victim = match (spot, victim) {
-                            // There is a hole, then we don't care about victims.
-                            (Some(_), vict) => vict,
-                            // There is no current victim and no hole then,
-                            // This is the current victim.
-                            (None, None) => Some((off, (k, v))),
-                            // Next victim is the element with max reference.
-                            (None, Some((off1, (k1, v1)))) => {
-                                if v > v1 {
-                                    Some((off, (k, v)))
-                                } else {
-                                    Some((off1, (k1, v1)))
-                                }
+                    victim = match victim {
+                        None => Some((off, (k, v))),
+                        Some((off1, (k1, v1))) => {
+                            if v > v1 {
+                                Some((off, (k, v)))
+                            } else {
+                                Some((off1, (k1, v1)))
                             }
                         }
                     }
@@ -436,45 +452,26 @@ where
             }
         }
 
-        match (victim, spot) {
-            // No victim and no spot... It means the file is empty.
-            (None, None) => {
-                // If there is room, we append element at the end of the file.
-                if n_elements < self.capacity {
-                    self.write(SeekFrom::End(0), &(key, reference));
-                    None
-                }
-                // Else we return input.
-                else {
-                    Some((key, reference))
-                }
-            }
-            // No victim but a spot, then insert in the spot.
-            (None, Some(off)) => {
+        match spot {
+            Some(off) => {
                 self.write(SeekFrom::Start(off), &(key, reference));
                 None
             }
-            // A victim and a spot! If the victim has the same key then
-            // We evict the victim, else we fill the spot
-            (Some((off, (k, v))), Some(offset)) => {
-                if k == key {
-                    self.write(SeekFrom::Start(off), &(key, reference));
-                    Some((k, v))
-                } else {
-                    self.write(SeekFrom::Start(offset), &(key, reference));
-                    None
-                }
-            }
-            // A victim and no spot.
-            // If the container is full, then we replace the victim else
-            // we append at the end of the file.
-            (Some((off, (k, v))), None) => {
-                if k == key || n_elements >= self.capacity {
-                    self.write(SeekFrom::Start(off), &(key, reference));
-                    Some((k, v))
-                } else {
+            None => {
+                if n_elements < self.capacity {
                     self.write(SeekFrom::End(0), &(key, reference));
                     None
+                } else {
+                    match victim {
+                        None => Some((key, reference)),
+                        Some((off, x)) => {
+                            self.write(
+                                SeekFrom::Start(off),
+                                &(key, reference),
+                            );
+                            Some(x)
+                        }
+                    }
                 }
             }
         }

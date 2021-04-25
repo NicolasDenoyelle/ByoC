@@ -130,9 +130,12 @@ where
         }
     }
 
-    fn take(&mut self, key: &K) -> Option<V> {
+    fn take(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
         if self.n_sets * self.set_size == 0 {
-            None
+            Box::new(Vec::<(K, V)>::new().into_iter())
         } else {
             let i = self.set(key.clone());
             self.containers[i].take(key)

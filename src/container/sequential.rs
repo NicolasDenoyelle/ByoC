@@ -98,7 +98,10 @@ where
         self.container.clear()
     }
 
-    fn take(&mut self, key: &K) -> Option<V> {
+    fn take(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
         let _ = self.lock.lock_mut_for(()).unwrap();
         self.container.take(key)
     }

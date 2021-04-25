@@ -11,13 +11,16 @@ pub trait Container<'a, K: 'a, V: 'a> {
     /// Get the number of elements in the container.    
     fn count(&self) -> usize;
 
-    /// Check if container contains a key.
+    /// Check if container contains a matchig key.
     fn contains(&self, key: &K) -> bool;
 
-    /// Get a value out of the container.
+    /// Get every values matching key out of the container.
     ///
-    /// * `key`: The key associated with the value to take.
-    fn take(&mut self, key: &K) -> Option<V>;
+    /// * `key`: The key associated with the values to take.
+    fn take(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
 
     /// Remove a value from the container.
     /// If cache is empty, return None.
@@ -32,10 +35,8 @@ pub trait Container<'a, K: 'a, V: 'a> {
         }
     }
 
-    /// Insert a value in the container. If an equivalent key already
-    /// exists in the container then it is removed before insertion
-    /// and returned. Else, if the container was full, a victim is
-    /// removed before insertion then returned.
+    /// Insert a key/value pair in the container. If the container was
+    /// full, a victim is removed before insertion then returned.
     ///
     /// * `key`: The key associated with the value to insert.
     /// * `value`: The cache value to insert.
@@ -69,7 +70,10 @@ pub trait Get<'a, K: 'a, V: 'a>: Container<'a, K, V> {
     fn get(&'a mut self, key: &K) -> Option<Self::Item>;
 }
 
+//------------------------------------------------------------------------//
 // Containers implementations.
+//------------------------------------------------------------------------//
+
 mod associative;
 pub use crate::container::associative::Associative;
 mod btree;
@@ -78,8 +82,8 @@ mod profiler;
 pub use crate::container::profiler::Profiler;
 mod sequential;
 pub use crate::container::sequential::Sequential;
-mod stack;
-pub use crate::container::stack::Stack;
+// mod stack;
+// pub use crate::container::stack::Stack;
 mod vector;
 pub use crate::container::vector::Vector;
 #[cfg(feature = "filemap")]

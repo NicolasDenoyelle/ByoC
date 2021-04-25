@@ -13,7 +13,8 @@ use std::collections::{BTreeMap, BTreeSet};
 /// BTree is a container organized with binary tree structures.
 /// Values are kept in a binary tree for fast search of eviction candidates.
 /// A binary tree map <key, value> is also maintained to enable
-/// fast cache lookups.
+/// fast cache lookups. In order to achieve that, this container will
+/// not keep multiple matching keys.
 /// As a result, insertions, removal, lookup and evictions are O(log(n)).
 /// However, this implementation require to store an additional pointer and
 /// key per key/value pair.
@@ -70,11 +71,61 @@ where
             map: BTreeMap::new(),
         }
     }
+
+    fn take_one(&mut self, key: &K) -> Option<(K, V)> {
+        match self.map.remove(key) {
+            None => None,
+            Some(i) => {
+                let n = self.references.len() - 1;
+                assert!(self
+                    .set
+                    .remove(&(OrdPtr::new(&self.references[i].1), *key)));
+                if i != n {
+                    let (k_last, r_last) = {
+                        let (k, r) =
+                            self.references.iter().rev().next().unwrap();
+                        (k.clone(), OrdPtr::new(r))
+                    };
+                    assert!(self.set.remove(&(r_last, k_last)));
+                    self.map.insert(k_last, i);
+                    let (key, reference) = self.references.swap_remove(i);
+                    assert!(self.set.insert((
+                        OrdPtr::new(&self.references[i].1),
+                        k_last
+                    )));
+                    Some((key, reference))
+                } else {
+                    let (key, reference) = self.references.swap_remove(i);
+                    Some((key, reference))
+                }
+            }
+        }
+    }
 }
 
 //------------------------------------------------------------------------//
 //  Container implementation.                                             //
 //------------------------------------------------------------------------//
+
+struct BTreeTakeIterator<'a, K, V>
+where
+    K: 'a + Copy + Ord,
+    V: 'a + Ord,
+{
+    btree: &'a mut BTree<K, V>,
+    key: &'a K,
+}
+
+impl<'a, K, V> Iterator for BTreeTakeIterator<'a, K, V>
+where
+    K: 'a + Copy + Ord,
+    V: 'a + Ord,
+{
+    type Item = (K, V);
+    fn next(&mut self) -> Option<Self::Item> {
+        self.btree.take_one(self.key)
+    }
+}
 
 impl<'a, K, V> Container<'a, K, V> for BTree<K, V>
 where
@@ -172,34 +223,14 @@ where
         }
     }
 
-    fn take(&mut self, key: &K) -> Option<V> {
-        match self.map.remove(key) {
-            None => None,
-            Some(i) => {
-                let n = self.references.len() - 1;
-                assert!(self
-                    .set
-                    .remove(&(OrdPtr::new(&self.references[i].1), *key)));
-                if i != n {
-                    let (k_last, r_last) = {
-                        let (k, r) =
-                            self.references.iter().rev().next().unwrap();
-                        (k.clone(), OrdPtr::new(r))
-                    };
-                    assert!(self.set.remove(&(r_last, k_last)));
-                    self.map.insert(k_last, i);
-                    let (_, reference) = self.references.swap_remove(i);
-                    assert!(self.set.insert((
-                        OrdPtr::new(&self.references[i].1),
-                        k_last
-                    )));
-                    Some(reference)
-                } else {
-                    let (_, reference) = self.references.swap_remove(i);
-                    Some(reference)
-                }
-            }
-        }
+    fn take(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        Box::new(BTreeTakeIterator {
+            btree: self,
+            key: &key,
+        })
     }
 }
 

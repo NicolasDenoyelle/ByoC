@@ -152,7 +152,10 @@ where
         self.deref().contains(key)
     }
 
-    fn take(&mut self, key: &K) -> Option<V> {
+    fn take(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
         self.deref_mut().take(key)
     }
 

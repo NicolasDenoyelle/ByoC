@@ -11,9 +11,6 @@ use std::cmp::Eq;
 /// cache.
 ///
 /// Stack container implements a stack of 2 containers.
-/// It is a non-inclusive container, i.e a key cannot be present in multiple
-/// containers of the stack.
-///
 /// Insertions will be performed at the bottom of the stack.
 /// Pops on insertions are propagated from the bottom to the top of the
 /// stack.
@@ -75,9 +72,7 @@ where
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        Box::new(VecFlushIterator {
-            it: vec![self.l1.flush(), self.l2.flush()],
-        })
+        Box::new(self.l1.flush().chain(self.l2.flush()))
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -97,11 +92,8 @@ where
         self.l2.clear();
     }
 
-    fn take(&mut self, key: &K) -> Option<V> {
-        match self.l1.take(key) {
-            None => self.l2.take(key),
-            Some(r) => Some(r),
-        }
+    fn take(&mut self, key: &K) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        Box::new(self.l1.take(key.clone()).chain(self.l2.take(key)))
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
@@ -168,7 +160,7 @@ where
         }
 
         // Not Found. Find in l2 and move to l1.
-        match self.l2.take(key) {
+        match self.l2.take(key).next() {
             // Not Found. Stop here.
             None => None,
             // Found!
