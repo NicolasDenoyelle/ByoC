@@ -1,6 +1,5 @@
 use crate::container::{Container, Get};
 use crate::marker::Packed;
-use crate::utils::flush::VecFlushIterator;
 use std::cmp::Eq;
 
 //------------------------------------------------------------------------//
@@ -92,100 +91,49 @@ where
         self.l2.clear();
     }
 
-    fn take(&mut self, key: &K) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        Box::new(self.l1.take(key.clone()).chain(self.l2.take(key)))
+    fn take(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        Box::new(self.l1.take(key).chain(self.l2.take(key)))
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
-        let x1 = self.l1.pop();
-        let x2 = self.l2.pop();
-        match (x1, x2) {
-            (None, None) => None,
-            (None, Some(x)) => Some(x),
-            (Some(x), None) => Some(x),
-            (Some((k1, v1)), Some((k2, v2))) => {
-                if v1 <= v2 {
-                    assert!(self.l1.push(k1, v1).is_none());
-                    Some((k2, v2))
-                } else {
-                    assert!(self.l2.push(k2, v2).is_none());
-                    Some((k1, v1))
-                }
-            }
+        match self.l2.pop() {
+            None => self.l1.pop(),
+            Some(x) => Some(x),
         }
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        match (self.l1.push(key.clone(), reference), self.l2.take(&key)) {
-            (None, None) => None,
-            (None, Some(r)) => Some((key, r)),
-            (Some((k, v)), None) => {
-                if k == key && self.l1.contains(&key) {
-                    Some((k, v))
-                } else {
-                    self.l2.push(k, v)
-                }
-            }
-            (Some((k, v)), Some(r)) => {
-                assert!(self.l2.push(k, v).is_none());
-                Some((key, r))
-            }
+        match self.l1.push(key.clone(), reference) {
+            None => None,
+            Some((k, v)) => self.l2.push(k, v),
         }
     }
-}
-
-impl<'a, K, V, C1, C2> Packed<'a, K, V> for Stack<C1, C2>
-where
-    K: 'a + Clone + Eq,
-    V: 'a + Ord,
-    C1: Container<'a, K, V> + Packed<'a, K, V>,
-    C2: Container<'a, K, V> + Packed<'a, K, V>,
-{
 }
 
 impl<'a, K, V, C1, C2, T> Get<'a, K, V> for Stack<C1, C2>
 where
     K: 'a + Clone + Eq,
     V: 'a + Ord,
-    C1: Container<'a, K, V> + Get<'a, K, V, Item = T>,
-    C2: Container<'a, K, V>,
+    C1: 'a + Container<'a, K, V> + Get<'a, K, V, Item = T>,
+    C2: 'a + Container<'a, K, V> + Packed<'a, K, V>,
     T: 'a,
 {
     type Item = T;
-    fn get(&'a mut self, key: &K) -> Option<T> {
-        // Start with first container
+    fn get(&'a mut self, key: &K) -> Option<Self::Item> {
         if self.l1.contains(key) {
-            // Found! Stop here.
-            return self.l1.get(key);
-        }
-
-        // Not Found. Find in l2 and move to l1.
-        match self.l2.take(key).next() {
-            // Not Found. Stop here.
-            None => None,
-            // Found!
-            Some(v2) => {
-                // Make some room in l1
-                match self.l1.pop() {
-                    // We made room in l1. Push result to l2.
-                    Some((k1, v1)) => {
-                        assert!(self.l2.push(k1, v1).is_none());
-                    }
-                    // l1 was empty already.
-                    None => (),
-                }
-                // Push found value into l1 inorder to invoke get.
-                match self.l1.push(key.clone(), v2) {
-                    // Worked, return get method result.
-                    None => self.l1.get(key),
-                    // l1 cannot store elements at all.
-                    // We put element back in l2.
-                    Some((k2, v2)) => {
-                        assert!(self.l2.push(k2, v2).is_none());
-                        None
-                    }
-                }
+            self.l1.get(key)
+        } else if self.l2.contains(key) {
+            let key = key.clone();
+            let (k, v) = { self.l2.take(&key).next() }.unwrap();
+            if let Some((k, v)) = self.l1.push(k, v) {
+                assert!(self.l2.push(k, v).is_none());
             }
+            self.l1.get(&key)
+        } else {
+            None
         }
     }
 }

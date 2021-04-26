@@ -82,8 +82,8 @@ mod profiler;
 pub use crate::container::profiler::Profiler;
 mod sequential;
 pub use crate::container::sequential::Sequential;
-// mod stack;
-// pub use crate::container::stack::Stack;
+mod stack;
+pub use crate::container::stack::Stack;
 mod vector;
 pub use crate::container::vector::Vector;
 #[cfg(feature = "filemap")]
