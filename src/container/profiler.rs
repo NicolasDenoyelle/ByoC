@@ -380,10 +380,10 @@ where
     /// Counts for one cache access.
     /// If key is found, count a hit else count a miss.
     /// See [`take` function](../trait.Container.html)
-    fn take(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
         Box::new(ProfilerTakeIter {
             elements: self.cache.take(key),
             stats: self.stats.clone(),

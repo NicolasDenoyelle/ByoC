@@ -88,10 +88,10 @@ where
         self.l2.clear();
     }
 
-    fn take(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
         Box::new(self.l1.take(key).chain(self.l2.take(key)))
     }
 

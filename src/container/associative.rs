@@ -130,16 +130,12 @@ where
         }
     }
 
-    fn take(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        if self.n_sets * self.set_size == 0 {
-            Box::new(Vec::<(K, V)>::new().into_iter())
-        } else {
-            let i = self.set(key.clone());
-            self.containers[i].take(key)
-        }
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
+        let i = self.set(key.clone());
+        self.containers[i].take(key)
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
@@ -216,7 +212,7 @@ impl<'a, K, V, C, H> Concurrent<'a, K, V> for Associative<C, H>
 where
     K: 'a + Hash + Clone,
     V: 'a + Ord,
-    C: Container<'a, K, V>,
+    C: 'a + Container<'a, K, V>,
     H: Hasher + Clone,
 {
 }
@@ -225,7 +221,7 @@ impl<'a, K, V, C, H, T> Get<'a, K, V> for Associative<C, H>
 where
     K: 'a + Clone + Hash,
     V: 'a + Ord,
-    C: Get<'a, K, V, Item = T>,
+    C: 'a + Get<'a, K, V, Item = T>,
     H: Hasher + Clone,
     T: 'a,
 {

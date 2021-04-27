@@ -152,10 +152,10 @@ where
         self.deref().contains(key)
     }
 
-    fn take(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
         self.deref_mut().take(key)
     }
 

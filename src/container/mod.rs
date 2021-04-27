@@ -17,10 +17,10 @@ pub trait Container<'a, K: 'a, V: 'a> {
     /// Get every values matching key out of the container.
     ///
     /// * `key`: The key associated with the values to take.
-    fn take(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b>;
 
     /// Remove a value from the container.
     /// If cache is empty, return None.
@@ -29,10 +29,11 @@ pub trait Container<'a, K: 'a, V: 'a> {
 
     /// Remove all values from the container.
     fn clear(&mut self) {
-        #[allow(unused_must_use)]
-        {
-            self.flush();
-        }
+        while let Some(_) = self.pop() {}
+        // #[allow(unused_must_use)]
+        // {
+        //     self.flush();
+        // }
     }
 
     /// Insert a key/value pair in the container. If the container was

@@ -57,13 +57,13 @@ impl<V> Vector<V> {
 //  Container implementation.                                             //
 //------------------------------------------------------------------------//
 
-struct VectorTakeIterator<'a, K: Eq, V: Ord> {
+struct VectorTakeIterator<'a, K, V> {
     vec: &'a mut Vec<(K, V)>,
     key: &'a K,
     current: usize,
 }
 
-impl<'a, K: Eq, V: Ord> Iterator for VectorTakeIterator<'a, K, V> {
+impl<'a, K: Eq, V> Iterator for VectorTakeIterator<'a, K, V> {
     type Item = (K, V);
     fn next(&mut self) -> Option<Self::Item> {
         let n = self.vec.len();
@@ -127,6 +127,10 @@ where
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
+        if self.capacity == 0 {
+            return Some((key, reference));
+        }
+
         let victim = if self.values.len() >= self.capacity {
             self.pop()
         } else {
@@ -136,13 +140,13 @@ where
         victim
     }
 
-    fn take(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
         Box::new(VectorTakeIterator {
             vec: &mut self.values,
-            key: &key,
+            key: key,
             current: 0usize,
         })
     }
@@ -153,11 +157,11 @@ where
     K: 'a + Eq,
     V: 'a + Ord,
 {
-    type Item = &'a mut V;
-    fn get(&'a mut self, key: &K) -> Option<&'a mut V> {
+    type Item = &'a mut (K, V);
+    fn get(&'a mut self, key: &K) -> Option<Self::Item> {
         match self.values.iter().position(|(k, _)| k == key) {
             None => None,
-            Some(i) => Some(&mut self.values[i].1),
+            Some(i) => Some(&mut self.values[i]),
         }
     }
 }

@@ -223,10 +223,10 @@ where
         }
     }
 
-    fn take(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
         Box::new(BTreeTakeIterator {
             btree: self,
             key: &key,
