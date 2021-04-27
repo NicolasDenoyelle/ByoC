@@ -191,7 +191,7 @@ where
     T: 'a,
 {
     type Item = T;
-    fn get(&'a mut self, key: &'a K) -> Option<T> {
+    fn get(&'a mut self, key: &K) -> Option<T> {
         unsafe { (*self.ptr).get(key) }
     }
 }

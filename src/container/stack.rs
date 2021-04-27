@@ -1,6 +1,5 @@
-use crate::container::{Container, Get};
+use crate::container::Container;
 use crate::marker::Packed;
-use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
 // Container Stack                                                        //
@@ -116,63 +115,4 @@ where
     C1: Container<'a, K, V> + Packed<'a, K, V>,
     C2: Container<'a, K, V> + Packed<'a, K, V>,
 {
-}
-
-struct StackGet<'a, K: 'a, V: 'a, C1, C2>
-where
-    C1: Container<'a, K, V>,
-    C2: Container<'a, K, V> + Packed<'a, K, V>,
-{
-    stack: &'a Stack<C1, C2>,
-    val: Option<(K, V)>,
-}
-
-impl<'a, K: 'a, V: 'a, C1, C2> Drop for StackGet<'a, K, V, C1, C2>
-where
-    C1: Container<'a, K, V>,
-    C2: Container<'a, K, V> + Packed<'a, K, V>,
-{
-    fn drop(&mut self) {
-        let (k, v) = self.val.take().unwrap();
-        assert!(self.stack.push(k, v).is_none());
-    }
-}
-
-impl<'a, K: 'a, V: 'a, C1, C2> Deref for StackGet<'a, K, V, C1, C2>
-where
-    C1: Container<'a, K, V>,
-    C2: Container<'a, K, V> + Packed<'a, K, V>,
-{
-    type Target = (K, V);
-
-    fn deref(&self) -> &Self::Target {
-        self.val.as_ref().unwrap()
-    }
-}
-
-impl<'a, K: 'a, V: 'a, C1, C2> DerefMut for StackGet<'a, K, V, C1, C2>
-where
-    C1: Container<'a, K, V>,
-    C2: Container<'a, K, V> + Packed<'a, K, V>,
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.val.as_mut().unwrap()
-    }
-}
-
-impl<'a, K: 'a, V: 'a, C1, C2, T: 'a> Get<'a, K, V> for Stack<C1, C2>
-where
-    C1: Container<'a, K, V>,
-    C2: Container<'a, K, V> + Packed<'a, K, V>,
-{
-    type Item = StackGet<'a, K, V, C1, C2>;
-    fn get(&'a mut self, key: &K) -> Option<Self::Item> {
-        match self.take(key) {
-            None => None,
-            Some(x) => Some(StackGet {
-                stack: &self,
-                val: Some(x),
-            }),
-        }
-    }
 }
