@@ -1,5 +1,6 @@
 use crate::container::Container;
 use crate::marker::Packed;
+use std::marker::PhantomData;
 
 //------------------------------------------------------------------------//
 // Container Stack                                                        //
@@ -41,24 +42,40 @@ use crate::marker::Packed;
 /// let victim = cache.push("third", 2).unwrap();
 /// assert_eq!(victim.0, "second");
 /// ```
-pub struct Stack<C1, C2> {
+pub struct Stack<'a, K: 'a, V: 'a, C1, C2>
+where
+    C1: Container<'a, K, V>,
+    C2: Container<'a, K, V>,
+{
     l1: C1,
     l2: C2,
+    unused_k: PhantomData<&'a K>,
+    unused_v: PhantomData<&'a V>,
 }
 
-impl<C1, C2> Stack<C1, C2> {
+impl<'a, K: 'a, V: 'a, C1, C2> Stack<'a, K, V, C1, C2>
+where
+    C1: Container<'a, K, V>,
+    C2: Container<'a, K, V>,
+{
     /// Construct a Stack Cache.
     ///
     /// The stack spans from bottom (first element) to top (last) element
     /// of the list of containers provided as input.
     ///
     /// * `containers`: The list of containers composing the stack.
-    pub fn new(l1: C1, l2: C2) -> Stack<C1, C2> {
-        Stack { l1: l1, l2: l2 }
+    pub fn new(l1: C1, l2: C2) -> Self {
+        Stack {
+            l1: l1,
+            l2: l2,
+            unused_k: PhantomData,
+            unused_v: PhantomData,
+        }
     }
 }
 
-impl<'a, K: 'a, V: 'a, C1, C2> Container<'a, K, V> for Stack<C1, C2>
+impl<'a, K: 'a, V: 'a, C1, C2> Container<'a, K, V>
+    for Stack<'a, K, V, C1, C2>
 where
     C1: Container<'a, K, V>,
     C2: Container<'a, K, V>,
@@ -110,7 +127,7 @@ where
     }
 }
 
-impl<'a, K: 'a, V: 'a, C1, C2> Packed<'a, K, V> for Stack<C1, C2>
+impl<'a, K: 'a, V: 'a, C1, C2> Packed<'a, K, V> for Stack<'a, K, V, C1, C2>
 where
     C1: Container<'a, K, V> + Packed<'a, K, V>,
     C2: Container<'a, K, V> + Packed<'a, K, V>,

@@ -29,11 +29,10 @@ pub trait Container<'a, K: 'a, V: 'a> {
 
     /// Remove all values from the container.
     fn clear(&mut self) {
-        while let Some(_) = self.pop() {}
-        // #[allow(unused_must_use)]
-        // {
-        //     self.flush();
-        // }
+        #[allow(unused_must_use)]
+        {
+            self.flush();
+        }
     }
 
     /// Insert a key/value pair in the container. If the container was
