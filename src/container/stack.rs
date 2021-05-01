@@ -25,7 +25,7 @@ use std::marker::PhantomData;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Get, Stack, Vector};
+/// use cache::container::{Container, Stack, Vector};
 ///
 /// // Create cache
 /// let mut l1 = Vector::new(1);
@@ -35,12 +35,13 @@ use std::marker::PhantomData;
 ///
 /// // Populate cache
 /// assert!(cache.push("first", 0).is_none());
+/// // First layer is full. "first" get pushed to the second layer
+/// // while "second" lives in the first one.
 /// assert!(cache.push("second", 3).is_none());
-/// let mut first = cache.get(&"first");
 ///
-/// // Cache overflow. Victim is the Least Recently used, i.e "second".
+/// // Cache overflow. Victim is the max element in second layer.
 /// let victim = cache.push("third", 2).unwrap();
-/// assert_eq!(victim.0, "second");
+/// assert_eq!(victim.0, "first");
 /// ```
 pub struct Stack<'a, K: 'a, V: 'a, C1, C2>
 where

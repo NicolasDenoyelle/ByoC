@@ -661,14 +661,14 @@ mod tests {
         match fm.push(4usize, 4usize) {
             None => panic!("Full filemap not popping."),
             Some((k, _)) => {
-                assert_eq!(k, 4usize);
+                assert_eq!(k, 11usize);
             }
         }
 
         // Test empty container.
-        assert_eq!(fm.pop().unwrap().0, 11usize);
-        for i in (0usize..9usize).rev() {
-            assert_eq!(fm.pop().unwrap().0, i);
+        assert_eq!(fm.pop().unwrap().0, 8usize);
+        for i in vec![7, 6, 5, 4, 4, 3, 2, 1, 0].iter() {
+            assert_eq!(fm.pop().unwrap().0, *i as usize);
         }
         assert!(fm.pop().is_none());
         assert_eq!(fm.count(), 0);
