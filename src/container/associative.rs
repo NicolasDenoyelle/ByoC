@@ -9,22 +9,20 @@ use std::marker::Sync;
 // Concurrent implementation of container                                 //
 //------------------------------------------------------------------------//
 
-/// Associative [`container`](../trait.Container.html) wrapper with
+/// Associative [`container`](trait.Container.html) wrapper with
 /// multiple sets.
 ///
 /// Associative container is an array of containers. Whenever an element
-/// is to be insered/looked up, the key is hashed to choose the set where
-/// container key/value pair will be stored.
+/// is to be inserted/looked up, the key is hashed to choose the set where
+/// container key/value pair will be stored.  
 /// On insertion, if the target set is full, an element is popped from the
-/// same set. Therefore, the container may pop while not being fulled.
-///
-/// When invoking `pop()` to evict a container element `pop()` is called
-/// on all sets. A victim is elected then all elements that are not elected
-/// are reinserted inside the container.
-///
-/// ## Generics:
-///
-/// * `H`: The hasher type to hash keys.
+/// same set. Therefore, the container may pop while not being full.
+/// This why it does not implement the trait
+/// [`Packed`](../marker/trait.Packed.html).  
+/// When invoking [`pop()`](trait.Container.html#tymethod.pop) to evict a
+/// container element, the method is called on all sets. A victim is elected
+/// and then all elements that are not elected are reinserted inside the
+/// container.
 ///
 /// ## Examples
 ///
@@ -56,16 +54,12 @@ pub struct Associative<C, H: Hasher + Clone> {
 }
 
 impl<C, H: Hasher + Clone> Associative<C, H> {
-    /// Construct a new associative container from a list of containers.
+    /// Construct a new associative container.
     ///
-    /// The resulting associative container will have as many sets as
-    /// containers in input.
-    ///
-    /// * `n_sets`: The number of sets for this container.
-    /// * `set_size`: The capacity of each set. Every set of this
-    /// container have the same capacity.
-    /// * `new`: A container constructor closure taking the set size as
-    /// argument to build a container of the same capacity.
+    /// This function builds `n_sets` containers of capacity `set_size`
+    /// each using a closure provided by the user to build a container
+    /// given its desired capacity. Neither `n_sets` nor `set_size` can
+    /// be zero or else this function will panic.
     pub fn new<F>(
         n_sets: usize,
         set_size: usize,
@@ -75,6 +69,10 @@ impl<C, H: Hasher + Clone> Associative<C, H> {
     where
         F: Fn(usize) -> C,
     {
+        if n_sets * set_size == 0 {
+            panic!("Associative container must contain at least one set with non zero capacity.");
+        }
+
         let mut a = Associative {
             n_sets: n_sets,
             set_size: set_size,
@@ -88,9 +86,6 @@ impl<C, H: Hasher + Clone> Associative<C, H> {
     }
 
     fn set<K: Hash>(&self, key: K) -> usize {
-        if self.n_sets == 0 || self.set_size == 0 {
-            return 0;
-        };
         let mut hasher = self.hasher.clone();
         key.hash(&mut hasher);
         let i = hasher.finish();
@@ -195,10 +190,6 @@ where
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        if self.n_sets == 0 || self.set_size == 0 {
-            return Some((key, reference));
-        };
-
         let i = self.set(key.clone());
         self.containers[i].push(key, reference)
     }
@@ -227,9 +218,6 @@ where
 {
     type Item = RWLockGuard<'a, T>;
     fn get(&'a mut self, key: &K) -> Option<Self::Item> {
-        if self.n_sets == 0 || self.set_size == 0 {
-            return None;
-        };
         let i = self.set(key.clone());
         self.containers[i].lock_mut();
         Get::get(&mut self.containers[i], key)

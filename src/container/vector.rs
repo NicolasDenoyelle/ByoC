@@ -11,15 +11,11 @@ use std::vec::Vec;
 ///
 /// Vector holds values in a `Vec<(index, value)>`.
 /// It is an unordered container.
-/// Any operation on vector (`push()`, `pop()`, `get()`, `take()`) is O(n).
-/// `push()`, `get()`, `get_mut()`, `take()` require to find a matching key
-/// in the container (O(n)).
-/// `pop()` requires to find a victim in the container (O(n)).
-///
-/// ## Generics
-///
-/// * `K`: The type of key to use for container lookups.
-/// * `V`: Value type stored.
+/// Any operation on vector (
+/// [`push()`](trait.Container.html#tymethod.push),
+/// [`take()`](trait.Container.html#tymethod.take),
+/// [`pop()`](trait.Container.html#tymethod.pop)
+/// [`get()`](trait.Get.html#tymethod.get)) is O(n).
 ///
 /// ## Examples
 ///

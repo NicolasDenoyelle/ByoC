@@ -6,7 +6,7 @@ use std::marker::PhantomData;
 // Container Stack                                                        //
 //------------------------------------------------------------------------//
 
-/// [`Container`](../trait.Container.html) wrapper to build multi-level
+/// [`Container`](trait.Container.html) wrapper to build multi-level
 /// cache.
 ///
 /// Stack container implements a stack of 2 containers.
@@ -16,10 +16,9 @@ use std::marker::PhantomData;
 ///
 /// Container lookups will look from the bottom to the top of the stack
 /// for matches.
-/// Whenever a match is found, the reference is taken out of the container,
-/// unwrapped and reinserted at the bottom of the container stack.
 ///
-/// `pop()` invocation will search from the top to the bottom of the stack
+/// [`pop()`](trait.Container.html#tymethod.pop)
+/// invocation will search from the top to the bottom of the stack
 /// for an element to evict.
 ///
 /// ## Examples

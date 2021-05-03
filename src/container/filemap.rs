@@ -194,30 +194,33 @@ where
     }
 }
 
-/// A [`Container`](../trait.Container.html) implementation for key/value
+/// A [`Container`](trait.Container.html) implementation for key/value
 /// elements stored into a file.
 ///
-/// [`FileMap`](../struct.FileMap.html) container is a file where elements
+/// [`FileMap`](struct.FileMap.html) container is a file where elements
 /// are stored contiguously. Elements stored inside a
-/// [`FileMap`](../struct.FileMap.html) are assumed to
+/// [`FileMap`](struct.FileMap.html) are assumed to
 /// [`Serialize`](../../serde/trait.Serialize.html) to elements of the
 /// [same binary size](../../bincode/fn.serialized_size.html).  
 /// When an element is taken out of the container, it leaves a hole that
 /// may be filled on future insertion of a non existing key.  
-/// The container has a small memory footprint, since the bulk of it is stored
-/// in a file. While using a [`FileMap`](../struct.FileMap.html) container,
-/// temporary additional buffer size is created to buffer IO read operations.
+/// The container has a small memory footprint, since the bulk of it is
+/// stored in a file.
+/// While using a [`FileMap`](struct.FileMap.html) container,
+/// temporary additional buffer size is created to buffer IO read
+/// operations.  
 /// This container is intended to be optimized by combining it with:
 /// in-memory cache multiple files/sets in concurrent associative container,
 /// optimized replacement policy, and so on...  
-/// [`FileMap`](../struct.FileMap.html) container implements the marker trait
-/// [`Packed`](../marker/trait.Packed.html). Therefore, it will accept new
-/// elements with non existing keys as long as it is not full.  
+/// [`FileMap`](../struct.FileMap.html) container implements the marker
+/// trait [`Packed`](../marker/trait.Packed.html).
+/// Therefore, it will accept new as long as it is not full.
 /// It also implements the trait [`Get`](trait.Get.html).
 /// [`Get`](trait.Get.html) trait will return values wrapped into a smart
 /// pointer. When the smart pointer goes out of scope, the value is written
 /// back to the file to update values possibly wrapped into a
-/// [`Reference`](../reference/trait.Reference.html) with interior mutability.
+/// [`Reference`](../reference/trait.Reference.html) with interior
+/// mutability.
 ///
 /// ## Example:
 /// ```
@@ -298,7 +301,7 @@ impl<T: Serialize + DeserializeOwned> FileMap<T> {
     /// is the offset of element in file and second element is an `Option`
     /// over element's value which is either `None` if the iteration encountered
     /// a hole, else the value at that offset.
-    pub fn iter_owned(&self) -> FileMapIterator<T, BufReader<File>> {
+    fn iter_owned(&self) -> FileMapIterator<T, BufReader<File>> {
         let mut f = self.file.try_clone().unwrap();
         f.flush().unwrap();
         f.seek(SeekFrom::Start(0)).unwrap();

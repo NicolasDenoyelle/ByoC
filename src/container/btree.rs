@@ -7,22 +7,15 @@ use std::collections::{BTreeMap, BTreeSet};
 // Ordered set of references and key value map.                           //
 //------------------------------------------------------------------------//
 
-/// [`Container`](../trait.Container.html) with ordered keys and
-/// [references](../../reference/trait.Reference.html).
+/// [`Container`](trait.Container.html) with ordered keys and values.
 ///
-/// BTree is a container organized with binary tree structures.
+/// BTree is a container organized with a binary tree structures.
+/// Keys are kept in a binary tree for fast lookups.
 /// Values are kept in a binary tree for fast search of eviction candidates.
-/// A binary tree map <key, value> is also maintained to enable
-/// fast cache lookups. In order to achieve that, this container will
-/// not keep multiple matching keys.
-/// As a result, insertions, removal, lookup and evictions are O(log(n)).
-/// However, this implementation require to store an additional pointer and
-/// key per key/value pair.
-///
-/// ## Generics:
-///
-/// * `K`: The type of key to use.
-/// * `V`: Value type stored.
+/// Since keys are ordered, this container will not allow several matching
+/// keys in the container. However, it can store similar values paired with
+/// different keys.
+/// Insertions, removal, lookup and evictions are O(log(n)).
 ///
 /// ## Examples
 ///
@@ -48,13 +41,13 @@ where
     K: Copy + Ord,
     V: Ord,
 {
-    /// Container capacity
+    // Container capacity
     capacity: usize,
-    /// Sparse vector of references.
+    // Sparse vector of references.
     references: Vec<(K, V)>,
-    /// Ordered set of references. Used for eviction.
+    // Ordered set of references. Used for eviction.
     set: BTreeSet<(OrdPtr<V>, K)>,
-    /// Map of references keys and index.
+    // Map of references keys and index.
     map: BTreeMap<K, usize>,
 }
 
