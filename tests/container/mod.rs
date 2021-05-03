@@ -14,17 +14,21 @@ pub fn rand(a: u64, b: u64) -> u64 {
     hasher.finish() % (b - a) + a
 }
 
-fn test_push<'a, C>(c: &mut C, key: u16, value: u32)
+fn test_push<'a, C>(c: &mut C, key: u16, value: u32, packed: bool)
 where
     C: Container<'a, u16, u32>,
 {
     let count = c.count();
+    let capacity = c.capacity();
 
     // Test insertion
     match c.push(key, value) {
         Some((k, v)) => {
             // Insertion popped then count is not updated.
             assert_eq!(c.count(), count);
+            if packed {
+                assert_eq!(capacity, count);
+            }
             // If no capacity container, inserted key and value go out.
             if c.capacity() == 0 {
                 assert_eq!(k, key);
@@ -82,7 +86,7 @@ where
     assert_eq!(c.count(), 0);
 }
 
-fn test_n_container<'a, C>(c: &mut C, n: usize)
+pub fn test_n<'a, C>(c: &mut C, n: usize, packed: bool)
 where
     C: Container<'a, u16, u32>,
 {
@@ -91,28 +95,28 @@ where
         .collect();
 
     for (k, v) in elements.iter() {
-        test_push(c, *k, *v);
+        test_push(c, *k, *v, packed);
     }
     test_flush(c, &elements);
     assert_eq!(c.count(), 0);
 
     for (k, v) in elements.iter().rev() {
-        test_push(c, *k, *v);
+        test_push(c, *k, *v, packed);
     }
     test_pop(c, &elements);
     assert_eq!(c.count(), 0);
 }
 
-pub fn test_container<'a, C>(mut c: C)
+pub fn test_container<'a, C>(mut c: C, is_packed: bool)
 where
     C: Container<'a, u16, u32>,
 {
     let mut n = 0;
-    test_n_container(&mut c, n);
+    test_n(&mut c, n, is_packed);
     n = c.capacity() / 2;
-    test_n_container(&mut c, n);
+    test_n(&mut c, n, is_packed);
     n = c.capacity();
-    test_n_container(&mut c, n);
+    test_n(&mut c, n, is_packed);
     n = c.capacity() * 2;
-    test_n_container(&mut c, n);
+    test_n(&mut c, n, is_packed);
 }

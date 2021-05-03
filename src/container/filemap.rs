@@ -385,8 +385,10 @@ where
         &'b mut self,
         key: &'b K,
     ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
+        let mut f = self.file.try_clone().unwrap();
+        f.seek(SeekFrom::Start(0)).unwrap();
         Box::new(FileMapTakeIterator {
-            file: self.file.try_clone().unwrap(),
+            file: f,
             key: key,
             unused_v: PhantomData,
         })
