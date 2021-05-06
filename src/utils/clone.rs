@@ -183,15 +183,18 @@ where
 {
 }
 
-impl<'a, K, V, T, C> Get<'a, K, V> for CloneCell<C>
+impl<'a, 'b: 'a, K, V, T, C> Get<'a, 'b, K, V> for CloneCell<C>
 where
-    K: 'a,
-    V: 'a,
-    C: Get<'a, K, V, Item = T>,
-    T: 'a,
+    K: 'b,
+    V: 'b,
+    T: 'a + Deref + DerefMut,
+    C: Get<'a, 'b, K, V, Item = T>,
 {
     type Item = T;
-    fn get(&'a mut self, key: &K) -> Option<T> {
+    fn get(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = Self::Item> + 'a> {
         unsafe { (*self.ptr).get(key) }
     }
 }

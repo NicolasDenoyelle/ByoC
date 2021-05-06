@@ -564,33 +564,38 @@ where
     }
 }
 
-impl<'a, K, V> Get<'a, K, V> for FileMap<(K, V)>
+impl<'a, 'b: 'a, K, V> Get<'a, 'b, K, V> for FileMap<(K, V)>
 where
-    K: 'a + Eq + DeserializeOwned + Serialize,
-    V: 'a + Ord + DeserializeOwned + Serialize,
+    K: 'b + Eq + DeserializeOwned + Serialize,
+    V: 'b + Ord + DeserializeOwned + Serialize,
 {
     type Item = FileMapValue<'a, (K, V)>;
-    fn get(&'a mut self, key: &K) -> Option<Self::Item> {
+    fn get(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = Self::Item> + 'a> {
         self.file.flush().unwrap();
         self.file.seek(SeekFrom::Start(0)).unwrap();
 
-        FileMapIterator::<(K, V), _>::new(
-            BufReader::with_capacity(
-                self.buffer_size,
-                self.file.try_clone().unwrap(),
-            ),
-            FileMapIteratorPath::PhantomPath,
-        )
-        .find_map(|(off, opt)| match opt {
-            None => None,
-            Some((k, v)) => {
-                if &k == key {
-                    Some(FileMapValue::new(&self.file, off, (k, v)))
-                } else {
-                    None
+        Box::new(
+            FileMapIterator::<(K, V), _>::new(
+                BufReader::with_capacity(
+                    self.buffer_size,
+                    self.file.try_clone().unwrap(),
+                ),
+                FileMapIteratorPath::PhantomPath,
+            )
+            .filter_map(move |(off, opt)| match opt {
+                None => None,
+                Some((k, v)) => {
+                    if &k == key {
+                        Some(FileMapValue::new(&self.file, off, (k, v)))
+                    } else {
+                        None
+                    }
                 }
-            }
-        })
+            }),
+        )
     }
 }
 

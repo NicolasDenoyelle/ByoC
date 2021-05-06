@@ -1,9 +1,9 @@
 use crate::container::{Container, Get, Sequential};
-use crate::lock::RWLockGuard;
 use crate::marker::Concurrent;
 use crate::utils::{clone::CloneCell, flush::VecFlushIterator};
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
+use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
 // Concurrent implementation of container                                 //
@@ -208,19 +208,21 @@ where
 {
 }
 
-impl<'a, K, V, C, H, T> Get<'a, K, V> for Associative<C, H>
+impl<'a, 'b: 'a, K, V, C, H, T> Get<'a, 'b, K, V> for Associative<C, H>
 where
-    K: 'a + Clone + Hash,
-    V: 'a + Ord,
-    C: 'a + Get<'a, K, V, Item = T>,
+    K: 'b + Clone + Hash,
+    V: 'b + Ord,
+    C: 'b + Get<'a, 'b, K, V, Item = T>,
     H: Hasher + Clone,
-    T: 'a,
+    T: 'a + Deref + DerefMut,
 {
-    type Item = RWLockGuard<'a, T>;
-    fn get(&'a mut self, key: &K) -> Option<Self::Item> {
+    type Item = T;
+    fn get(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = Self::Item> + 'a> {
         let i = self.set(key.clone());
-        self.containers[i].lock_mut();
-        Get::get(&mut self.containers[i], key)
+        self.containers[i].get(key)
     }
 }
 

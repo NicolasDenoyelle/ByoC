@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 /// Container trait.
 ///
 /// ## Generics:
@@ -62,12 +64,14 @@ pub trait Container<'a, K: 'a, V: 'a> {
 /// their metadata when they are dereferenced.
 /// 2. A returned smart pointer may allow to access a mutable reference
 /// to its content.
-pub trait Get<'a, K: 'a, V: 'a>: Container<'a, K, V> {
-    type Item: 'a;
-    /// Get an item with matching key from cache.
-    /// If not found, None is returned.
+pub trait Get<'a, 'b: 'a, K: 'b, V: 'b>: Container<'b, K, V> {
+    type Item: 'a + Deref + DerefMut;
+    /// Get an items with matching key from cache.
     /// * `key`: The key value used for searching a value.
-    fn get(&'a mut self, key: &K) -> Option<Self::Item>;
+    fn get(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = Self::Item> + 'a>;
 }
 
 //------------------------------------------------------------------------//

@@ -3,6 +3,7 @@ use crate::lock::{RWLock, RWLockGuard};
 use crate::marker::{Concurrent, Packed};
 use crate::utils::clone::CloneCell;
 use std::marker::Sync;
+use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
 // Concurrent cache                                                       //
@@ -146,19 +147,19 @@ where
 {
 }
 
-impl<'a, K, V, C, T> Get<'a, K, V> for Sequential<C>
+impl<'a, 'b: 'a, K, V, C, T> Get<'a, 'b, K, V> for Sequential<C>
 where
-    K: 'a,
-    V: 'a + Ord,
-    C: Get<'a, K, V, Item = T>,
-    T: 'a,
+    K: 'b,
+    V: 'b + Ord,
+    C: Get<'a, 'b, K, V, Item = T>,
+    T: 'a + Deref + DerefMut,
 {
-    type Item = RWLockGuard<'a, T>;
-    fn get(&'a mut self, key: &K) -> Option<RWLockGuard<T>> {
+    type Item = T;
+    fn get(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = Self::Item> + 'a> {
         self.lock_mut();
-        match self.container.get(key) {
-            None => None,
-            Some(v) => Some(RWLockGuard::new(&self.lock, v)),
-        }
+        Box::new(RWLockGuard::new(&self.lock, self.container.get(key)))
     }
 }

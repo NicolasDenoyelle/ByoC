@@ -2,6 +2,7 @@ use crate::container::{Container, Get};
 use crate::marker::Concurrent;
 use crate::utils::{clone::CloneCell, stats::SyncOnlineStats};
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
@@ -39,11 +40,11 @@ use std::time::Instant;
 /// assert_eq!(c.miss(), 2);
 ///
 /// // Do some access
-/// assert!(c.get(&"third").is_none());
+/// assert!(c.get(&"third").next().is_none());
 /// assert_eq!(c.access(), 3);
 /// assert_eq!((&c).hit(), 0);
 /// assert_eq!((&c).miss(), 3);
-/// assert!((&mut c).get(&"first").is_some());
+/// assert!((&mut c).get(&"first").next().is_some());
 /// assert_eq!((&c).access(), 4);
 /// assert_eq!((&c).hit(), 1);
 /// assert_eq!((&c).miss(), 3);
@@ -212,6 +213,8 @@ impl<'a, T> Iterator for ProfilerFlushIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         let item = self.elements.next();
+
+        self.stats.access.fetch_add(1 as u64, Ordering::SeqCst);
         match item {
             Some(v) => {
                 self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
@@ -237,6 +240,7 @@ impl<'a, T> Iterator for ProfilerTakeIter<'a, T> {
         let item = self.elements.next();
         let tf = t0.elapsed().as_millis();
 
+        self.stats.access.fetch_add(1 as u64, Ordering::SeqCst);
         let out = match item {
             Some(v) => {
                 self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
@@ -250,6 +254,36 @@ impl<'a, T> Iterator for ProfilerTakeIter<'a, T> {
 
         self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
         self.stats.take_fn.push(tf as f64);
+        out
+    }
+}
+
+struct ProfilerGetIter<'a, T> {
+    elements: Box<dyn Iterator<Item = T> + 'a>,
+    stats: CloneCell<Stats>,
+}
+
+impl<'a, T> Iterator for ProfilerGetIter<'a, T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        let t0 = Instant::now();
+        let item = self.elements.next();
+        let tf = t0.elapsed().as_millis();
+
+        self.stats.access.fetch_add(1 as u64, Ordering::SeqCst);
+        let out = match item {
+            Some(v) => {
+                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
+                Some(v)
+            }
+            None => {
+                self.stats.miss.fetch_add(1, Ordering::SeqCst);
+                None
+            }
+        };
+
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.get_fn.push(tf as f64);
         out
     }
 }
@@ -441,32 +475,22 @@ where
 // Get Trait                                                              //
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, C, T> Get<'a, K, V> for Profiler<K, V, C>
+impl<'a, 'b: 'a, K, V, C, T> Get<'a, 'b, K, V> for Profiler<K, V, C>
 where
-    K: 'a,
-    V: 'a,
-    C: Get<'a, K, V, Item = T>,
-    T: 'a,
+    K: 'b,
+    V: 'b,
+    C: Get<'a, 'b, K, V, Item = T>,
+    T: 'a + Deref + DerefMut,
 {
     type Item = T;
-    fn get(&'a mut self, key: &K) -> Option<T> {
-        self.stats.access.fetch_add(1, Ordering::SeqCst);
-        let t0 = Instant::now();
-
-        let out = self.cache.get(key);
-        let tf = t0.elapsed().as_millis();
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.get_fn.push(tf as f64);
-        match out {
-            None => {
-                self.stats.miss.fetch_add(1, Ordering::SeqCst);
-                None
-            }
-            Some(v) => {
-                self.stats.hit.fetch_add(1, Ordering::SeqCst);
-                Some(v)
-            }
-        }
+    fn get(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = Self::Item> + 'a> {
+        Box::new(ProfilerGetIter {
+            elements: self.cache.get(key),
+            stats: self.stats.clone(),
+        })
     }
 }
 

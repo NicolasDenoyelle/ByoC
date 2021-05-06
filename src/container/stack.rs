@@ -1,6 +1,7 @@
-use crate::container::Container;
+use crate::container::{Container, Get};
 use crate::marker::Packed;
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
 // Container Stack                                                        //
@@ -132,4 +133,66 @@ where
     C1: Container<'a, K, V> + Packed<'a, K, V>,
     C2: Container<'a, K, V> + Packed<'a, K, V>,
 {
+}
+
+/// Wrapper of alements in a stack container returned by
+/// [`get()`](trait.Get.html) method, indicating whether they were
+/// found in the first layer or the second layer.
+/// [`Container`](trait.Container.html) iterators in layer 1 and 2
+/// may return different types of items.
+pub enum StackGetItem<A, B> {
+    L1(A),
+    L2(B),
+}
+
+impl<T, A, B> Deref for StackGetItem<A, B>
+where
+    A: Deref<Target = T>,
+    B: Deref<Target = T>,
+{
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            StackGetItem::L1(x) => x.deref(),
+            StackGetItem::L2(x) => x.deref(),
+        }
+    }
+}
+
+impl<T, A, B> DerefMut for StackGetItem<A, B>
+where
+    A: Deref<Target = T> + DerefMut,
+    B: Deref<Target = T> + DerefMut,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            StackGetItem::L1(x) => x.deref_mut(),
+            StackGetItem::L2(x) => x.deref_mut(),
+        }
+    }
+}
+
+impl<'a, 'b: 'a, K, V, T1, T2, T3, C1, C2> Get<'a, 'b, K, V>
+    for Stack<'b, K, V, C1, C2>
+where
+    K: 'b,
+    V: 'b,
+    T1: 'a + Deref<Target = T3> + DerefMut,
+    T2: 'a + Deref<Target = T3> + DerefMut,
+    T3: 'a,
+    C1: Container<'b, K, V> + Get<'a, 'b, K, V, Item = T1>,
+    C2: Container<'b, K, V> + Get<'a, 'b, K, V, Item = T2>,
+{
+    type Item = StackGetItem<T1, T2>;
+    fn get(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = Self::Item> + 'a> {
+        Box::new(
+            self.l1
+                .get(key)
+                .map(|x| StackGetItem::L1(x))
+                .chain(self.l2.get(key).map(|x| StackGetItem::L2(x))),
+        )
+    }
 }

@@ -148,17 +148,17 @@ where
     }
 }
 
-impl<'a, K, V> Get<'a, K, V> for Vector<(K, V)>
+impl<'a, 'b: 'a, K, V> Get<'a, 'b, K, V> for Vector<(K, V)>
 where
-    K: 'a + Eq,
-    V: 'a + Ord,
+    K: 'b + Eq,
+    V: 'b + Ord,
 {
     type Item = &'a mut (K, V);
-    fn get(&'a mut self, key: &K) -> Option<Self::Item> {
-        match self.values.iter().position(|(k, _)| k == key) {
-            None => None,
-            Some(i) => Some(&mut self.values[i]),
-        }
+    fn get(
+        &'a mut self,
+        key: &'a K,
+    ) -> Box<dyn Iterator<Item = Self::Item> + 'a> {
+        Box::new(self.values.iter_mut().filter(move |(k, _)| k == key))
     }
 }
 
