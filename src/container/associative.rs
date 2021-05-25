@@ -1,6 +1,6 @@
 use crate::container::{Container, Sequential};
 use crate::marker::Concurrent;
-use crate::utils::{clone::CloneCell, flush::VecFlushIterator};
+use crate::utils::clone::CloneCell;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
 
@@ -89,6 +89,39 @@ impl<C, H: Hasher + Clone> Associative<C, H> {
         key.hash(&mut hasher);
         let i = hasher.finish();
         usize::from((i % (self.n_sets as u64)) as u16)
+    }
+}
+
+/// `Vec` of flush iterators flushing elements sequentially,
+/// starting from last iterator until empty.
+pub struct VecFlushIterator<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
+    pub it: Vec<Box<dyn Iterator<Item = (K, V)> + 'a>>,
+}
+
+impl<'a, K, V> Iterator for VecFlushIterator<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+{
+    type Item = (K, V);
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            match self.it.pop() {
+                None => {
+                    return None;
+                }
+                Some(mut it) => {
+                    if let Some(e) = it.next() {
+                        self.it.push(it);
+                        return Some(e);
+                    }
+                }
+            }
+        }
     }
 }
 
