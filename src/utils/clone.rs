@@ -1,4 +1,4 @@
-use crate::container::{Container, Get};
+use crate::container::Container;
 use crate::lock::RWLock;
 use crate::marker::Concurrent;
 use std::boxed::Box;
@@ -152,7 +152,10 @@ where
         self.deref().contains(key)
     }
 
-    fn take(&mut self, key: &K) -> Option<V> {
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
         self.deref_mut().take(key)
     }
 
@@ -178,19 +181,6 @@ where
     V: 'a,
     C: Concurrent<'a, K, V>,
 {
-}
-
-impl<'a, K, V, T, C> Get<'a, K, V> for CloneCell<C>
-where
-    K: 'a,
-    V: 'a,
-    C: Get<'a, K, V, Item = T>,
-    T: 'a,
-{
-    type Item = T;
-    fn get(&'a mut self, key: &K) -> Option<T> {
-        unsafe { (*self.ptr).get(key) }
-    }
 }
 
 //-------------------------------------------------------------------------

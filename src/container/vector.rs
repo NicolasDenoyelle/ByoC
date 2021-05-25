@@ -1,4 +1,4 @@
-use crate::container::{Container, Get};
+use crate::container::Container;
 use crate::marker::Packed;
 use std::cmp::Eq;
 use std::vec::Vec;
@@ -11,15 +11,10 @@ use std::vec::Vec;
 ///
 /// Vector holds values in a `Vec<(index, value)>`.
 /// It is an unordered container.
-/// Any operation on vector (`push()`, `pop()`, `get()`, `take()`) is O(n).
-/// `push()`, `get()`, `get_mut()`, `take()` require to find a matching key
-/// in the container (O(n)).
-/// `pop()` requires to find a victim in the container (O(n)).
-///
-/// ## Generics
-///
-/// * `K`: The type of key to use for container lookups.
-/// * `V`: Value type stored.
+/// Any operation on vector (
+/// [`push()`](trait.Container.html#tymethod.push),
+/// [`take()`](trait.Container.html#tymethod.take),
+/// [`pop()`](trait.Container.html#tymethod.pop)
 ///
 /// ## Examples
 ///
@@ -39,17 +34,24 @@ use std::vec::Vec;
 /// assert!(key == "first");
 /// assert!(value == 4);
 /// ```
-pub struct Vector<V> {
+pub struct Vector<K: Eq, V> {
     capacity: usize,
-    values: Vec<V>,
+    values: Vec<(K, V)>,
 }
 
-impl<V> Vector<V> {
+impl<K: Eq, V> Vector<K, V> {
     pub fn new(n: usize) -> Self {
         Vector {
             capacity: n,
             values: Vec::with_capacity(n + 1),
         }
+    }
+
+    pub fn get<'c>(
+        &'c mut self,
+        key: &'c K,
+    ) -> Box<dyn Iterator<Item = &'c mut (K, V)> + 'c> {
+        Box::new(self.values.iter_mut().filter(move |(k, _)| k == key))
     }
 }
 
@@ -57,7 +59,33 @@ impl<V> Vector<V> {
 //  Container implementation.                                             //
 //------------------------------------------------------------------------//
 
-impl<'a, K, V> Container<'a, K, V> for Vector<(K, V)>
+struct VectorTakeIterator<'a, K, V> {
+    vec: &'a mut Vec<(K, V)>,
+    key: &'a K,
+    current: usize,
+}
+
+impl<'a, K: Eq, V> Iterator for VectorTakeIterator<'a, K, V> {
+    type Item = (K, V);
+    fn next(&mut self) -> Option<Self::Item> {
+        let n = self.vec.len();
+        if n == 0 {
+            None
+        } else {
+            loop {
+                if n <= self.current {
+                    break None;
+                } else if &self.vec[self.current].0 == self.key {
+                    break Some(self.vec.swap_remove(self.current));
+                } else {
+                    self.current += 1;
+                }
+            }
+        }
+    }
+}
+
+impl<'a, K, V> Container<'a, K, V> for Vector<K, V>
 where
     K: 'a + Eq,
     V: 'a + Ord,
@@ -83,16 +111,21 @@ where
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
-        if self.count() == 0 {
-            return None;
+        let n = self.values.len();
+        if n == 0 {
+            None
+        } else if n == 1 {
+            Some(self.values.pop().unwrap())
+        } else {
+            let i = self
+                .values
+                .iter()
+                .enumerate()
+                .min_by(|(_, (_, v1)), (_, (_, v2))| v1.cmp(v2))
+                .unwrap()
+                .0;
+            Some(self.values.swap_remove(i))
         }
-        let mut v = 0;
-        for i in 1..self.count() {
-            if self.values[i].1 > self.values[v].1 {
-                v = i
-            }
-        }
-        Some(self.values.swap_remove(v))
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
@@ -100,48 +133,28 @@ where
             return Some((key, reference));
         }
 
-        let mut victim = 0;
-
-        for (i, (k, v)) in self.values.iter().enumerate() {
-            if k == &key {
-                self.values.push((key, reference));
-                return Some(self.values.swap_remove(i));
-            } else if v > &self.values[victim].1 {
-                victim = i;
-            }
-        }
-
-        self.values.push((key, reference));
-        if self.values.len() <= self.capacity {
-            return None;
+        let victim = if self.values.len() >= self.capacity {
+            self.pop()
         } else {
-            return Some(self.values.swap_remove(victim));
-        }
+            None
+        };
+        self.values.push((key, reference));
+        victim
     }
 
-    fn take(&mut self, key: &K) -> Option<V> {
-        match self.values.iter().position(|(k, _)| k == key) {
-            None => None,
-            Some(i) => Some(self.values.swap_remove(i).1),
-        }
-    }
-}
-
-impl<'a, K, V> Get<'a, K, V> for Vector<(K, V)>
-where
-    K: 'a + Eq,
-    V: 'a + Ord,
-{
-    type Item = &'a mut V;
-    fn get(&'a mut self, key: &K) -> Option<&'a mut V> {
-        match self.values.iter().position(|(k, _)| k == key) {
-            None => None,
-            Some(i) => Some(&mut self.values[i].1),
-        }
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
+        Box::new(VectorTakeIterator {
+            vec: &mut self.values,
+            key: key,
+            current: 0usize,
+        })
     }
 }
 
-impl<'a, K, V> Packed<'a, K, V> for Vector<(K, V)>
+impl<'a, K, V> Packed<'a, K, V> for Vector<K, V>
 where
     K: 'a + Eq,
     V: 'a + Ord,

@@ -1,10 +1,8 @@
-pub mod rand;
-
 use cache::{container::Container, marker::Concurrent};
-use std::{cmp::min, sync::mpsc::channel, thread, vec::Vec};
+use std::{sync::mpsc::channel, thread, vec::Vec};
 
 fn test_after_push<C>(
-    mut c: C,
+    c: C,
     count: usize,
     keys: Vec<u16>,
     popped_keys: Vec<u16>,
@@ -18,16 +16,13 @@ fn test_after_push<C>(
     // Test popped keys plus inserted keys is the number of keys.
     assert!(keys.len() == c.count() + popped_keys.len());
 
-    // Test popped keys and inside keys do not overlap.
+    // Test popped keys and inside keys do not overlap,
+    // All keys are distinct. They are either in or out.
     for key in keys {
-        match c.take(&key) {
-            None => {
-                assert!(popped_keys.contains(&key));
-            }
-            Some(v) => {
-                assert!(!popped_keys.contains(&key));
-                c.push(key, v);
-            }
+        if c.contains(&key) {
+            assert!(!popped_keys.contains(&key));
+        } else {
+            assert!(popped_keys.contains(&key));
         }
     }
 
@@ -35,14 +30,15 @@ fn test_after_push<C>(
     assert!(c.count() <= c.capacity());
 }
 
-pub fn push_concurrent<C>(c: C, mut set: Vec<(u16, u32)>, num_thread: u8)
+pub fn push_concurrent<C>(c: C, num_thread: u8)
 where
     C: 'static
         + Container<'static, u16, u32>
         + Concurrent<'static, u16, u32>,
 {
-    // Not more threads than elements.
-    let num_thread = min(num_thread as usize, set.len()) as u8;
+    let capacity = c.capacity();
+    let mut set: Vec<(u16, u32)> =
+        (0..capacity * 2).map(|i| (i as u16, i as u32)).collect();
     // The total number of elements to push in the container c.
     let keys: Vec<u16> = set.iter().map(|(k, _)| k.clone()).collect();
 
@@ -89,11 +85,11 @@ where
     );
 }
 
-pub fn test_concurrent<C>(c: C, set: Vec<(u16, u32)>, num_thread: u8)
+pub fn test_concurrent<C>(c: C, num_thread: u8)
 where
     C: 'static
         + Container<'static, u16, u32>
         + Concurrent<'static, u16, u32>,
 {
-    push_concurrent(c, set, num_thread);
+    push_concurrent(c, num_thread);
 }

@@ -3,7 +3,7 @@ use std::path::Path;
 #[cfg(feature = "filemap")]
 use tempfile::NamedTempFile;
 #[cfg(feature = "filemap")]
-mod packed;
+mod container;
 #[cfg(feature = "filemap")]
 use cache::container::FileMap;
 
@@ -16,7 +16,7 @@ fn filemap_container_test_0() {
 
     let container =
         FileMap::<(u16, u32)>::new(&tmp_string, 0, false, 1024).unwrap();
-    packed::test_container(container);
+    container::test_container(container, true);
 }
 
 #[cfg(feature = "filemap")]
@@ -28,5 +28,5 @@ fn filemap_container_test_small() {
 
     let container =
         FileMap::<(u16, u32)>::new(&tmp_string, 10, false, 1024).unwrap();
-    packed::test_container(container);
+    container::test_container(container, true);
 }

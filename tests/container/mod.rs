@@ -14,71 +14,109 @@ pub fn rand(a: u64, b: u64) -> u64 {
     hasher.finish() % (b - a) + a
 }
 
-fn test_is_min<'a, C>(c: &mut C, value: &u32)
+fn test_push<'a, C>(c: &mut C, key: u16, value: u32, packed: bool)
 where
     C: Container<'a, u16, u32>,
 {
-    let mut elements = Vec::new();
     let count = c.count();
-    loop {
-        match c.pop() {
-            None => break,
-            Some((k, v)) => {
-                assert!(value <= &v);
-                elements.push((k, v));
+    let capacity = c.capacity();
+
+    // Test insertion
+    match c.push(key, value) {
+        Some((k, v)) => {
+            // Insertion popped then count is not updated.
+            assert_eq!(c.count(), count);
+            if packed {
+                assert_eq!(capacity, count);
+            }
+            // If no capacity container, inserted key and value go out.
+            if c.capacity() == 0 {
+                assert_eq!(k, key);
+                assert_eq!(v, value);
+            }
+            // When popping different key, inserted element must be present.
+            else if k != key {
+                assert!(c.contains(&key));
+                // Take and reinsert of just inserted key must work.
+                let (k, v) = c.take(&key).next().unwrap();
+                assert_eq!(key, k);
+                assert!(c.push(k, v).is_none());
             }
         }
-        assert_eq!(elements.len() + c.count(), count);
-    }
-    for e in elements {
-        c.push(e.0, e.1);
+        None => {
+            // Cannot insert in full container.
+            assert!(count < c.capacity());
+            // Insertion updates count.
+            assert_eq!(count + 1, c.count());
+        }
     }
 }
 
-fn test_push<'a, C>(c: &mut C, key: u16, value: u32)
+fn test_flush<'a, C>(c: &mut C, pushed: &Vec<(u16, u32)>)
 where
     C: Container<'a, u16, u32>,
 {
+    let mut i = 0;
     let count = c.count();
-
-    if c.contains(&key) || count == c.capacity() {
-        let out = c.push(key, value).unwrap();
-        if out.0 != key && out.1 < value {
-            test_is_min(c, &out.1);
-        }
-        assert_eq!(c.count(), count);
+    for (k, v) in c.flush() {
+        assert!(pushed
+            .iter()
+            .find(|(_k, _v)| { _k == &k && _v == &v })
+            .is_some());
+        i += 1;
     }
+    assert_eq!(i, count);
+    assert_eq!(c.count(), 0);
 }
 
-fn test_n_container<'a, C>(c: &mut C, n: usize)
+fn test_pop<'a, C>(c: &mut C, pushed: &Vec<(u16, u32)>)
+where
+    C: Container<'a, u16, u32>,
+{
+    let mut i = 0;
+    let count = c.count();
+    while let Some((k, v)) = c.pop() {
+        assert!(pushed
+            .iter()
+            .find(|(_k, _v)| { _k == &k && _v == &v })
+            .is_some());
+        i += 1;
+    }
+    assert_eq!(i, count);
+    assert_eq!(c.count(), 0);
+}
+
+pub fn test_n<'a, C>(c: &mut C, n: usize, packed: bool)
 where
     C: Container<'a, u16, u32>,
 {
     let elements: Vec<(u16, u32)> = (0..n as u64)
         .map(|i| (i as u16, rand(0, n as u64) as u32))
         .collect();
-    for (k, v) in elements.iter() {
-        test_push(c, *k, *v);
-    }
 
-    for (k, v) in c.flush() {
-        assert!(elements
-            .iter()
-            .find(|(_k, _v)| { _k == &k && _v == &v })
-            .is_some());
+    for (k, v) in elements.iter() {
+        test_push(c, *k, *v, packed);
     }
+    test_flush(c, &elements);
+    assert_eq!(c.count(), 0);
+
+    for (k, v) in elements.iter().rev() {
+        test_push(c, *k, *v, packed);
+    }
+    test_pop(c, &elements);
+    assert_eq!(c.count(), 0);
 }
 
-pub fn test_container<'a, C>(mut c: C)
+pub fn test_container<'a, C>(mut c: C, is_packed: bool)
 where
     C: Container<'a, u16, u32>,
 {
     let mut n = 0;
-    test_n_container(&mut c, n);
+    test_n(&mut c, n, is_packed);
     n = c.capacity() / 2;
-    test_n_container(&mut c, n);
+    test_n(&mut c, n, is_packed);
     n = c.capacity();
-    test_n_container(&mut c, n);
+    test_n(&mut c, n, is_packed);
     n = c.capacity() * 2;
-    test_n_container(&mut c, n);
+    test_n(&mut c, n, is_packed);
 }

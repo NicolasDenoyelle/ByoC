@@ -1,4 +1,4 @@
-use crate::container::{Container, Get};
+use crate::container::Container;
 use crate::marker::Concurrent;
 use crate::utils::{clone::CloneCell, stats::SyncOnlineStats};
 use std::marker::PhantomData;
@@ -21,7 +21,7 @@ use std::time::Instant;
 /// # Examples
 ///
 /// ```
-/// use cache::container::{Container, Get, Vector, Profiler};
+/// use cache::container::{Container, Vector, Profiler};
 ///
 /// // Build a cache:
 /// let c = Vector::new(3);
@@ -39,11 +39,11 @@ use std::time::Instant;
 /// assert_eq!(c.miss(), 2);
 ///
 /// // Do some access
-/// assert!(c.get(&"third").is_none());
+/// assert!(c.take(&"third").next().is_none());
 /// assert_eq!(c.access(), 3);
 /// assert_eq!((&c).hit(), 0);
 /// assert_eq!((&c).miss(), 3);
-/// assert!((&mut c).get(&"first").is_some());
+/// assert!((&mut c).take(&"first").next().is_some());
 /// assert_eq!((&c).access(), 4);
 /// assert_eq!((&c).hit(), 1);
 /// assert_eq!((&c).miss(), 3);
@@ -60,7 +60,7 @@ struct Stats {
     take_fn: SyncOnlineStats,
     pop_fn: SyncOnlineStats,
     push_fn: SyncOnlineStats,
-    get_fn: SyncOnlineStats,
+    flush_fn: SyncOnlineStats,
 }
 
 impl Stats {
@@ -73,7 +73,7 @@ impl Stats {
             take_fn: SyncOnlineStats::new(),
             pop_fn: SyncOnlineStats::new(),
             push_fn: SyncOnlineStats::new(),
-            get_fn: SyncOnlineStats::new(),
+            flush_fn: SyncOnlineStats::new(),
         }
     }
 }
@@ -120,7 +120,7 @@ impl<K, V, C> Profiler<K, V, C> {
 {take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max}
 {pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max}
 {push_fn_mean} {push_fn_var} {push_fn_min} {push_fn_max}
-{get_fn_mean} {get_fn_var} {get_fn_min} {get_fn_max}",
+{flush_fn_mean} {flush_fn_var} {flush_fn_min} {flush_fn_max}",
             access = "access",
             miss = "miss",
             hit = "hit",
@@ -136,10 +136,10 @@ impl<K, V, C> Profiler<K, V, C> {
             push_fn_var = "push_fn_var",
             push_fn_min = "push_fn_min",
             push_fn_max = "push_fn_max",
-            get_fn_mean = "get_fn_mean",
-            get_fn_var = "get_fn_var",
-            get_fn_min = "get_fn_min",
-            get_fn_max = "get_fn_max"
+            flush_fn_mean = "push_fn_mean",
+            flush_fn_var = "push_fn_var",
+            flush_fn_min = "push_fn_min",
+            flush_fn_max = "push_fn_max",
         )
     }
 
@@ -149,10 +149,10 @@ impl<K, V, C> Profiler<K, V, C> {
     pub fn print(&self) {
         println!(
             "{access} {miss} {hit}
-{take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max}
-{pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max}
-{push_fn_mean} {push_fn_var} {push_fn_min} {push_fn_max}
-{get_fn_mean} {get_fn_var} {get_fn_min} {get_fn_max}",
+        {take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max}
+        {pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max}
+        {push_fn_mean} {push_fn_var} {push_fn_min} {push_fn_max}
+        {flush_fn_mean} {flush_fn_var} {flush_fn_min} {flush_fn_max}",
             access = self.stats.access.load(Ordering::Relaxed),
             miss = self.stats.miss.load(Ordering::Relaxed),
             hit = self.stats.hit.load(Ordering::Relaxed),
@@ -168,10 +168,10 @@ impl<K, V, C> Profiler<K, V, C> {
             push_fn_var = self.stats.push_fn.var(),
             push_fn_min = self.stats.push_fn.min(),
             push_fn_max = self.stats.push_fn.max(),
-            get_fn_mean = self.stats.get_fn.mean(),
-            get_fn_var = self.stats.get_fn.var(),
-            get_fn_min = self.stats.get_fn.min(),
-            get_fn_max = self.stats.get_fn.max()
+            flush_fn_mean = self.stats.flush_fn.mean(),
+            flush_fn_var = self.stats.flush_fn.var(),
+            flush_fn_min = self.stats.flush_fn.min(),
+            flush_fn_max = self.stats.flush_fn.max(),
         )
     }
 }
@@ -187,32 +187,61 @@ impl<K, V, C: Clone> Clone for Profiler<K, V, C> {
     }
 }
 
-struct ProfilerFlushIter<'a, K, V> {
-    elements: Box<dyn Iterator<Item = (K, V)> + 'a>,
-    stats: CloneCell<Stats>,
-}
-
 //------------------------------------------------------------------------//
 // Flush iterator
 //------------------------------------------------------------------------//
 
-impl<'a, K, V> Iterator for ProfilerFlushIter<'a, K, V> {
-    type Item = (K, V);
+struct ProfilerFlushIter<'a, T> {
+    elements: Box<dyn Iterator<Item = T> + 'a>,
+    stats: CloneCell<Stats>,
+}
+
+impl<'a, T> Iterator for ProfilerFlushIter<'a, T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.elements.next();
+
+        self.stats.access.fetch_add(1 as u64, Ordering::SeqCst);
+        match item {
+            Some(v) => {
+                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
+                Some(v)
+            }
+            None => {
+                self.stats.miss.fetch_add(1, Ordering::SeqCst);
+                None
+            }
+        }
+    }
+}
+
+struct ProfilerTakeIter<'a, T> {
+    elements: Box<dyn Iterator<Item = T> + 'a>,
+    stats: CloneCell<Stats>,
+}
+
+impl<'a, T> Iterator for ProfilerTakeIter<'a, T> {
+    type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         let t0 = Instant::now();
         let item = self.elements.next();
         let tf = t0.elapsed().as_millis();
-        match item {
+
+        self.stats.access.fetch_add(1 as u64, Ordering::SeqCst);
+        let out = match item {
             Some(v) => {
                 self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
-                self.stats
-                    .tot_millis
-                    .fetch_add(tf as u64, Ordering::SeqCst);
-                self.stats.take_fn.push(tf as f64);
                 Some(v)
             }
-            None => None,
-        }
+            None => {
+                self.stats.miss.fetch_add(1, Ordering::SeqCst);
+                None
+            }
+        };
+
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.take_fn.push(tf as f64);
+        out
     }
 }
 
@@ -298,11 +327,11 @@ where
 
         write!(
             f,
-            "* fn get (ns):   {:.2} (mean) | {:.2} (var) | {:.2} (min) | {:.2} (max)",
-            self.stats.get_fn.mean(),
-            self.stats.get_fn.var(),
-            self.stats.get_fn.min(),
-            self.stats.get_fn.max()
+            "* fn flush (ns):  {:.2} (mean) | {:.2} (var) | {:.2} (min) | {:.2} (max),",
+            self.stats.flush_fn.mean(),
+            self.stats.flush_fn.var(),
+            self.stats.flush_fn.min(),
+            self.stats.flush_fn.max()
         )
     }
 }
@@ -333,31 +362,27 @@ where
     /// Counts for one cache access.
     /// If key is found, count a hit else count a miss.
     /// See [`take` function](../trait.Container.html)
-    fn take(&mut self, key: &K) -> Option<V> {
-        self.stats.access.fetch_add(1, Ordering::SeqCst);
-        let t0 = Instant::now();
-        let out = self.cache.take(key);
-        let tf = t0.elapsed().as_millis();
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.take_fn.push(tf as f64);
-
-        match out {
-            None => {
-                self.stats.miss.fetch_add(1, Ordering::SeqCst);
-                None
-            }
-            Some(v) => {
-                self.stats.hit.fetch_add(1, Ordering::SeqCst);
-                Some(v)
-            }
-        }
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
+        Box::new(ProfilerTakeIter {
+            elements: self.cache.take(key),
+            stats: self.stats.clone(),
+        })
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        Box::new(ProfilerFlushIter {
+        let t0 = Instant::now();
+        let it = Box::new(ProfilerFlushIter {
             elements: self.cache.flush(),
             stats: self.stats.clone(),
-        })
+        });
+        let tf = t0.elapsed().as_millis();
+
+        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.flush_fn.push(tf as f64);
+        it
     }
 
     /// Counts for one cache access and one hit.
@@ -381,39 +406,6 @@ where
         self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
         self.stats.push_fn.push(tf as f64);
 
-        match out {
-            None => {
-                self.stats.miss.fetch_add(1, Ordering::SeqCst);
-                None
-            }
-            Some(v) => {
-                self.stats.hit.fetch_add(1, Ordering::SeqCst);
-                Some(v)
-            }
-        }
-    }
-}
-
-//------------------------------------------------------------------------//
-// Get Trait                                                              //
-//------------------------------------------------------------------------//
-
-impl<'a, K, V, C, T> Get<'a, K, V> for Profiler<K, V, C>
-where
-    K: 'a,
-    V: 'a,
-    C: Get<'a, K, V, Item = T>,
-    T: 'a,
-{
-    type Item = T;
-    fn get(&'a mut self, key: &K) -> Option<T> {
-        self.stats.access.fetch_add(1, Ordering::SeqCst);
-        let t0 = Instant::now();
-
-        let out = self.cache.get(key);
-        let tf = t0.elapsed().as_millis();
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.get_fn.push(tf as f64);
         match out {
             None => {
                 self.stats.miss.fetch_add(1, Ordering::SeqCst);

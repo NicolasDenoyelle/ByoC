@@ -1,16 +1,22 @@
 use crate::container::Container;
 
-/// Marker trait of a container assessing that if the container hash
-/// room for an extra element, then next push will not pop if key
-/// is not already in the container. If a container does not implement
-/// this trait, the it may pop on trying to push a key that is not already
-/// In the container. This is specifically NOT used in
-/// [Associative](struct.Associative.html) containers that will pop when
-/// inserting in a full set/bucket.
+/// Marker trait for a [`containers`](../container/trait.Container.html).
+/// When this trait is implemented, the implementer guarantees that
+/// if the container has room for an extra element, then next push will
+/// not pop. If a container does not implement this trait, the it may pop
+/// when trying to push a new key/value pair even if the container is not
+/// full. This is specifically NOT used in
+/// [Associative](../container/struct.Associative.html) containers that
+/// will pop when inserting in a full set/bucket.
 pub trait Packed<'a, K: 'a, V: 'a>: Container<'a, K, V> {}
 
-/// Concurrent containers implement `Clone` trait and allow concurrent
-/// access in between clones.
+/// Marker trait for a [`containers`](../container/trait.Container.html).
+/// When this trait is implemented, the implementer guarantees that the
+/// container can be used safely concurrently in between its clones.
+/// Clones of this container are shallow copies referring to the same
+/// storage.  
+/// This marker traits combines the traits: `Send`, `Sync` and `Clone`.
+/// This traits
 pub trait Concurrent<'a, K: 'a, V: 'a>:
     Container<'a, K, V> + Clone + Send + Sync
 {

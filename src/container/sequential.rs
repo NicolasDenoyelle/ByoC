@@ -1,5 +1,5 @@
-use crate::container::{Container, Get};
-use crate::lock::{RWLock, RWLockGuard};
+use crate::container::Container;
+use crate::lock::RWLock;
 use crate::marker::{Concurrent, Packed};
 use crate::utils::clone::CloneCell;
 use std::marker::Sync;
@@ -98,7 +98,10 @@ where
         self.container.clear()
     }
 
-    fn take(&mut self, key: &K) -> Option<V> {
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
         let _ = self.lock.lock_mut_for(()).unwrap();
         self.container.take(key)
     }
@@ -141,21 +144,4 @@ where
     V: 'a + Ord,
     C: Container<'a, K, V>,
 {
-}
-
-impl<'a, K, V, C, T> Get<'a, K, V> for Sequential<C>
-where
-    K: 'a,
-    V: 'a + Ord,
-    C: Get<'a, K, V, Item = T>,
-    T: 'a,
-{
-    type Item = RWLockGuard<'a, T>;
-    fn get(&'a mut self, key: &K) -> Option<RWLockGuard<T>> {
-        self.lock_mut();
-        match self.container.get(key) {
-            None => None,
-            Some(v) => Some(RWLockGuard::new(&self.lock, v)),
-        }
-    }
 }

@@ -1,4 +1,3 @@
-use std::cmp::max;
 use std::ops::Drop;
 use std::ops::{Deref, DerefMut};
 use std::sync::{
@@ -201,8 +200,12 @@ impl RWLock {
                     break Err(LockError::Poisoned(()))
                 }
                 Err(TryLockError::WouldBlock(_)) => {
-                    nanos = max(nanos * 2, 1000);
-                    thread::sleep(time::Duration::from_nanos(nanos));
+                    if nanos > 8192 {
+                        thread::yield_now();
+                    } else if nanos > 32 {
+                        nanos = nanos * 2;
+                        thread::sleep(time::Duration::from_nanos(nanos));
+                    }
                 }
             }
         }
@@ -238,8 +241,12 @@ impl RWLock {
                     break Err(LockError::Poisoned(()))
                 }
                 Err(TryLockError::WouldBlock(_)) => {
-                    nanos = max(nanos * 2, 1000);
-                    thread::sleep(time::Duration::from_nanos(nanos));
+                    if nanos > 8192 {
+                        thread::yield_now();
+                    } else if nanos > 32 {
+                        nanos = nanos * 2;
+                        thread::sleep(time::Duration::from_nanos(nanos));
+                    }
                 }
             }
         }
@@ -355,9 +362,9 @@ impl<'a, V> Drop for RWLockGuard<'a, V> {
     }
 }
 
-//------------------------------------------------------------------------------------//
-//                                        Tests                                       //
-//------------------------------------------------------------------------------------//
+//------------------------------------------------------------------------//
+//                                  Tests                                 //
+//------------------------------------------------------------------------//
 
 #[cfg(test)]
 mod tests {
