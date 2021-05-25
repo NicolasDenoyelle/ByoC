@@ -1,9 +1,8 @@
-use crate::container::{Container, Get};
-use crate::lock::{RWLock, RWLockGuard};
+use crate::container::Container;
+use crate::lock::RWLock;
 use crate::marker::{Concurrent, Packed};
 use crate::utils::clone::CloneCell;
 use std::marker::Sync;
-use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
 // Concurrent cache                                                       //
@@ -145,21 +144,4 @@ where
     V: 'a + Ord,
     C: Container<'a, K, V>,
 {
-}
-
-impl<'a, 'b: 'a, K, V, C, T> Get<'a, 'b, K, V> for Sequential<C>
-where
-    K: 'b,
-    V: 'b + Ord,
-    C: Get<'a, 'b, K, V, Item = T>,
-    T: 'a + Deref + DerefMut,
-{
-    type Item = T;
-    fn get(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = Self::Item> + 'a> {
-        self.lock_mut();
-        Box::new(RWLockGuard::new(&self.lock, self.container.get(key)))
-    }
 }

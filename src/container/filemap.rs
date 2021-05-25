@@ -1,4 +1,4 @@
-use crate::container::{Container, Get};
+use crate::container::Container;
 use crate::marker::Packed;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
@@ -153,6 +153,10 @@ where
     }
 }
 
+//------------------------------------------------------------------------//
+//  Iterator to take elements out
+//------------------------------------------------------------------------//
+
 pub struct FileMapTakeIterator<'a, K, V, F>
 where
     K: DeserializeOwned + Serialize + Eq,
@@ -194,6 +198,84 @@ where
     }
 }
 
+//------------------------------------------------------------------------//
+// Elements for get method.
+//------------------------------------------------------------------------//
+
+/// Struct returned from calling [`get()`](struct.FileMap.html#tymethod.get)
+/// method with a [`FileMap`](struct.FileMap.html) container.
+///
+/// `FileMapValue` struct implements `Deref` and `DerefMut` traits to
+/// access reference to the value it wraps.
+/// The value it wraps originate from a [`FileMap`](struct.FileMap.html)
+/// container. This value may be a cache
+/// [reference](../reference/trait.Reference.html). References implement
+/// interior mutability such that when they are dereferenced to access their
+/// inner value, they can update their metadata about accesses.
+/// Hence, values wrapped in this struct are expected to be updated.
+/// Therefore, they need to be written back to the file when they cease
+/// to be used to commit their metadata update.
+/// As a consequence, when this structure is dropped, it is written back
+/// to the [`FileMap`](struct.FileMap.html) it was taken from.
+pub struct FileMapValue<'a, T>
+where
+    T: 'a + Serialize,
+{
+    file: File,
+    offset: u64,
+    value: T,
+    unused_lifetime: PhantomData<&'a T>,
+}
+
+impl<'a, T> FileMapValue<'a, T>
+where
+    T: 'a + Serialize,
+{
+    fn new(file_handle: &File, offset: u64, value: T) -> Self {
+        FileMapValue {
+            file: file_handle.try_clone().unwrap(),
+            offset: offset,
+            value: value,
+            unused_lifetime: PhantomData,
+        }
+    }
+}
+
+impl<'a, K, V> Deref for FileMapValue<'a, (K, V)>
+where
+    K: 'a + Eq + Serialize,
+    V: 'a + Ord + Serialize,
+{
+    type Target = V;
+    fn deref(&self) -> &Self::Target {
+        &self.value.1
+    }
+}
+
+impl<'a, K, V> DerefMut for FileMapValue<'a, (K, V)>
+where
+    K: 'a + Eq + Serialize,
+    V: 'a + Ord + Serialize,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.value.1
+    }
+}
+
+impl<'a, T> Drop for FileMapValue<'a, T>
+where
+    T: 'a + Serialize,
+{
+    fn drop(&mut self) {
+        self.file.seek(SeekFrom::Start(self.offset)).unwrap();
+        FileMapElement::write(&mut self.file, &self.value).unwrap();
+    }
+}
+
+//------------------------------------------------------------------------//
+// Container Filemap
+//------------------------------------------------------------------------//
+
 /// A [`Container`](trait.Container.html) implementation for key/value
 /// elements stored into a file.
 ///
@@ -215,8 +297,8 @@ where
 /// [`FileMap`](../struct.FileMap.html) container implements the marker
 /// trait [`Packed`](../marker/trait.Packed.html).
 /// Therefore, it will accept new as long as it is not full.
-/// It also implements the trait [`Get`](trait.Get.html).
-/// [`Get`](trait.Get.html) trait will return values wrapped into a smart
+/// It also implements a [`get()`](struct.FileMap.html#tymethod.get)
+/// method that returns values wrapped into a smart
 /// pointer. When the smart pointer goes out of scope, the value is written
 /// back to the file to update values possibly wrapped into a
 /// [`Reference`](../reference/trait.Reference.html) with interior
@@ -258,7 +340,11 @@ impl<T: Serialize + DeserializeOwned> Drop for FileMap<T> {
     }
 }
 
-impl<T: Serialize + DeserializeOwned> FileMap<T> {
+impl<K, V> FileMap<(K, V)>
+where
+    K: Eq + Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
     /// Instanciate a new [`FileMap`](struct.FileMap.html) with a maximum
     /// of `capacity` keys, stored with their value in the file
     /// named `filename`. If `persistant` is `true`, the inner file will
@@ -293,6 +379,34 @@ impl<T: Serialize + DeserializeOwned> FileMap<T> {
         })
     }
 
+    pub fn get<'c>(
+        &'c mut self,
+        key: &'c K,
+    ) -> Box<dyn Iterator<Item = FileMapValue<'c, (K, V)>> + 'c> {
+        self.file.flush().unwrap();
+        self.file.seek(SeekFrom::Start(0)).unwrap();
+
+        Box::new(
+            FileMapIterator::<(K, V), _>::new(
+                BufReader::with_capacity(
+                    self.buffer_size,
+                    self.file.try_clone().unwrap(),
+                ),
+                FileMapIteratorPath::PhantomPath,
+            )
+            .filter_map(move |(off, opt)| match opt {
+                None => None,
+                Some((k, v)) => {
+                    if &k == key {
+                        Some(FileMapValue::new(&self.file, off, (k, v)))
+                    } else {
+                        None
+                    }
+                }
+            }),
+        )
+    }
+
     /// Get an `Iterator` over a clone of the
     /// [`FileMap`](../struct.FileMap.html) file to read its elements.
     /// Elements returned by the iterator are copies of elements in the file
@@ -301,7 +415,7 @@ impl<T: Serialize + DeserializeOwned> FileMap<T> {
     /// is the offset of element in file and second element is an `Option`
     /// over element's value which is either `None` if the iteration encountered
     /// a hole, else the value at that offset.
-    fn iter_owned(&self) -> FileMapIterator<T, BufReader<File>> {
+    fn iter_owned(&self) -> FileMapIterator<(K, V), BufReader<File>> {
         let mut f = self.file.try_clone().unwrap();
         f.flush().unwrap();
         f.seek(SeekFrom::Start(0)).unwrap();
@@ -314,7 +428,7 @@ impl<T: Serialize + DeserializeOwned> FileMap<T> {
 
     /// Write an element at desired `offset`.
     /// This function is only used internally to factorize code.
-    fn write(&mut self, offset: SeekFrom, t: &T) {
+    fn write(&mut self, offset: SeekFrom, t: &(K, V)) {
         let serialized_size = bincode::serialized_size(t).unwrap();
         if self.serialized_size == 0 {
             self.serialized_size = serialized_size;
@@ -488,115 +602,6 @@ where
     K: 'a + Eq + DeserializeOwned + Serialize,
     V: 'a + Ord + DeserializeOwned + Serialize,
 {
-}
-
-//------------------------------------------------------------------------//
-// Get trait
-//------------------------------------------------------------------------//
-
-/// Struct returned from calling [`get()`](trait.Get.html#tymethod.get)
-/// method with a [`FileMap`](struct.FileMap.html) container.
-///
-/// `FileMapValue` struct implements `Deref` and `DerefMut` traits to
-/// access reference to the value it wraps.
-/// The value it wraps originate from a [`FileMap`](struct.FileMap.html)
-/// container. This value may be a cache
-/// [reference](../reference/trait.Reference.html). References implement
-/// interior mutability such that when they are dereferenced to access their
-/// inner value, they can update their metadata about accesses.
-/// Hence, values wrapped in this struct are expected to be updated.
-/// Therefore, they need to be written back to the file when they cease
-/// to be used to commit their metadata update.
-/// As a consequence, when this structure is dropped, it is written back
-/// to the [`FileMap`](struct.FileMap.html) it was taken from.
-pub struct FileMapValue<'a, T>
-where
-    T: 'a + Serialize,
-{
-    file: File,
-    offset: u64,
-    value: T,
-    unused_lifetime: PhantomData<&'a T>,
-}
-
-impl<'a, T> FileMapValue<'a, T>
-where
-    T: 'a + Serialize,
-{
-    fn new(file_handle: &File, offset: u64, value: T) -> Self {
-        FileMapValue {
-            file: file_handle.try_clone().unwrap(),
-            offset: offset,
-            value: value,
-            unused_lifetime: PhantomData,
-        }
-    }
-}
-
-impl<'a, K, V> Deref for FileMapValue<'a, (K, V)>
-where
-    K: 'a + Eq + Serialize,
-    V: 'a + Ord + Serialize,
-{
-    type Target = V;
-    fn deref(&self) -> &Self::Target {
-        &self.value.1
-    }
-}
-
-impl<'a, K, V> DerefMut for FileMapValue<'a, (K, V)>
-where
-    K: 'a + Eq + Serialize,
-    V: 'a + Ord + Serialize,
-{
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.value.1
-    }
-}
-
-impl<'a, T> Drop for FileMapValue<'a, T>
-where
-    T: 'a + Serialize,
-{
-    fn drop(&mut self) {
-        self.file.seek(SeekFrom::Start(self.offset)).unwrap();
-        FileMapElement::write(&mut self.file, &self.value).unwrap();
-    }
-}
-
-impl<'a, 'b: 'a, K, V> Get<'a, 'b, K, V> for FileMap<(K, V)>
-where
-    K: 'b + Eq + DeserializeOwned + Serialize,
-    V: 'b + Ord + DeserializeOwned + Serialize,
-{
-    type Item = FileMapValue<'a, (K, V)>;
-    fn get(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = Self::Item> + 'a> {
-        self.file.flush().unwrap();
-        self.file.seek(SeekFrom::Start(0)).unwrap();
-
-        Box::new(
-            FileMapIterator::<(K, V), _>::new(
-                BufReader::with_capacity(
-                    self.buffer_size,
-                    self.file.try_clone().unwrap(),
-                ),
-                FileMapIteratorPath::PhantomPath,
-            )
-            .filter_map(move |(off, opt)| match opt {
-                None => None,
-                Some((k, v)) => {
-                    if &k == key {
-                        Some(FileMapValue::new(&self.file, off, (k, v)))
-                    } else {
-                        None
-                    }
-                }
-            }),
-        )
-    }
 }
 
 //------------------------------------------------------------------------//

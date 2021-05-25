@@ -10,7 +10,7 @@ fn container_test_small() {
         Associative::new(
             5,
             10,
-            |n| Vector::<(u16, u32)>::new(n),
+            |n| Vector::<u16, u32>::new(n),
             DefaultHasher::new(),
         ),
         false,

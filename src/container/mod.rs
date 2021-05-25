@@ -1,5 +1,3 @@
-use std::ops::{Deref, DerefMut};
-
 /// Container trait.
 ///
 /// ## Generics:
@@ -49,29 +47,6 @@ pub trait Container<'a, K: 'a, V: 'a> {
     /// This functions yields an iterator because the amount of items to
     /// iterate over might exceed the size of computer memory.
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
-}
-
-/// `get()` method for [containers](trait.Container.html).
-///
-/// This method looks into the container for a matching key.
-/// If key is found, then an item with the same lifetime as the container
-/// is returned. This item is intended to hold either a reference or a
-/// smart pointer (e.g [cache reference](../reference/trait.Reference.html)
-/// or [lock guard](../struct.RWLockGuard.html)) to the matching
-/// value inside the container.
-/// The accessed container needs to be mutable for several reasons:
-/// 1. Because cache references implement interior mutability and update
-/// their metadata when they are dereferenced.
-/// 2. A returned smart pointer may allow to access a mutable reference
-/// to its content.
-pub trait Get<'a, 'b: 'a, K: 'b, V: 'b>: Container<'b, K, V> {
-    type Item: 'a + Deref + DerefMut;
-    /// Get an items with matching key from cache.
-    /// * `key`: The key value used for searching a value.
-    fn get(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = Self::Item> + 'a>;
 }
 
 //------------------------------------------------------------------------//

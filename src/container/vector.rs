@@ -1,4 +1,4 @@
-use crate::container::{Container, Get};
+use crate::container::Container;
 use crate::marker::Packed;
 use std::cmp::Eq;
 use std::vec::Vec;
@@ -15,7 +15,6 @@ use std::vec::Vec;
 /// [`push()`](trait.Container.html#tymethod.push),
 /// [`take()`](trait.Container.html#tymethod.take),
 /// [`pop()`](trait.Container.html#tymethod.pop)
-/// [`get()`](trait.Get.html#tymethod.get)) is O(n).
 ///
 /// ## Examples
 ///
@@ -35,17 +34,24 @@ use std::vec::Vec;
 /// assert!(key == "first");
 /// assert!(value == 4);
 /// ```
-pub struct Vector<V> {
+pub struct Vector<K: Eq, V> {
     capacity: usize,
-    values: Vec<V>,
+    values: Vec<(K, V)>,
 }
 
-impl<V> Vector<V> {
+impl<K: Eq, V> Vector<K, V> {
     pub fn new(n: usize) -> Self {
         Vector {
             capacity: n,
             values: Vec::with_capacity(n + 1),
         }
+    }
+
+    pub fn get<'c>(
+        &'c mut self,
+        key: &'c K,
+    ) -> Box<dyn Iterator<Item = &'c mut (K, V)> + 'c> {
+        Box::new(self.values.iter_mut().filter(move |(k, _)| k == key))
     }
 }
 
@@ -79,7 +85,7 @@ impl<'a, K: Eq, V> Iterator for VectorTakeIterator<'a, K, V> {
     }
 }
 
-impl<'a, K, V> Container<'a, K, V> for Vector<(K, V)>
+impl<'a, K, V> Container<'a, K, V> for Vector<K, V>
 where
     K: 'a + Eq,
     V: 'a + Ord,
@@ -148,21 +154,7 @@ where
     }
 }
 
-impl<'a, 'b: 'a, K, V> Get<'a, 'b, K, V> for Vector<(K, V)>
-where
-    K: 'b + Eq,
-    V: 'b + Ord,
-{
-    type Item = &'a mut (K, V);
-    fn get(
-        &'a mut self,
-        key: &'a K,
-    ) -> Box<dyn Iterator<Item = Self::Item> + 'a> {
-        Box::new(self.values.iter_mut().filter(move |(k, _)| k == key))
-    }
-}
-
-impl<'a, K, V> Packed<'a, K, V> for Vector<(K, V)>
+impl<'a, K, V> Packed<'a, K, V> for Vector<K, V>
 where
     K: 'a + Eq,
     V: 'a + Ord,
