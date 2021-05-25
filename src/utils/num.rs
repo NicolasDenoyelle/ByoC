@@ -262,7 +262,8 @@ impl std::convert::From<u256> for f64 {
 
 impl Ord for u256 {
     fn cmp(&self, other: &Self) -> Ordering {
-        for (i, j) in self.value.iter().rev().zip(other.value.iter().rev()) {
+        for (i, j) in self.value.iter().rev().zip(other.value.iter().rev())
+        {
             if i < j {
                 return Ordering::Less;
             }
