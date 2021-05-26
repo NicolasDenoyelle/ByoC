@@ -167,9 +167,10 @@ where
 
     fn pop(&mut self) -> Option<(K, V)> {
         let mut victims: Vec<Option<(K, V)>> = (0..self.n_sets)
-            .map(|i| {
-                self.containers[i].lock_mut();
-                unsafe { self.containers[i].deref_mut().pop() }
+            .map(|i| match self.containers[i].lock_mut() {
+                // SAFETY: Lock has just been acquired.
+                Ok(_) => unsafe { self.containers[i].deref_mut().pop() },
+                Err(_) => None,
             })
             .collect();
 

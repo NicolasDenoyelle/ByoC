@@ -11,6 +11,11 @@ use std::{
 };
 use tempfile::{NamedTempFile, TempPath};
 
+pub trait RSeek: Read + Seek {}
+impl<F: Read + Seek> RSeek for BufReader<F> {}
+impl RSeek for File {}
+impl RSeek for std::io::Empty {}
+
 /// Structure with specified contiguous memory layout
 /// representing an element key / value.
 /// The struct is an option specifying weather this
@@ -21,21 +26,24 @@ impl FileMapElement {
     /// Read a `stream` and retrieve consecutive key/value `(K,V)` pairs
     /// using intermediate `buffer` to store read elements. When elements
     /// are tagged as unset, None is returned instead of a key/value pair.
-    pub fn read<F: Read + Seek, T: DeserializeOwned>(
+    pub fn read<F: RSeek, T: DeserializeOwned>(
         stream: &mut F,
     ) -> Result<(u64, Option<T>), ()> {
-        let pos = stream.seek(SeekFrom::Current(0)).unwrap();
+        let pos = match stream.seek(SeekFrom::Current(0)) {
+            Ok(x) => x,
+            Err(_) => return Err(()),
+        };
         match bincode::deserialize_from::<&mut F, bool>(stream) {
-            Err(_) => {
-                stream.seek(SeekFrom::Start(pos)).unwrap();
-                Err(())
-            }
+            Err(_) => match stream.seek(SeekFrom::Start(pos)) {
+                Ok(_) => Err(()),
+                Err(_) => Err(()),
+            },
             Ok(set) => {
                 match bincode::deserialize_from::<&mut F, T>(stream) {
-                    Err(_) => {
-                        stream.seek(SeekFrom::Start(pos)).unwrap();
-                        Err(())
-                    }
+                    Err(_) => match stream.seek(SeekFrom::Start(pos)) {
+                        Ok(_) => Err(()),
+                        Err(_) => Err(()),
+                    },
                     Ok(v) => {
                         if !set {
                             Ok((pos, None))
@@ -53,21 +61,24 @@ impl FileMapElement {
         stream: &mut F,
         value: &'a T,
     ) -> Result<(), ()> {
-        let pos = stream.seek(SeekFrom::Current(0)).unwrap();
+        let pos = match stream.seek(SeekFrom::Current(0)) {
+            Ok(p) => p,
+            Err(_) => return Err(()),
+        };
         let set = true;
         match bincode::serialize_into::<&mut F, bool>(stream, &set) {
-            Err(_) => {
-                stream.seek(SeekFrom::Start(pos)).unwrap();
-                Err(())
-            }
+            Err(_) => match stream.seek(SeekFrom::Start(pos)) {
+                Ok(_) => Err(()),
+                Err(_) => Err(()),
+            },
             Ok(_) => {
                 match bincode::serialize_into::<&mut F, &'a T>(
                     stream, &value,
                 ) {
-                    Err(_) => {
-                        stream.seek(SeekFrom::Start(pos)).unwrap();
-                        Err(())
-                    }
+                    Err(_) => match stream.seek(SeekFrom::Start(pos)) {
+                        Ok(_) => Err(()),
+                        Err(_) => Err(()),
+                    },
                     Ok(_) => Ok(()),
                 }
             }
@@ -76,19 +87,19 @@ impl FileMapElement {
 
     /// Tag next element in `stream` as not set.
     /// On success, stream is forwarded by the size of one element.
-    pub fn unset<
-        F: Read + Seek + Write,
-        T: Serialize + DeserializeOwned,
-    >(
+    pub fn unset<F: RSeek + Write, T: Serialize + DeserializeOwned>(
         stream: &mut F,
     ) -> Result<(), ()> {
-        let pos = stream.seek(SeekFrom::Current(0)).unwrap();
+        let pos = match stream.seek(SeekFrom::Current(0)) {
+            Ok(p) => p,
+            Err(_) => return Err(()),
+        };
         let set = false;
         match bincode::serialize_into::<&mut F, bool>(stream, &set) {
-            Err(_) => {
-                stream.seek(SeekFrom::Start(pos)).unwrap();
-                Err(())
-            }
+            Err(_) => match stream.seek(SeekFrom::Start(pos)) {
+                Ok(_) => Err(()),
+                Err(_) => Err(()),
+            },
             Ok(_) => Ok(()),
         }
     }
@@ -113,7 +124,7 @@ enum FileMapIteratorPath {
 pub struct FileMapIterator<T, F>
 where
     T: DeserializeOwned,
-    F: Read + Seek,
+    F: RSeek,
 {
     file: F,
     // When dropped, the temp file is deleted.
@@ -127,7 +138,7 @@ where
 impl<T, F> FileMapIterator<T, F>
 where
     T: DeserializeOwned,
-    F: Read + Seek,
+    F: RSeek,
 {
     fn new(file: F, path: FileMapIteratorPath) -> Self {
         FileMapIterator {
@@ -141,7 +152,7 @@ where
 impl<T, F> Iterator for FileMapIterator<T, F>
 where
     T: DeserializeOwned + Serialize,
-    F: Read + Seek,
+    F: RSeek,
 {
     type Item = (u64, Option<T>);
 
@@ -161,7 +172,7 @@ pub struct FileMapTakeIterator<'a, K, V, F>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
-    F: Read + Write + Seek,
+    F: RSeek + Write,
 {
     file: F,
     key: &'a K,
@@ -172,7 +183,7 @@ impl<'a, K, V, F> Iterator for FileMapTakeIterator<'a, K, V, F>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
-    F: Read + Write + Seek,
+    F: RSeek + Write,
 {
     type Item = (K, V);
 
@@ -184,12 +195,17 @@ where
                     None => {}
                     Some((k, v)) => {
                         if &k == self.key {
-                            self.file.seek(SeekFrom::Start(off)).unwrap();
-                            FileMapElement::unset::<_, (K, V)>(
-                                &mut self.file,
-                            )
-                            .unwrap();
-                            break Some((k, v));
+                            match self.file.seek(SeekFrom::Start(off)) {
+                                Ok(_) => {
+                                    match FileMapElement::unset::<_, (K, V)>(
+                                        &mut self.file,
+                                    ) {
+                                        Ok(_) => break Some((k, v)),
+                                        Err(_) => break None,
+                                    }
+                                }
+                                Err(_) => break None,
+                            }
                         }
                     }
                 },
@@ -231,12 +247,15 @@ impl<'a, T> FileMapValue<'a, T>
 where
     T: 'a + Serialize,
 {
-    fn new(file_handle: &File, offset: u64, value: T) -> Self {
-        FileMapValue {
-            file: file_handle.try_clone().unwrap(),
-            offset: offset,
-            value: value,
-            unused_lifetime: PhantomData,
+    fn new(file_handle: &File, offset: u64, value: T) -> Result<Self, ()> {
+        match file_handle.try_clone() {
+            Err(_) => Err(()),
+            Ok(handle) => Ok(FileMapValue {
+                file: handle,
+                offset: offset,
+                value: value,
+                unused_lifetime: PhantomData,
+            }),
         }
     }
 }
@@ -267,8 +286,13 @@ where
     T: 'a + Serialize,
 {
     fn drop(&mut self) {
-        self.file.seek(SeekFrom::Start(self.offset)).unwrap();
-        FileMapElement::write(&mut self.file, &self.value).unwrap();
+        match self.file.seek(SeekFrom::Start(self.offset)) {
+            #[allow(unused_must_use)]
+            Ok(_) => {
+                FileMapElement::write(&mut self.file, &self.value);
+            }
+            Err(_) => {}
+        };
     }
 }
 
@@ -334,8 +358,9 @@ pub struct FileMap<T: Serialize + DeserializeOwned> {
 
 impl<T: Serialize + DeserializeOwned> Drop for FileMap<T> {
     fn drop(&mut self) {
+        #[allow(unused_must_use)]
         if !self.persistant {
-            remove_file(&self.path).unwrap();
+            remove_file(&self.path);
         }
     }
 }
@@ -368,43 +393,62 @@ where
             Err(e) => return Err(e),
         };
 
-        Ok(FileMap {
-            file: file.try_clone().unwrap(),
-            path: pb,
-            capacity: capacity,
-            persistant: persistant,
-            buffer_size: buffer_size,
-            serialized_size: 0u64,
-            unused_t: PhantomData,
-        })
+        match file.try_clone() {
+            Ok(handle) => Ok(FileMap {
+                file: handle,
+                path: pb,
+                capacity: capacity,
+                persistant: persistant,
+                buffer_size: buffer_size,
+                serialized_size: 0u64,
+                unused_t: PhantomData,
+            }),
+            Err(e) => Err(e),
+        }
     }
 
     pub fn get<'c>(
         &'c mut self,
         key: &'c K,
     ) -> Box<dyn Iterator<Item = FileMapValue<'c, (K, V)>> + 'c> {
-        self.file.flush().unwrap();
-        self.file.seek(SeekFrom::Start(0)).unwrap();
+        #[allow(unused_must_use)]
+        {
+            self.file.flush();
+            self.file.seek(SeekFrom::Start(0));
+        }
 
-        Box::new(
-            FileMapIterator::<(K, V), _>::new(
-                BufReader::with_capacity(
-                    self.buffer_size,
-                    self.file.try_clone().unwrap(),
-                ),
-                FileMapIteratorPath::PhantomPath,
-            )
-            .filter_map(move |(off, opt)| match opt {
-                None => None,
-                Some((k, v)) => {
-                    if &k == key {
-                        Some(FileMapValue::new(&self.file, off, (k, v)))
-                    } else {
-                        None
+        match self.file.try_clone() {
+            Err(_) => Box::new(
+                FileMapIterator::<(K, V), _>::new(
+                    std::io::empty(),
+                    FileMapIteratorPath::PhantomPath,
+                )
+                .filter_map(|_| Option::<FileMapValue<(K, V)>>::None),
+            ),
+            Ok(handle) => Box::new(
+                FileMapIterator::<(K, V), _>::new(
+                    BufReader::with_capacity(self.buffer_size, handle),
+                    FileMapIteratorPath::PhantomPath,
+                )
+                .filter_map(move |(off, opt)| match opt {
+                    None => None,
+                    Some((k, v)) => {
+                        if &k == key {
+                            match FileMapValue::new(
+                                &self.file,
+                                off,
+                                (k, v),
+                            ) {
+                                Ok(v) => Some(v),
+                                Err(_) => None,
+                            }
+                        } else {
+                            None
+                        }
                     }
-                }
-            }),
-        )
+                }),
+            ),
+        }
     }
 
     /// Get an `Iterator` over a clone of the
@@ -415,29 +459,56 @@ where
     /// is the offset of element in file and second element is an `Option`
     /// over element's value which is either `None` if the iteration encountered
     /// a hole, else the value at that offset.
-    fn iter_owned(&self) -> FileMapIterator<(K, V), BufReader<File>> {
-        let mut f = self.file.try_clone().unwrap();
-        f.flush().unwrap();
-        f.seek(SeekFrom::Start(0)).unwrap();
-
-        FileMapIterator::new(
-            BufReader::with_capacity(self.buffer_size, f),
-            FileMapIteratorPath::PhantomPath,
-        )
+    fn iter_owned(
+        &self,
+    ) -> FileMapIterator<(K, V), BufReader<Box<dyn RSeek>>> {
+        match self.file.try_clone() {
+            Err(_) => FileMapIterator::new(
+                BufReader::with_capacity(
+                    self.buffer_size,
+                    Box::new(std::io::empty()),
+                ),
+                FileMapIteratorPath::PhantomPath,
+            ),
+            Ok(mut f) => {
+                #[allow(unused_must_use)]
+                {
+                    f.flush();
+                    f.seek(SeekFrom::Start(0));
+                }
+                FileMapIterator::new(
+                    BufReader::with_capacity(
+                        self.buffer_size,
+                        Box::new(f),
+                    ),
+                    FileMapIteratorPath::PhantomPath,
+                )
+            }
+        }
     }
 
     /// Write an element at desired `offset`.
     /// This function is only used internally to factorize code.
     fn write(&mut self, offset: SeekFrom, t: &(K, V)) {
-        let serialized_size = bincode::serialized_size(t).unwrap();
+        let serialized_size = match bincode::serialized_size(t) {
+            Ok(x) => x,
+            Err(_) => {
+                return ();
+            }
+        };
         if self.serialized_size == 0 {
             self.serialized_size = serialized_size;
         }
         if self.serialized_size != serialized_size {
             panic!("Trying to write elements with different sizes in FileMap container {:?}", self.path);
         } else {
-            self.file.seek(offset).unwrap();
-            FileMapElement::write(&mut self.file, t).unwrap();
+            match self.file.seek(offset) {
+                #[allow(unused_must_use)]
+                Ok(_) => {
+                    FileMapElement::write(&mut self.file, t);
+                }
+                Err(_) => {}
+            }
         }
     }
 }
@@ -468,25 +539,60 @@ where
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        let err_it = Box::new(
+            FileMapIterator::<(K, V), _>::new(
+                std::io::empty(),
+                FileMapIteratorPath::PhantomPath,
+            )
+            .filter_map(|_| Option::<(K, V)>::None),
+        );
+
         // Create temporary file path
-        let tmp_path = NamedTempFile::new().unwrap().into_temp_path();
+        let tmp_path = match NamedTempFile::new() {
+            Ok(x) => x.into_temp_path(),
+            Err(_) => {
+                return err_it;
+            }
+        };
+
         // Move container file to temporary file.
-        std::fs::rename(&self.path, AsRef::<Path>::as_ref(&tmp_path))
-            .unwrap();
+        match std::fs::rename(&self.path, AsRef::<Path>::as_ref(&tmp_path))
+        {
+            Err(_) => {
+                return err_it;
+            }
+            Ok(_) => (),
+        }
 
         // Create empty file for container.
-        self.file = OpenOptions::new()
+        self.file = match OpenOptions::new()
             .write(true)
             .read(true)
             .create(true)
             .open(&self.path)
-            .unwrap();
+        {
+            Err(_) => {
+                return err_it;
+            }
+            Ok(x) => x,
+        };
 
         // Open temporary file of flush iterator.
         let tmp_string = String::from(
-            AsRef::<Path>::as_ref(&tmp_path).to_str().unwrap(),
+            match AsRef::<Path>::as_ref(&tmp_path).to_str() {
+                None => {
+                    return err_it;
+                }
+                Some(x) => x,
+            },
         );
-        let file = OpenOptions::new().read(true).open(tmp_string).unwrap();
+
+        let file = match OpenOptions::new().read(true).open(tmp_string) {
+            Err(_) => {
+                return err_it;
+            }
+            Ok(x) => x,
+        };
 
         // Map temporary file iterator to return only set valid items.
         Box::new(
@@ -502,17 +608,29 @@ where
         &'b mut self,
         key: &'b K,
     ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
-        let mut f = self.file.try_clone().unwrap();
-        f.seek(SeekFrom::Start(0)).unwrap();
-        Box::new(FileMapTakeIterator {
-            file: f,
-            key: key,
-            unused_v: PhantomData,
-        })
+        match self.file.try_clone() {
+            Err(_) => Box::new(
+                FileMapIterator::<(K, V), _>::new(
+                    std::io::empty(),
+                    FileMapIteratorPath::PhantomPath,
+                )
+                .filter_map(|_| Option::<(K, V)>::None),
+            ),
+            #[allow(unused_must_use)]
+            Ok(mut f) => {
+                f.seek(SeekFrom::Start(0));
+                Box::new(FileMapTakeIterator {
+                    file: f,
+                    key: key,
+                    unused_v: PhantomData,
+                })
+            }
+        }
     }
 
+    #[allow(unused_must_use)]
     fn clear(&mut self) {
-        self.file.set_len(0).unwrap()
+        self.file.set_len(0);
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
@@ -530,10 +648,15 @@ where
             None => None,
             Some((_, None)) => None,
             Some((off, Some((k, v)))) => {
-                self.file.seek(SeekFrom::Start(off)).unwrap();
-                FileMapElement::unset::<_, (K, V)>(&mut self.file)
-                    .unwrap();
-                Some((k, v))
+                match self.file.seek(SeekFrom::Start(off)) {
+                    Ok(_) => match FileMapElement::unset::<_, (K, V)>(
+                        &mut self.file,
+                    ) {
+                        Ok(_) => Some((k, v)),
+                        Err(_) => None,
+                    },
+                    Err(_) => None,
+                }
             }
         }
     }

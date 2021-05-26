@@ -86,32 +86,42 @@ impl SyncOnlineStats {
     /// After update, variance, mean etc... account for all elements,
     /// provided through this method.
     pub fn push(&mut self, x: f64) {
-        let _ = self.lock.lock_mut_for(()).unwrap();
-        self.stats.push(x)
+        match self.lock.lock_mut_for(()) {
+            Ok(_) => self.stats.push(x),
+            Err(_) => {}
+        }
     }
 
     /// Return the maximum of elements pushed with `push` method.
     pub fn max(&self) -> f64 {
-        let _ = self.lock.lock_for(()).unwrap();
-        self.stats.max()
+        match self.lock.lock_for(()) {
+            Ok(_) => self.stats.max(),
+            Err(_) => self.stats.max(),
+        }
     }
 
     /// Return the minimum of elements pushed with `push` method.
     pub fn min(&self) -> f64 {
-        let _ = self.lock.lock_for(()).unwrap();
-        self.stats.min()
+        match self.lock.lock_for(()) {
+            Ok(_) => self.stats.min(),
+            Err(_) => self.stats.min(),
+        }
     }
 
     /// Return the mean of elements pushed with `push` method.
     pub fn mean(&self) -> f64 {
-        let _ = self.lock.lock_for(()).unwrap();
-        self.stats.mean()
+        match self.lock.lock_for(()) {
+            Ok(_) => self.stats.mean(),
+            Err(_) => self.stats.mean(),
+        }
     }
 
     /// Return the variance of elements pushed with `push` method.
     pub fn var(&self) -> f64 {
-        let _ = self.lock.lock_for(()).unwrap();
-        self.stats.var()
+        match self.lock.lock_for(()) {
+            Ok(_) => self.stats.var(),
+            Err(_) => self.stats.var(),
+        }
     }
 }
 

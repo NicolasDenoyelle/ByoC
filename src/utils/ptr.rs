@@ -1,8 +1,9 @@
 use std::cmp::{Ord, Ordering};
 use std::ptr::NonNull;
-//------------------------------------------------------------------------------------//
-// Unsafe raw pointer implementing Ord.                                     //
-//------------------------------------------------------------------------------------//
+
+//-------------------------------------------------------------------------//
+// Unsafe raw pointer implementing Ord.                                    //
+//-------------------------------------------------------------------------//
 
 /// Unsafe raw pointer implementing Ord.
 /// The purpose of this struct is to create lightweight orderable

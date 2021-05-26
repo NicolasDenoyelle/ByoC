@@ -111,21 +111,16 @@ where
     }
 
     fn pop(&mut self) -> Option<(K, V)> {
-        let n = self.values.len();
-        if n == 0 {
-            None
-        } else if n == 1 {
-            Some(self.values.pop().unwrap())
-        } else {
-            let i = self
-                .values
-                .iter()
-                .enumerate()
-                .min_by(|(_, (_, v1)), (_, (_, v2))| v1.cmp(v2))
-                .unwrap()
-                .0;
-            Some(self.values.swap_remove(i))
-        }
+        let i = match self
+            .values
+            .iter()
+            .enumerate()
+            .min_by(|(_, (_, v1)), (_, (_, v2))| v1.cmp(v2))
+        {
+            None => return None,
+            Some((i, _)) => i,
+        };
+        Some(self.values.swap_remove(i))
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {

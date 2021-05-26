@@ -1,5 +1,5 @@
 use crate::container::Container;
-use crate::lock::RWLock;
+use crate::lock::{LockError, RWLock};
 use crate::marker::{Concurrent, Packed};
 use crate::utils::clone::CloneCell;
 use std::marker::Sync;
@@ -55,8 +55,8 @@ impl<C> Sequential<C> {
     }
 
     /// Lock the container for exclusive access.
-    pub fn lock_mut(&self) {
-        self.lock.lock_mut().unwrap()
+    pub fn lock_mut(&self) -> Result<(), LockError<()>> {
+        self.lock.lock_mut()
     }
 
     /// Unlock the container.
