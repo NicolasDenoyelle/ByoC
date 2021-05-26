@@ -418,13 +418,7 @@ where
         }
 
         match self.file.try_clone() {
-            Err(_) => Box::new(
-                FileMapIterator::<(K, V), _>::new(
-                    std::io::empty(),
-                    FileMapIteratorPath::PhantomPath,
-                )
-                .filter_map(|_| Option::<FileMapValue<(K, V)>>::None),
-            ),
+            Err(_) => Box::new(std::iter::empty()),
             Ok(handle) => Box::new(
                 FileMapIterator::<(K, V), _>::new(
                     BufReader::with_capacity(self.buffer_size, handle),
@@ -539,19 +533,11 @@ where
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        let err_it = Box::new(
-            FileMapIterator::<(K, V), _>::new(
-                std::io::empty(),
-                FileMapIteratorPath::PhantomPath,
-            )
-            .filter_map(|_| Option::<(K, V)>::None),
-        );
-
         // Create temporary file path
         let tmp_path = match NamedTempFile::new() {
             Ok(x) => x.into_temp_path(),
             Err(_) => {
-                return err_it;
+                return Box::new(std::iter::empty());
             }
         };
 
@@ -559,7 +545,7 @@ where
         match std::fs::rename(&self.path, AsRef::<Path>::as_ref(&tmp_path))
         {
             Err(_) => {
-                return err_it;
+                return Box::new(std::iter::empty());
             }
             Ok(_) => (),
         }
@@ -572,7 +558,7 @@ where
             .open(&self.path)
         {
             Err(_) => {
-                return err_it;
+                return Box::new(std::iter::empty());
             }
             Ok(x) => x,
         };
@@ -581,7 +567,7 @@ where
         let tmp_string = String::from(
             match AsRef::<Path>::as_ref(&tmp_path).to_str() {
                 None => {
-                    return err_it;
+                    return Box::new(std::iter::empty());
                 }
                 Some(x) => x,
             },
@@ -589,7 +575,7 @@ where
 
         let file = match OpenOptions::new().read(true).open(tmp_string) {
             Err(_) => {
-                return err_it;
+                return Box::new(std::iter::empty());
             }
             Ok(x) => x,
         };
@@ -609,13 +595,7 @@ where
         key: &'b K,
     ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
         match self.file.try_clone() {
-            Err(_) => Box::new(
-                FileMapIterator::<(K, V), _>::new(
-                    std::io::empty(),
-                    FileMapIteratorPath::PhantomPath,
-                )
-                .filter_map(|_| Option::<(K, V)>::None),
-            ),
+            Err(_) => Box::new(std::iter::empty()),
             #[allow(unused_must_use)]
             Ok(mut f) => {
                 f.seek(SeekFrom::Start(0));
