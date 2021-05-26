@@ -1,4 +1,4 @@
-use crate::container::Container;
+use crate::container::{Container, Get};
 use crate::marker::Concurrent;
 use crate::utils::{clone::CloneCell, stats::SyncOnlineStats};
 use std::marker::PhantomData;
@@ -433,4 +433,31 @@ where
     V: 'a,
     C: Container<'a, K, V> + Concurrent<'a, K, V>,
 {
+}
+
+impl<'a, K, V, C> Get<'a, K, V> for Profiler<K, V, C>
+where
+    K: 'a,
+    V: 'a,
+    C: Container<'a, K, V> + Get<'a, K, V>,
+{
+    fn get<'b>(
+        &'b self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
+        Box::new(ProfilerTakeIter {
+            elements: self.cache.get(key),
+            stats: self.stats.clone(),
+        })
+    }
+
+    fn get_mut<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
+        Box::new(ProfilerTakeIter {
+            elements: self.cache.get_mut(key),
+            stats: self.stats.clone(),
+        })
+    }
 }

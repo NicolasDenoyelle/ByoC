@@ -1,4 +1,4 @@
-use crate::container::{Container, Sequential};
+use crate::container::{Container, Get, Sequential};
 use crate::marker::Concurrent;
 use crate::utils::clone::CloneCell;
 use std::hash::{Hash, Hasher};
@@ -249,5 +249,31 @@ impl<C, H: Hasher + Clone> Clone for Associative<C, H> {
             containers: self.containers.clone(),
             hasher: self.hasher.clone(),
         }
+    }
+}
+
+impl<'a, K, V, C, H> Get<'a, K, V> for Associative<C, H>
+where
+    K: 'a + Hash + Clone,
+    V: 'a + Ord,
+    H: Hasher + Clone,
+    C: Container<'a, K, V> + Get<'a, K, V>,
+{
+    fn get<'b>(
+        &'b self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
+        Box::new(self.containers.iter().flat_map(move |c| c.get(&key)))
+    }
+
+    fn get_mut<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
+        Box::new(
+            self.containers
+                .iter_mut()
+                .flat_map(move |c| c.get_mut(&key)),
+        )
     }
 }

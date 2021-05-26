@@ -1,4 +1,4 @@
-use crate::container::Container;
+use crate::container::{Container, Get};
 use crate::marker::Packed;
 use std::cmp::Eq;
 use std::vec::Vec;
@@ -46,12 +46,33 @@ impl<K: Eq, V> Vector<K, V> {
             values: Vec::with_capacity(n + 1),
         }
     }
+}
 
-    pub fn get<'c>(
-        &'c mut self,
-        key: &'c K,
-    ) -> Box<dyn Iterator<Item = &'c mut (K, V)> + 'c> {
-        Box::new(self.values.iter_mut().filter(move |(k, _)| k == key))
+impl<'a, K: 'a + Eq, V: 'a + Ord> Get<'a, K, V> for Vector<K, V> {
+    fn get<'b>(
+        &'b self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
+        Box::new(self.values.iter().filter_map(move |kv| {
+            if &kv.0 == key {
+                Some(kv)
+            } else {
+                None
+            }
+        }))
+    }
+
+    fn get_mut<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
+        Box::new(self.values.iter_mut().filter_map(move |kv| {
+            if &kv.0 == key {
+                Some(kv)
+            } else {
+                None
+            }
+        }))
     }
 }
 

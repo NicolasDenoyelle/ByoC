@@ -1,5 +1,5 @@
-use crate::container::Container;
-use crate::lock::{LockError, RWLock};
+use crate::container::{Container, Get};
+use crate::lock::{LockError, RWLock, RWLockGuard};
 use crate::marker::{Concurrent, Packed};
 use crate::utils::clone::CloneCell;
 use std::marker::Sync;
@@ -68,7 +68,7 @@ impl<C> Sequential<C> {
 impl<'a, K, V, C> Container<'a, K, V> for Sequential<C>
 where
     K: 'a,
-    V: 'a + Ord,
+    V: 'a,
     C: Container<'a, K, V>,
 {
     fn capacity(&self) -> usize {
@@ -129,7 +129,7 @@ impl<C> Clone for Sequential<C> {
 impl<'a, K, V, C> Packed<'a, K, V> for Sequential<C>
 where
     K: 'a,
-    V: 'a + Ord,
+    V: 'a,
     C: Container<'a, K, V> + Packed<'a, K, V>,
 {
 }
@@ -141,7 +141,40 @@ unsafe impl<C> Sync for Sequential<C> {}
 impl<'a, K, V, C> Concurrent<'a, K, V> for Sequential<C>
 where
     K: 'a,
-    V: 'a + Ord,
+    V: 'a,
     C: Container<'a, K, V>,
 {
+}
+
+impl<'a, K, V, C> Get<'a, K, V> for Sequential<C>
+where
+    K: 'a,
+    V: 'a,
+    C: Container<'a, K, V> + Get<'a, K, V>,
+{
+    fn get<'b>(
+        &'b self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
+        match self.lock.lock() {
+            Ok(_) => Box::new(RWLockGuard::new(
+                &self.lock,
+                (*self.container).get(key),
+            )),
+            Err(_) => Box::new(std::iter::empty()),
+        }
+    }
+
+    fn get_mut<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
+        match self.lock.lock_mut() {
+            Ok(_) => Box::new(RWLockGuard::new(
+                &self.lock,
+                (*self.container).get_mut(key),
+            )),
+            Err(_) => Box::new(std::iter::empty()),
+        }
+    }
 }

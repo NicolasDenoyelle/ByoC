@@ -49,6 +49,18 @@ pub trait Container<'a, K: 'a, V: 'a> {
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
 }
 
+pub trait Get<'a, K: 'a, V: 'a>: Container<'a, K, V> {
+    fn get<'b>(
+        &'b self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b>;
+
+    fn get_mut<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b>;
+}
+
 //------------------------------------------------------------------------//
 // Containers implementations.
 //------------------------------------------------------------------------//

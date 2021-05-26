@@ -1,4 +1,4 @@
-use crate::container::Container;
+use crate::container::{Container, Get};
 use crate::marker::Packed;
 use std::marker::PhantomData;
 
@@ -132,4 +132,26 @@ where
     C1: Container<'a, K, V> + Packed<'a, K, V>,
     C2: Container<'a, K, V> + Packed<'a, K, V>,
 {
+}
+
+impl<'a, K, V, C1, C2> Get<'a, K, V> for Stack<'a, K, V, C1, C2>
+where
+    K: 'a,
+    V: 'a,
+    C1: Container<'a, K, V> + Get<'a, K, V>,
+    C2: Container<'a, K, V> + Get<'a, K, V>,
+{
+    fn get<'b>(
+        &'b self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
+        Box::new(self.l1.get(key).chain(self.l2.get(key)))
+    }
+
+    fn get_mut<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
+        Box::new(self.l1.get_mut(key).chain(self.l2.get_mut(key)))
+    }
 }
