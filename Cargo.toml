@@ -1,7 +1,7 @@
 [package]
 name = "cache"
 version = "0.1.0"
-authors = ["ndenoyelle <ndenoyel@anl.gov>"]
+authors = ["ndenoyelle <ndenoyelle@anl.gov>"]
 edition = "2018"
 
 [dependencies]
