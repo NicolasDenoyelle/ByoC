@@ -45,7 +45,9 @@ use std::time::Instant;
 /// assert_eq!(c.read(), reads + count);
 /// assert_eq!(c.read(), 4);
 ///
-/// // Make a request to a non contained key:
+/// // Make a request to a non contained key.
+/// // Reads are compulsory, writes hits and misses
+/// // depends on whether the key was found.
 /// assert!(c.take(&"third").next().is_none());
 /// assert_eq!(c.write(), 2);
 /// assert_eq!(c.read(), 5);
