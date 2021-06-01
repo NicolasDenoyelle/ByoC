@@ -1,4 +1,4 @@
-use crate::container::{Buffered, Container};
+use crate::container::Container;
 use crate::marker::Packed;
 use crate::utils::ptr::OrdPtr;
 use std::collections::{BTreeMap, BTreeSet};

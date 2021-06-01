@@ -2,10 +2,11 @@ use crate::container::{Buffered, Container};
 use crate::marker::Packed;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
-    cmp::{min, Eq, Ordering},
+    cmp::{Eq, Ordering},
     collections::BTreeSet,
     fs::{remove_file, File, OpenOptions},
     io::{BufReader, Read, Seek, SeekFrom, Write},
+    iter::FromIterator,
     marker::PhantomData,
     ops::{Deref, DerefMut, Drop},
     path::{Path, PathBuf},
@@ -484,25 +485,26 @@ where
 
     /// Write an element at desired `offset`.
     /// This function is only used internally to factorize code.
-    fn write(&mut self, offset: SeekFrom, t: &(K, V)) {
+    fn write(&mut self, offset: SeekFrom, t: &(K, V)) -> Result<(), ()> {
         let serialized_size = match bincode::serialized_size(t) {
             Ok(x) => x,
             Err(_) => {
-                return ();
+                return Err(());
             }
         };
         if self.serialized_size == 0 {
             self.serialized_size = serialized_size;
         }
         if self.serialized_size != serialized_size {
-            panic!("Trying to write elements with different sizes in FileMap container {:?}", self.path);
+            return Err(());
         } else {
             match self.file.seek(offset) {
                 #[allow(unused_must_use)]
-                Ok(_) => {
-                    FileMapElement::write(&mut self.file, t);
-                }
-                Err(_) => {}
+                Ok(_) => match FileMapElement::write(&mut self.file, t) {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err(()),
+                },
+                Err(_) => Err(()),
             }
         }
     }
@@ -675,24 +677,26 @@ where
             }
         }
 
+        let kv = (key, reference);
         match spot {
-            Some(off) => {
-                self.write(SeekFrom::Start(off), &(key, reference));
-                None
-            }
+            Some(off) => match self.write(SeekFrom::Start(off), &kv) {
+                Ok(_) => None,
+                Err(_) => Some(kv),
+            },
             None => {
                 if n_elements < self.capacity {
-                    self.write(SeekFrom::End(0), &(key, reference));
-                    None
+                    match self.write(SeekFrom::End(0), &kv) {
+                        Ok(_) => None,
+                        Err(_) => Some(kv),
+                    }
                 } else {
                     match victim {
-                        None => Some((key, reference)),
+                        None => Some(kv),
                         Some((off, x)) => {
-                            self.write(
-                                SeekFrom::Start(off),
-                                &(key, reference),
-                            );
-                            Some(x)
+                            match self.write(SeekFrom::Start(off), &kv) {
+                                Ok(_) => Some(x),
+                                Err(_) => Some(kv),
+                            }
                         }
                     }
                 }
@@ -708,88 +712,95 @@ where
 {
 }
 
-impl<'a, K: 'a + Eq, V: 'a + Ord> Buffered<'a, K, V> for FileMap {
+impl<'a, K, V> Buffered<'a, K, V> for FileMap<(K, V)>
+where
+    K: 'a + Eq + DeserializeOwned + Serialize,
+    V: 'a + Ord + DeserializeOwned + Serialize,
+{
     fn push_buffer(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
         self.file.flush().unwrap();
-        // Fill with duplicate keys then with victims.
-        let mut out = Vec::<(K, V)>::with_capacity(elements.len());
         // Ordered set of elements to evict.
         let mut victims = BTreeSet::<(V, u64)>::new();
         // Empty spots available to store elements.
         let mut empty = Vec::<u64>::with_capacity(elements.len());
+        let mut n = 0;
 
         // Iterate file once
-        let file_size = self.file.metadata().unwrap().len();
-        for off in (0..file_size).step_by(FileMapElement::<K, V>::size()) {
-            match FileMapElement::<K, V>::read(&mut self.file) {
-                Err(_) => (),
-                Ok(None) => (),
-                Ok(Some((k, v))) => {
-                    let i = elements.iter().enumerate().find_map(
-                        |(i, (_k, _))| {
-                            if _k == &k {
-                                Some(i)
-                            } else {
-                                None
-                            }
-                        },
-                    );
-                    match i {
-                        None => {
-                            victims.insert((v, off));
-                            if elements.len() * 2 < victims.len() {
-                                let mut it = victims.into_iter();
-                                victims = BTreeSet::<(V, u64)>::new();
-                                for _ in 0..elements.len() {
-                                    victims.insert(it.next().unwrap());
-                                }
-                            }
-                        }
-                        // If key match another key in elements then go ahead
-                        // and replace in file.
-                        Some(i) => {
-                            out.push((k, v));
-                            let (k, v) = elements.swap_remove(i);
-                            let e = FileMapElement::new(k, v);
-                            self.file.seek(SeekFrom::Start(off)).unwrap();
-                            e.write(&mut self.file).unwrap();
-                        }
-                    };
+        for (off, opt) in self.iter_owned() {
+            match opt {
+                None => {
+                    if empty.len() < elements.len() {
+                        empty.push(off);
+                    } else {
+                        break;
+                    }
+                }
+                Some((_, v)) => {
+                    n += 1;
+                    victims.insert((v, off));
+                    if elements.len() * 2 < victims.len() {
+                        victims = BTreeSet::from_iter(
+                            victims.into_iter().rev().take(elements.len()),
+                        );
+                    }
                 }
             }
         }
-        // If some elements do not fit empty slots and
-        // file is not full yet, then insert remaining
-        // empty spots in the slots list.
-        if empty.len() < elements.len() {
-            let esize = FileMapElement::<K, V>::size() as u64;
-            let n = (elements.len() - empty.len()) as u64;
-            let max_size = (self.capacity as u64) * esize;
-            for off in file_size..min(max_size, file_size + n * esize) {
-                empty.push(off);
-            }
-        }
 
-        // Iterate elements once with insertion spots.
-        // Empty spots first, then victims.
-        for ((k, v), off) in elements.into_iter().zip(
-            empty
-                .into_iter()
-                .chain(victims.into_iter().rev().map(|e| e.1)),
-        ) {
-            self.file.seek(SeekFrom::Start(off)).unwrap();
-            match FileMapElement::<K, V>::read(&mut self.file).unwrap() {
-                None => {}
-                Some(victim) => {
-                    out.push(victim);
+        // Insert in all empty slots:
+        for off in empty.into_iter() {
+            let e = elements.pop().unwrap();
+            match self.write(SeekFrom::Start(off), &e) {
+                Ok(_) => n += 1,
+                Err(_) => {
+                    elements.push(e);
+                    return elements;
                 }
             }
-            self.file.seek(SeekFrom::Start(off)).unwrap();
-            let e = FileMapElement::new(k, v);
-            e.write(&mut self.file).unwrap();
         }
 
-        out
+        // Insert at the end of the file
+        if n < self.capacity() {
+            for _ in 0..(self.capacity() - n) {
+                let e = elements.pop().unwrap();
+                match self.write(SeekFrom::End(0), &e) {
+                    Ok(_) => n += 1,
+                    Err(_) => {
+                        elements.push(e);
+                        return elements;
+                    }
+                }
+            }
+        }
+
+        // Keep just enough victims
+        let victims = victims
+            .into_iter()
+            .rev()
+            .map(|(_, off)| off)
+            .take(elements.len());
+
+        for (i, off) in victims.enumerate() {
+            if let Err(_) = self.file.seek(SeekFrom::Start(off)) {
+                break;
+            }
+            match FileMapElement::read::<_, (K, V)>(&mut self.file) {
+                Ok((_, Some(e_out))) => {
+                    elements.push(e_out);
+                    let e_in = elements.swap_remove(i);
+                    match self.write(SeekFrom::Start(off), &e_in) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            elements.push(e_in);
+                            elements.swap_remove(i);
+                            break;
+                        }
+                    }
+                }
+                _ => break,
+            }
+        }
+        elements
     }
 }
 
