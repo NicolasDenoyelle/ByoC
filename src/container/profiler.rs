@@ -1,6 +1,6 @@
-use crate::container::{Container, Get};
+use crate::container::{Buffered, Container, Get};
 use crate::marker::Concurrent;
-use crate::utils::{clone::CloneCell, stats::SyncOnlineStats};
+use crate::utils::clone::CloneCell;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -53,27 +53,19 @@ use std::time::Instant;
 /// ```
 
 struct Stats {
-    access: AtomicU64,
-    miss: AtomicU64,
-    hit: AtomicU64,
-    tot_millis: AtomicU64,
-    take_fn: SyncOnlineStats,
-    pop_fn: SyncOnlineStats,
-    push_fn: SyncOnlineStats,
-    flush_fn: SyncOnlineStats,
+    read: AtomicU64,
+    write: AtomicU64,
+    read_ms: AtomicU64,
+    write_ms: AtomicU64,
 }
 
 impl Stats {
     pub fn new() -> Self {
         Stats {
-            access: AtomicU64::new(0u64),
-            miss: AtomicU64::new(0u64),
-            hit: AtomicU64::new(0u64),
-            tot_millis: AtomicU64::new(0u64),
-            take_fn: SyncOnlineStats::new(),
-            pop_fn: SyncOnlineStats::new(),
-            push_fn: SyncOnlineStats::new(),
-            flush_fn: SyncOnlineStats::new(),
+            read: AtomicU64::new(0u64),
+            write: AtomicU64::new(0u64),
+            read_ms: AtomicU64::new(0u64),
+            write_ms: AtomicU64::new(0u64),
         }
     }
 }
@@ -96,51 +88,29 @@ impl<K, V, C> Profiler<K, V, C> {
         }
     }
 
-    /// Amount of cache access
-    pub fn access(&self) -> u64 {
-        self.stats.access.load(Ordering::Relaxed)
+    /// Amount of read cache access
+    pub fn read(&self) -> u64 {
+        self.stats.read.load(Ordering::Relaxed)
     }
-    /// Amount of cache misses
-    pub fn miss(&self) -> u64 {
-        self.stats.miss.load(Ordering::Relaxed)
+
+    /// Time spent in read cache access in milliseconds.
+    pub fn read_ms(&self) -> u64 {
+        self.stats.read_ms.load(Ordering::Relaxed)
     }
-    /// Amount of cache hit
-    pub fn hit(&self) -> u64 {
-        self.stats.hit.load(Ordering::Relaxed)
+
+    /// Amount of write cache access
+    pub fn write(&self) -> u64 {
+        self.stats.write.load(Ordering::Relaxed)
     }
-    /// Amount of cache hit
-    pub fn millis(&self) -> u64 {
-        self.stats.tot_millis.load(Ordering::Relaxed)
+
+    /// Time spent in write cache access in milliseconds.
+    pub fn write_ms(&self) -> u64 {
+        self.stats.write_ms.load(Ordering::Relaxed)
     }
 
     /// Write profiler header.
     pub fn print_header() {
-        println!(
-            "{access} {miss} {hit}
-{take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max}
-{pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max}
-{push_fn_mean} {push_fn_var} {push_fn_min} {push_fn_max}
-{flush_fn_mean} {flush_fn_var} {flush_fn_min} {flush_fn_max}",
-            access = "access",
-            miss = "miss",
-            hit = "hit",
-            take_fn_mean = "take_fn_mean",
-            take_fn_var = "take_fn_var",
-            take_fn_min = "take_fn_min",
-            take_fn_max = "take_fn_max",
-            pop_fn_mean = "pop_fn_mean",
-            pop_fn_var = "pop_fn_var",
-            pop_fn_min = "pop_fn_min",
-            pop_fn_max = "pop_fn_max",
-            push_fn_mean = "push_fn_mean",
-            push_fn_var = "push_fn_var",
-            push_fn_min = "push_fn_min",
-            push_fn_max = "push_fn_max",
-            flush_fn_mean = "push_fn_mean",
-            flush_fn_var = "push_fn_var",
-            flush_fn_min = "push_fn_min",
-            flush_fn_max = "push_fn_max",
-        )
+        println!("read read_ms write write_ms")
     }
 
     /// Print the profiler statistic to file.
@@ -148,30 +118,11 @@ impl<K, V, C> Profiler<K, V, C> {
     /// Profiler statistic are appended at the end of file.
     pub fn print(&self) {
         println!(
-            "{access} {miss} {hit}
-        {take_fn_mean} {take_fn_var} {take_fn_min} {take_fn_max}
-        {pop_fn_mean} {pop_fn_var} {pop_fn_min} {pop_fn_max}
-        {push_fn_mean} {push_fn_var} {push_fn_min} {push_fn_max}
-        {flush_fn_mean} {flush_fn_var} {flush_fn_min} {flush_fn_max}",
-            access = self.stats.access.load(Ordering::Relaxed),
-            miss = self.stats.miss.load(Ordering::Relaxed),
-            hit = self.stats.hit.load(Ordering::Relaxed),
-            take_fn_mean = self.stats.take_fn.mean(),
-            take_fn_var = self.stats.take_fn.var(),
-            take_fn_min = self.stats.take_fn.min(),
-            take_fn_max = self.stats.take_fn.max(),
-            pop_fn_mean = self.stats.pop_fn.mean(),
-            pop_fn_var = self.stats.pop_fn.var(),
-            pop_fn_min = self.stats.pop_fn.min(),
-            pop_fn_max = self.stats.pop_fn.max(),
-            push_fn_mean = self.stats.push_fn.mean(),
-            push_fn_var = self.stats.push_fn.var(),
-            push_fn_min = self.stats.push_fn.min(),
-            push_fn_max = self.stats.push_fn.max(),
-            flush_fn_mean = self.stats.flush_fn.mean(),
-            flush_fn_var = self.stats.flush_fn.var(),
-            flush_fn_min = self.stats.flush_fn.min(),
-            flush_fn_max = self.stats.flush_fn.max(),
+            "{read} {read_ms} {write} {write_ms}",
+            read = self.stats.read.load(Ordering::Relaxed),
+            read_ms = self.stats.read_ms.load(Ordering::Relaxed),
+            write = self.stats.write.load(Ordering::Relaxed),
+            write_ms = self.stats.write_ms.load(Ordering::Relaxed),
         )
     }
 }
@@ -199,19 +150,14 @@ struct ProfilerFlushIter<'a, T> {
 impl<'a, T> Iterator for ProfilerFlushIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
+        let t0 = Instant::now();
         let item = self.elements.next();
-
-        self.stats.access.fetch_add(1 as u64, Ordering::SeqCst);
-        match item {
-            Some(v) => {
-                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
-                Some(v)
-            }
-            None => {
-                self.stats.miss.fetch_add(1, Ordering::SeqCst);
-                None
-            }
-        }
+        let tf = t0.elapsed().as_millis();
+        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
+        self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
+        item
     }
 }
 
@@ -227,21 +173,11 @@ impl<'a, T> Iterator for ProfilerTakeIter<'a, T> {
         let item = self.elements.next();
         let tf = t0.elapsed().as_millis();
 
-        self.stats.access.fetch_add(1 as u64, Ordering::SeqCst);
-        let out = match item {
-            Some(v) => {
-                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
-                Some(v)
-            }
-            None => {
-                self.stats.miss.fetch_add(1, Ordering::SeqCst);
-                None
-            }
-        };
-
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.take_fn.push(tf as f64);
-        out
+        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
+        self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
+        item
     }
 }
 
@@ -258,12 +194,13 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Profiler ({}/{}) {} access in {:.2} (s), {}% hits",
+            "Profiler ({}/{}) reads: {} in {}(ms), writes: {} in {}(ms)",
             self.count(),
             self.capacity(),
-            self.access(),
-            self.millis() as f32 * 1e6,
-            100f32 * (self.hit() as f32) / (self.access() as f32)
+            self.read(),
+            self.read_ms(),
+            self.write(),
+            self.write_ms(),
         )
     }
 }
@@ -275,8 +212,13 @@ where
     C: Container<'a, K, V>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let read_ms = self.read_ms();
+        let read = self.read();
+        let write_ms = self.write_ms();
+        let write = self.write();
+
         write!(f, "---------------------------------------------------")?;
-        write!(f, "Cache profile summary")?;
+        write!(f, " Cache profile summary")?;
         write!(f, "---------------------------------------------------")?;
         write!(
             f,
@@ -287,51 +229,19 @@ where
         write!(
             f,
             "Total profiled time: {:.2} seconds",
-            self.millis() as f32 * 1e6
+            (read_ms + write_ms) as f32 * 1e6
         )?;
         write!(
             f,
-            "Number of access: {} ({}% miss / {}% hits)",
-            self.access(),
-            100f32 * (self.miss() as f32) / (self.access() as f32),
-            100f32 * (self.hit() as f32) / (self.access() as f32)
+            "Reads: {} in {:.2} seconds",
+            read,
+            read_ms as f32 * 1e6
         )?;
-        write!(f, "Methods call timings")?;
-
         write!(
             f,
-            "* fn take (ns):  {:.2} (mean) | {:.2} (var) | {:.2} (min) | {:.2} (max)",
-            self.stats.take_fn.mean(),
-            self.stats.take_fn.var(),
-            self.stats.take_fn.min(),
-            self.stats.take_fn.max()
-        )?;
-
-        write!(
-            f,
-            "* fn pop (ns):   {:.2} (mean) | {:.2} (var) | {:.2} (min) | {:.2} (max)",
-            self.stats.pop_fn.mean(),
-            self.stats.pop_fn.var(),
-            self.stats.pop_fn.min(),
-            self.stats.pop_fn.max()
-        )?;
-
-        write!(
-            f,
-            "* fn push (ns):  {:.2} (mean) | {:.2} (var) | {:.2} (min) | {:.2} (max),",
-            self.stats.push_fn.mean(),
-            self.stats.push_fn.var(),
-            self.stats.push_fn.min(),
-            self.stats.push_fn.max()
-        )?;
-
-        write!(
-            f,
-            "* fn flush (ns):  {:.2} (mean) | {:.2} (var) | {:.2} (min) | {:.2} (max),",
-            self.stats.flush_fn.mean(),
-            self.stats.flush_fn.var(),
-            self.stats.flush_fn.min(),
-            self.stats.flush_fn.max()
+            "Writes: {} in {:.2} seconds",
+            write,
+            write_ms as f32 * 1e6
         )
     }
 }
@@ -350,13 +260,33 @@ where
         self.cache.capacity()
     }
     fn count(&self) -> usize {
-        self.cache.count()
+        let t0 = Instant::now();
+        let out = self.cache.count();
+        let tf = t0.elapsed().as_millis();
+
+        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(out as u64, Ordering::SeqCst);
+        out
     }
+
     fn clear(&mut self) {
-        self.cache.clear()
+        let c = self.cache.count();
+        let t0 = Instant::now();
+        self.cache.clear();
+        let tf = t0.elapsed().as_millis();
+
+        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.write.fetch_add(c as u64, Ordering::SeqCst);
     }
+
     fn contains(&self, key: &K) -> bool {
-        self.cache.contains(key)
+        let t0 = Instant::now();
+        let out = self.cache.contains(key);
+        let tf = t0.elapsed().as_millis();
+
+        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
+        out
     }
 
     /// Counts for one cache access.
@@ -373,49 +303,56 @@ where
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        let t0 = Instant::now();
-        let it = Box::new(ProfilerFlushIter {
+        Box::new(ProfilerFlushIter {
             elements: self.cache.flush(),
             stats: self.stats.clone(),
-        });
-        let tf = t0.elapsed().as_millis();
-
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.flush_fn.push(tf as f64);
-        it
+        })
     }
 
     /// Counts for one cache access and one hit.
     /// See [`pop` function](../trait.Container.html)
     fn pop(&mut self) -> Option<(K, V)> {
-        self.stats.access.fetch_add(1, Ordering::SeqCst);
-        self.stats.hit.fetch_add(1, Ordering::SeqCst);
         let t0 = Instant::now();
         let out = self.cache.pop();
         let tf = t0.elapsed().as_millis();
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.pop_fn.push(tf as f64);
+        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
+        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
         out
     }
 
     fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        self.stats.access.fetch_add(1, Ordering::SeqCst);
         let t0 = Instant::now();
         let out = self.cache.push(key, reference);
         let tf = t0.elapsed().as_millis();
-        self.stats.tot_millis.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.push_fn.push(tf as f64);
+        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
+        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
+        out
+    }
+}
 
-        match out {
-            None => {
-                self.stats.miss.fetch_add(1, Ordering::SeqCst);
-                None
-            }
-            Some(v) => {
-                self.stats.hit.fetch_add(1, Ordering::SeqCst);
-                Some(v)
-            }
-        }
+impl<'a, K, V, C> Buffered<'a, K, V> for Profiler<K, V, C>
+where
+    K: 'a,
+    V: 'a,
+    C: Container<'a, K, V> + Buffered<'a, K, V>,
+{
+    fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        let n = elements.len();
+        let t0 = Instant::now();
+        let out = self.cache.push_buffer(elements);
+        let tf = t0.elapsed().as_millis();
+
+        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats
+            .read
+            .fetch_add(out.len() as u64, Ordering::SeqCst);
+        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.write.fetch_add(n as u64, Ordering::SeqCst);
+        out
     }
 }
 
