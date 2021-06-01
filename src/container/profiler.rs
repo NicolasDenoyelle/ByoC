@@ -21,7 +21,7 @@ use std::time::Instant;
 /// # Examples
 ///
 /// ```
-/// use cache::container::{Container, Vector, Profiler};
+/// use cache::container::{Container, Get, Profiler, Vector};
 ///
 /// // Build a cache:
 /// let c = Vector::new(3);
@@ -34,19 +34,47 @@ use std::time::Instant;
 /// c.push("second", 1);
 ///
 /// // look at statistics
-/// assert_eq!(c.access(), 2);
+/// assert_eq!(c.write(), 2);
+/// assert_eq!(c.read(), 2);
 /// assert_eq!(c.hit(), 0);
-/// assert_eq!(c.miss(), 2);
+/// assert_eq!(c.miss(), 0);
 ///
-/// // Do some access
+/// // Counting elements updates reads.
+/// let reads = c.read();
+/// let count = c.count() as u64;
+/// assert_eq!(c.read(), reads + count);
+/// assert_eq!(c.read(), 4);
+///
+/// // Make a request to a non contained key:
 /// assert!(c.take(&"third").next().is_none());
-/// assert_eq!(c.access(), 3);
-/// assert_eq!((&c).hit(), 0);
-/// assert_eq!((&c).miss(), 3);
-/// assert!((&mut c).take(&"first").next().is_some());
-/// assert_eq!((&c).access(), 4);
-/// assert_eq!((&c).hit(), 1);
-/// assert_eq!((&c).miss(), 3);
+/// assert_eq!(c.write(), 2);
+/// assert_eq!(c.read(), 5);
+/// assert_eq!(c.hit(), 0);
+/// assert_eq!(c.miss(), 1);
+///
+/// // Make a request to a contained key:
+/// assert!(c.take(&"second").next().is_some());
+/// assert_eq!(c.write(), 3);
+/// assert_eq!(c.read(), 6);
+/// assert_eq!(c.hit(), 1);
+/// assert_eq!(c.miss(), 1);
+///
+/// // `Get` methods update the same way as `take()` method:
+/// assert!(c.get(&"first").next().is_some());
+/// assert_eq!(c.write(), 4);
+/// assert_eq!(c.read(), 7);
+/// assert_eq!(c.hit(), 2);
+/// assert_eq!(c.miss(), 1);
+///
+/// // `clear()` updates writes by the amount of elements in the container.
+/// c.clear();
+/// assert_eq!(c.write(), 5);
+///
+/// // `contains()` is consider as one read and will update hits and misses.
+/// c.contains(&"first");
+/// assert_eq!(c.read(), 8);
+/// assert_eq!(c.hit(), 2);
+/// assert_eq!(c.miss(), 2);
 ///
 /// // pretty print statistics.
 /// println!("{}", c);
@@ -57,6 +85,8 @@ struct Stats {
     write: AtomicU64,
     read_ms: AtomicU64,
     write_ms: AtomicU64,
+    hit: AtomicU64,
+    miss: AtomicU64,
 }
 
 impl Stats {
@@ -66,6 +96,8 @@ impl Stats {
             write: AtomicU64::new(0u64),
             read_ms: AtomicU64::new(0u64),
             write_ms: AtomicU64::new(0u64),
+            hit: AtomicU64::new(0u64),
+            miss: AtomicU64::new(0u64),
         }
     }
 }
@@ -86,6 +118,23 @@ impl<K, V, C> Profiler<K, V, C> {
             unused_k: PhantomData,
             unused_v: PhantomData,
         }
+    }
+
+    /// Amount of requests that found a matching key.
+    pub fn hit(&self) -> u64 {
+        self.stats.hit.load(Ordering::Relaxed)
+    }
+
+    /// Amount of requests that did not found a matching key.
+    pub fn miss(&self) -> u64 {
+        self.stats.miss.load(Ordering::Relaxed)
+    }
+
+    /// Ratio of requests that did not find a matching key.
+    pub fn miss_ratio(&self) -> f32 {
+        let hit = self.hit();
+        let miss = self.miss();
+        miss as f32 / (hit + miss) as f32
     }
 
     /// Amount of read cache access
@@ -110,7 +159,7 @@ impl<K, V, C> Profiler<K, V, C> {
 
     /// Write profiler header.
     pub fn print_header() {
-        println!("read read_ms write write_ms")
+        println!("read read_ms write write_ms hit miss")
     }
 
     /// Print the profiler statistic to file.
@@ -118,11 +167,13 @@ impl<K, V, C> Profiler<K, V, C> {
     /// Profiler statistic are appended at the end of file.
     pub fn print(&self) {
         println!(
-            "{read} {read_ms} {write} {write_ms}",
+            "{read} {read_ms} {write} {write_ms} {hit} {miss}",
             read = self.stats.read.load(Ordering::Relaxed),
             read_ms = self.stats.read_ms.load(Ordering::Relaxed),
             write = self.stats.write.load(Ordering::Relaxed),
             write_ms = self.stats.write_ms.load(Ordering::Relaxed),
+            hit = self.stats.hit.load(Ordering::Relaxed),
+            miss = self.stats.miss.load(Ordering::Relaxed),
         )
     }
 }
@@ -161,12 +212,12 @@ impl<'a, T> Iterator for ProfilerFlushIter<'a, T> {
     }
 }
 
-struct ProfilerTakeIter<'a, T> {
+struct ProfilerReqIter<'a, T> {
     elements: Box<dyn Iterator<Item = T> + 'a>,
     stats: CloneCell<Stats>,
 }
 
-impl<'a, T> Iterator for ProfilerTakeIter<'a, T> {
+impl<'a, T> Iterator for ProfilerReqIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         let t0 = Instant::now();
@@ -174,9 +225,14 @@ impl<'a, T> Iterator for ProfilerTakeIter<'a, T> {
         let tf = t0.elapsed().as_millis();
 
         self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
         self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
-        self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
+        if item.is_some() {
+            self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
+            self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
+            self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
+        } else {
+            self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst);
+        }
         item
     }
 }
@@ -194,13 +250,14 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Profiler ({}/{}) reads: {} in {}(ms), writes: {} in {}(ms)",
+            "Profiler ({}/{}) reads: {} in {}(ms), writes: {} in {}(ms), miss ratio: {}",
             self.count(),
             self.capacity(),
             self.read(),
             self.read_ms(),
             self.write(),
             self.write_ms(),
+						self.miss_ratio(),
         )
     }
 }
@@ -216,6 +273,9 @@ where
         let read = self.read();
         let write_ms = self.write_ms();
         let write = self.write();
+        let hit = self.hit();
+        let miss = self.miss();
+        let miss_ratio = miss as f32 / (hit + miss) as f32;
 
         write!(f, "---------------------------------------------------")?;
         write!(f, " Cache profile summary")?;
@@ -242,6 +302,13 @@ where
             "Writes: {} in {:.2} seconds",
             write,
             write_ms as f32 * 1e6
+        )?;
+        write!(
+            f,
+            "Requests: hits {}, misses {}, ratio: {}%",
+            hit,
+            miss,
+            100f32 * miss_ratio
         )
     }
 }
@@ -286,6 +353,11 @@ where
 
         self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
         self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
+        if out {
+            self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
+        } else {
+            self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst);
+        }
         out
     }
 
@@ -296,7 +368,7 @@ where
         &'b mut self,
         key: &'b K,
     ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
-        Box::new(ProfilerTakeIter {
+        Box::new(ProfilerReqIter {
             elements: self.cache.take(key),
             stats: self.stats.clone(),
         })
@@ -382,7 +454,7 @@ where
         &'b self,
         key: &'b K,
     ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
-        Box::new(ProfilerTakeIter {
+        Box::new(ProfilerReqIter {
             elements: self.cache.get(key),
             stats: self.stats.clone(),
         })
@@ -392,7 +464,7 @@ where
         &'b mut self,
         key: &'b K,
     ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
-        Box::new(ProfilerTakeIter {
+        Box::new(ProfilerReqIter {
             elements: self.cache.get_mut(key),
             stats: self.stats.clone(),
         })
