@@ -1,4 +1,4 @@
-use crate::container::{Container, Get};
+use crate::container::{Buffered, Container, Get};
 use crate::marker::Packed;
 use std::marker::PhantomData;
 
@@ -153,5 +153,17 @@ where
         key: &'b K,
     ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
         Box::new(self.l1.get_mut(key).chain(self.l2.get_mut(key)))
+    }
+}
+
+impl<'a, K, V, C1, C2> Buffered<'a, K, V> for Stack<'a, K, V, C1, C2>
+where
+    K: 'a,
+    V: 'a,
+    C1: Container<'a, K, V> + Buffered<'a, K, V>,
+    C2: Container<'a, K, V> + Buffered<'a, K, V>,
+{
+    fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        self.l2.push_buffer(self.l1.push_buffer(elements))
     }
 }

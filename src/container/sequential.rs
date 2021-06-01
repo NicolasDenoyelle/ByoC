@@ -1,4 +1,4 @@
-use crate::container::{Container, Get};
+use crate::container::{Buffered, Container, Get};
 use crate::lock::{LockError, RWLock, RWLockGuard};
 use crate::marker::{Concurrent, Packed};
 use crate::utils::clone::CloneCell;
@@ -175,6 +175,24 @@ where
                 (*self.container).get_mut(key),
             )),
             Err(_) => Box::new(std::iter::empty()),
+        }
+    }
+}
+
+impl<'a, K, V, C> Buffered<'a, K, V> for Sequential<C>
+where
+    K: 'a,
+    V: 'a,
+    C: Container<'a, K, V> + Buffered<'a, K, V>,
+{
+    fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        match self.lock.lock_mut() {
+            Ok(_) => {
+                let out = self.container.push_buffer(elements);
+                self.lock.unlock();
+                out
+            }
+            Err(_) => Vec::new(),
         }
     }
 }

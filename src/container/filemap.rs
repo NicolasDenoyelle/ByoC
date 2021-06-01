@@ -749,7 +749,12 @@ where
 
         // Insert in all empty slots:
         for off in empty.into_iter() {
-            let e = elements.pop().unwrap();
+            let e = match elements.pop() {
+                Some(e) => e,
+                None => {
+                    return elements;
+                }
+            };
             match self.write(SeekFrom::Start(off), &e) {
                 Ok(_) => n += 1,
                 Err(_) => {
@@ -760,15 +765,18 @@ where
         }
 
         // Insert at the end of the file
-        if n < self.capacity() {
-            for _ in 0..(self.capacity() - n) {
-                let e = elements.pop().unwrap();
-                match self.write(SeekFrom::End(0), &e) {
-                    Ok(_) => n += 1,
-                    Err(_) => {
-                        elements.push(e);
-                        return elements;
-                    }
+        while n < self.capacity {
+            let e = match elements.pop() {
+                Some(e) => e,
+                None => {
+                    return elements;
+                }
+            };
+            match self.write(SeekFrom::End(0), &e) {
+                Ok(_) => n += 1,
+                Err(_) => {
+                    elements.push(e);
+                    return elements;
                 }
             }
         }

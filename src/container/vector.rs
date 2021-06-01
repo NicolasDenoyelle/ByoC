@@ -187,6 +187,14 @@ impl<'a, K: 'a + Eq, V: 'a + Ord> Buffered<'a, K, V> for Vector<K, V> {
         if n >= elements.len() {
             self.values.append(&mut elements);
             Vec::new()
+        } else if elements.len() == self.capacity {
+            std::mem::swap(&mut self.values, &mut elements);
+            elements
+        } else if elements.len() > self.capacity {
+            elements.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
+            self.values.append(&mut elements.split_off(self.capacity));
+            std::mem::swap(&mut self.values, &mut elements);
+            elements
         } else {
             self.values.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
             let out =

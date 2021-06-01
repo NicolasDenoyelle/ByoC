@@ -1,4 +1,4 @@
-use crate::container::Container;
+use crate::container::{Buffered, Container};
 use crate::marker::Packed;
 use crate::utils::ptr::OrdPtr;
 use std::collections::{BTreeMap, BTreeSet};
@@ -231,5 +231,10 @@ impl<'a, K, V> Packed<'a, K, V> for BTree<K, V>
 where
     K: 'a + Ord + Copy,
     V: 'a + Ord,
+{
+}
+
+impl<'a, K: 'a + Ord + Copy, V: 'a + Ord> Buffered<'a, K, V>
+    for BTree<K, V>
 {
 }
