@@ -17,11 +17,7 @@ fn filemap_container_test_0() {
     let container =
         FileMap::<(u16, u32)>::new(&tmp_string, 0, false, 1024).unwrap();
     container::test_container(container, true);
-}
 
-#[cfg(feature = "filemap")]
-#[test]
-fn filemap_container_test_small() {
     let tmp_path = NamedTempFile::new().unwrap().into_temp_path();
     let tmp_string =
         String::from(AsRef::<Path>::as_ref(&tmp_path).to_str().unwrap());

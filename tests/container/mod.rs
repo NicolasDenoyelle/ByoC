@@ -1,17 +1,11 @@
+extern crate rand;
+
 use cache::container::Container;
-use cache::timestamp::{Counter, Timestamp};
-use std::collections::hash_map::DefaultHasher;
-use std::hash::{Hash, Hasher};
+use rand::random;
 use std::vec::Vec;
 
 pub fn rand(a: u64, b: u64) -> u64 {
-    if a >= b {
-        panic!("Empty range for random number");
-    }
-    let n = Counter::new();
-    let mut hasher = DefaultHasher::new();
-    n.hash(&mut hasher);
-    hasher.finish() % (b - a) + a
+    a + (random::<u64>() % (b - a))
 }
 
 fn test_push<'a, C>(c: &mut C, key: u16, value: u32, packed: bool)
@@ -91,7 +85,7 @@ where
     C: Container<'a, u16, u32>,
 {
     let elements: Vec<(u16, u32)> = (0..n as u64)
-        .map(|i| (i as u16, rand(0, n as u64) as u32))
+        .map(|i| (i as u16, rand(0u64, n as u64) as u32))
         .collect();
 
     for (k, v) in elements.iter() {

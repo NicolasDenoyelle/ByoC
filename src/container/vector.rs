@@ -48,34 +48,6 @@ impl<K: Eq, V> Vector<K, V> {
     }
 }
 
-impl<'a, K: 'a + Eq, V: 'a + Ord> Get<'a, K, V> for Vector<K, V> {
-    fn get<'b>(
-        &'b self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
-        Box::new(self.values.iter().filter_map(move |kv| {
-            if &kv.0 == key {
-                Some(kv)
-            } else {
-                None
-            }
-        }))
-    }
-
-    fn get_mut<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
-        Box::new(self.values.iter_mut().filter_map(move |kv| {
-            if &kv.0 == key {
-                Some(kv)
-            } else {
-                None
-            }
-        }))
-    }
-}
-
 //------------------------------------------------------------------------//
 //  Container implementation.                                             //
 //------------------------------------------------------------------------//
@@ -175,4 +147,32 @@ where
     K: 'a + Eq,
     V: 'a + Ord,
 {
+}
+
+impl<'a, K: 'a + Eq, V: 'a + Ord> Get<'a, K, V> for Vector<K, V> {
+    fn get<'b>(
+        &'b self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
+        Box::new(self.values.iter().filter_map(move |kv| {
+            if &kv.0 == key {
+                Some(kv)
+            } else {
+                None
+            }
+        }))
+    }
+
+    fn get_mut<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
+        Box::new(self.values.iter_mut().filter_map(move |kv| {
+            if &kv.0 == key {
+                Some(kv)
+            } else {
+                None
+            }
+        }))
+    }
 }
