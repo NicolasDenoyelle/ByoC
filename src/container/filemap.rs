@@ -1,10 +1,12 @@
-use crate::container::Container;
+use crate::container::{Buffered, Container};
 use crate::marker::Packed;
 use serde::{de::DeserializeOwned, Serialize};
 use std::{
     cmp::{Eq, Ordering},
+    collections::BTreeSet,
     fs::{remove_file, File, OpenOptions},
     io::{BufReader, Read, Seek, SeekFrom, Write},
+    iter::FromIterator,
     marker::PhantomData,
     ops::{Deref, DerefMut, Drop},
     path::{Path, PathBuf},
@@ -105,9 +107,9 @@ impl FileMapElement {
     }
 }
 
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 // Iterator over a file.
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 enum FileMapIteratorPath {
     TmpPath(TempPath),
@@ -164,9 +166,9 @@ where
     }
 }
 
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 //  Iterator to take elements out
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 pub struct FileMapTakeIterator<'a, K, V, F>
 where
@@ -214,9 +216,9 @@ where
     }
 }
 
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 // Elements for get method.
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 /// Struct returned from calling [`get()`](struct.FileMap.html#tymethod.get)
 /// method with a [`FileMap`](struct.FileMap.html) container.
@@ -296,9 +298,9 @@ where
     }
 }
 
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 // Container Filemap
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 /// A [`Container`](trait.Container.html) implementation for key/value
 /// elements stored into a file.
@@ -483,33 +485,34 @@ where
 
     /// Write an element at desired `offset`.
     /// This function is only used internally to factorize code.
-    fn write(&mut self, offset: SeekFrom, t: &(K, V)) {
+    fn write(&mut self, offset: SeekFrom, t: &(K, V)) -> Result<(), ()> {
         let serialized_size = match bincode::serialized_size(t) {
             Ok(x) => x,
             Err(_) => {
-                return ();
+                return Err(());
             }
         };
         if self.serialized_size == 0 {
             self.serialized_size = serialized_size;
         }
         if self.serialized_size != serialized_size {
-            panic!("Trying to write elements with different sizes in FileMap container {:?}", self.path);
+            return Err(());
         } else {
             match self.file.seek(offset) {
                 #[allow(unused_must_use)]
-                Ok(_) => {
-                    FileMapElement::write(&mut self.file, t);
-                }
-                Err(_) => {}
+                Ok(_) => match FileMapElement::write(&mut self.file, t) {
+                    Ok(_) => Ok(()),
+                    Err(_) => Err(()),
+                },
+                Err(_) => Err(()),
             }
         }
     }
 }
 
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 // Container impl
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 impl<'a, K, V> Container<'a, K, V> for FileMap<(K, V)>
 where
@@ -674,24 +677,26 @@ where
             }
         }
 
+        let kv = (key, reference);
         match spot {
-            Some(off) => {
-                self.write(SeekFrom::Start(off), &(key, reference));
-                None
-            }
+            Some(off) => match self.write(SeekFrom::Start(off), &kv) {
+                Ok(_) => None,
+                Err(_) => Some(kv),
+            },
             None => {
                 if n_elements < self.capacity {
-                    self.write(SeekFrom::End(0), &(key, reference));
-                    None
+                    match self.write(SeekFrom::End(0), &kv) {
+                        Ok(_) => None,
+                        Err(_) => Some(kv),
+                    }
                 } else {
                     match victim {
-                        None => Some((key, reference)),
+                        None => Some(kv),
                         Some((off, x)) => {
-                            self.write(
-                                SeekFrom::Start(off),
-                                &(key, reference),
-                            );
-                            Some(x)
+                            match self.write(SeekFrom::Start(off), &kv) {
+                                Ok(_) => Some(x),
+                                Err(_) => Some(kv),
+                            }
                         }
                     }
                 }
@@ -707,9 +712,109 @@ where
 {
 }
 
-//------------------------------------------------------------------------//
+impl<'a, K, V> Buffered<'a, K, V> for FileMap<(K, V)>
+where
+    K: 'a + Eq + DeserializeOwned + Serialize,
+    V: 'a + Ord + DeserializeOwned + Serialize,
+{
+    fn push_buffer(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        self.file.flush().unwrap();
+        // Ordered set of elements to evict.
+        let mut victims = BTreeSet::<(V, u64)>::new();
+        // Empty spots available to store elements.
+        let mut empty = Vec::<u64>::with_capacity(elements.len());
+        let mut n = 0;
+
+        // Iterate file once
+        for (off, opt) in self.iter_owned() {
+            match opt {
+                None => {
+                    if empty.len() < elements.len() {
+                        empty.push(off);
+                    } else {
+                        break;
+                    }
+                }
+                Some((_, v)) => {
+                    n += 1;
+                    victims.insert((v, off));
+                    if elements.len() * 2 < victims.len() {
+                        victims = BTreeSet::from_iter(
+                            victims.into_iter().rev().take(elements.len()),
+                        );
+                    }
+                }
+            }
+        }
+
+        // Insert in all empty slots:
+        for off in empty.into_iter() {
+            let e = match elements.pop() {
+                Some(e) => e,
+                None => {
+                    return elements;
+                }
+            };
+            match self.write(SeekFrom::Start(off), &e) {
+                Ok(_) => n += 1,
+                Err(_) => {
+                    elements.push(e);
+                    return elements;
+                }
+            }
+        }
+
+        // Insert at the end of the file
+        while n < self.capacity {
+            let e = match elements.pop() {
+                Some(e) => e,
+                None => {
+                    return elements;
+                }
+            };
+            match self.write(SeekFrom::End(0), &e) {
+                Ok(_) => n += 1,
+                Err(_) => {
+                    elements.push(e);
+                    return elements;
+                }
+            }
+        }
+
+        // Keep just enough victims
+        let victims = victims
+            .into_iter()
+            .rev()
+            .map(|(_, off)| off)
+            .take(elements.len());
+
+        for (i, off) in victims.enumerate() {
+            if let Err(_) = self.file.seek(SeekFrom::Start(off)) {
+                break;
+            }
+            match FileMapElement::read::<_, (K, V)>(&mut self.file) {
+                Ok((_, Some(e_out))) => {
+                    elements.push(e_out);
+                    let e_in = elements.swap_remove(i);
+                    match self.write(SeekFrom::Start(off), &e_in) {
+                        Ok(_) => {}
+                        Err(_) => {
+                            elements.push(e_in);
+                            elements.swap_remove(i);
+                            break;
+                        }
+                    }
+                }
+                _ => break,
+            }
+        }
+        elements
+    }
+}
+
+//-----------------------------------------------------------------------//
 // Tests
-//------------------------------------------------------------------------//
+//-----------------------------------------------------------------------//
 
 #[cfg(test)]
 mod tests {

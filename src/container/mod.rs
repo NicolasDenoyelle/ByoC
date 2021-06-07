@@ -62,6 +62,35 @@ pub trait Get<'a, K: 'a, V: 'a>: Container<'a, K, V> {
 }
 
 //------------------------------------------------------------------------//
+/// `Buffered` trait.
+/// Containers implementing this trait can optimize
+/// [`push()`](trait.Container.html#method.push) method when inserting
+/// multiple elements at once.  
+/// For instance the
+/// [`FileMap`](./sequential/struct.FileMap.html) container walks
+/// the entire file when pushing a (key, value) pair.
+/// This trait implementation will also walk the entire file once but
+/// will perform all possible insertions meanwhile.
+pub trait Buffered<'a, K: 'a, V: 'a>: Container<'a, K, V> {
+    /// Insert a buffer of keys and value in the container.
+    /// Returns a vector of victims if the container overflows.
+    /// Any container can implement this trait for free.
+    /// The default implementation will use
+    /// [`push()`](trait.Container.html#method.push) method on each
+    /// element in input.
+    fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        let mut out = Vec::new();
+        for (k, v) in elements {
+            match self.push(k, v) {
+                None => (),
+                Some(x) => out.push(x),
+            }
+        }
+        out
+    }
+}
+
+//------------------------------------------------------------------------//
 // Containers implementations.
 //------------------------------------------------------------------------//
 

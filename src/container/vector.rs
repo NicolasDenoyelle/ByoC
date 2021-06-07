@@ -1,4 +1,4 @@
-use crate::container::{Container, Get};
+use crate::container::{Buffered, Container, Get};
 use crate::marker::Packed;
 use std::cmp::Eq;
 use std::vec::Vec;
@@ -49,7 +49,7 @@ impl<K: Eq, V> Vector<K, V> {
 }
 
 //------------------------------------------------------------------------//
-//  Container implementation.                                             //
+// Iterator to take elements out.                                         //
 //------------------------------------------------------------------------//
 
 struct VectorTakeIterator<'a, K, V> {
@@ -77,6 +77,10 @@ impl<'a, K: Eq, V> Iterator for VectorTakeIterator<'a, K, V> {
         }
     }
 }
+
+//------------------------------------------------------------------------//
+//  Container implementation.                                             //
+//------------------------------------------------------------------------//
 
 impl<'a, K, V> Container<'a, K, V> for Vector<K, V>
 where
@@ -174,5 +178,29 @@ impl<'a, K: 'a + Eq, V: 'a + Ord> Get<'a, K, V> for Vector<K, V> {
                 None
             }
         }))
+    }
+}
+
+impl<'a, K: 'a + Eq, V: 'a + Ord> Buffered<'a, K, V> for Vector<K, V> {
+    fn push_buffer(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        let n = self.capacity - self.values.len();
+        if n >= elements.len() {
+            self.values.append(&mut elements);
+            Vec::new()
+        } else if elements.len() == self.capacity {
+            std::mem::swap(&mut self.values, &mut elements);
+            elements
+        } else if elements.len() > self.capacity {
+            elements.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
+            self.values.append(&mut elements.split_off(self.capacity));
+            std::mem::swap(&mut self.values, &mut elements);
+            elements
+        } else {
+            self.values.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
+            let out =
+                self.values.split_off(self.capacity - elements.len());
+            self.values.append(&mut elements);
+            out
+        }
     }
 }

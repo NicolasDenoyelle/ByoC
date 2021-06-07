@@ -1,4 +1,4 @@
-use crate::container::{Container, Get, Sequential};
+use crate::container::{Buffered, Container, Get, Sequential};
 use crate::marker::Concurrent;
 use crate::utils::clone::CloneCell;
 use std::hash::{Hash, Hasher};
@@ -275,5 +275,31 @@ where
                 .iter_mut()
                 .flat_map(move |c| c.get_mut(&key)),
         )
+    }
+}
+
+impl<'a, K, V, C, H> Buffered<'a, K, V> for Associative<C, H>
+where
+    K: 'a + Hash + Clone,
+    V: 'a + Ord,
+    H: Hasher + Clone,
+    C: Container<'a, K, V> + Buffered<'a, K, V>,
+{
+    fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        let n = elements.len();
+        let mut set_elements: Vec<Vec<(K, V)>> =
+            Vec::with_capacity(self.n_sets);
+        for _ in 0..self.n_sets {
+            set_elements.push(Vec::with_capacity(n));
+        }
+        for e in elements.into_iter() {
+            set_elements[self.set(e.0.clone())].push(e);
+        }
+
+        let mut out = Vec::with_capacity(n);
+        for (i, v) in set_elements.into_iter().enumerate() {
+            out.append(&mut (self.containers[i].push_buffer(v)));
+        }
+        out
     }
 }

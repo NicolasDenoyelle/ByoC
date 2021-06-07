@@ -25,7 +25,7 @@ use std::ops::{Deref, DerefMut};
 /// assert!( p0 == p0 );
 /// assert!( p1 == p1 );
 /// ```
-#[derive(Debug, Clone, Copy, PartialOrd, Ord, Eq, PartialEq)]
+#[derive(Debug, PartialOrd, Ord, Eq, PartialEq)]
 pub struct Default<V: Ord> {
     value: V,
 }
