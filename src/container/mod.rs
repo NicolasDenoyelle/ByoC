@@ -62,32 +62,22 @@ pub trait Get<'a, K: 'a, V: 'a>: Container<'a, K, V> {
 }
 
 //------------------------------------------------------------------------//
-/// `Buffered` trait is a trait allows to perform multiple takes and pushes
-/// in one function call.
-///
-/// This may heavily optimize the [push](trait.Container.html#method.push)
-/// and [take](trait.Container.html#method.take) operations in the cache.
-///
-/// For instance
-/// the [`FileMap`](./sequential/struct.FileMap.html) container walks
-/// the entire file when pushing a pair key, value. It is possible to
-/// to save a lot on grouping elements on push to do everything in a
-/// single file pass.
-///
-/// Another useful example of buffered push are
-/// [multi-level caches](./sequential/struct.Stack.html).
-/// These caches will cross all levels on every push to prevent
-/// duplicate keys situation. With buffered pushes, all pushes can be
-/// buffered to cross all levels once.
+/// `Buffered` trait.
+/// Containers implementing this trait can optimize
+/// [`push()`](trait.Container.html#method.push) method when inserting
+/// multiple elements at once.  
+/// For instance the
+/// [`FileMap`](./sequential/struct.FileMap.html) container walks
+/// the entire file when pushing a (key, value) pair.
+/// This trait implementation will also walk the entire file once but
+/// will perform all possible insertions meanwhile.
 pub trait Buffered<'a, K: 'a, V: 'a>: Container<'a, K, V> {
-    /// Flush a buffer of keys and value to
-    /// [`push`](trait.Container.html#method.push) all at once.
-    /// The returned vector contains elements popping out of the container
-    /// if this one is full or keys already exist in the container.
-    ///
-    /// The provided implementation does not actually buffer
-    /// anything and just call [`push`](trait.Container.html#method.push)
-    /// method.
+    /// Insert a buffer of keys and value in the container.
+    /// Returns a vector of victims if the container overflows.
+    /// Any container can implement this trait for free.
+    /// The default implementation will use
+    /// [`push()`](trait.Container.html#method.push) method on each
+    /// element in input.
     fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let mut out = Vec::new();
         for (k, v) in elements {
