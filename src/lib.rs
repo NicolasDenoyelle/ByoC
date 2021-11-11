@@ -2,6 +2,7 @@
 /// This code is not available to user but used throughout the
 /// library.
 mod utils;
+pub use utils::io::{IOStruct, IOStructMut};
 
 /// Library custom read/write lock.
 mod lock;
