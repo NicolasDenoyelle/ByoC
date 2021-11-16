@@ -129,7 +129,7 @@ where
         // Removes keys with swap remove from the end.
         // Position of other matching elements is not impacted
         // by the swap.
-        for i in indexes {
+        for i in indexes.into_iter().rev() {
             match self.vec.swap_remove(i) {
                 Err(_) => return ret,
                 Ok(None) => return ret,
