@@ -1,4 +1,4 @@
-use crate::container::{Buffered, Container, Get};
+use crate::container::{Container, Get};
 use crate::lock::{LockError, RWLock, RWLockGuard};
 use crate::marker::{Concurrent, Packed};
 use crate::utils::clone::CloneCell;
@@ -25,10 +25,10 @@ use std::marker::Sync;
 /// let mut c1 = Sequential::new(Vector::new(1));
 /// let mut c2 = c1.clone();
 ///
-/// assert!(c1.push(0u16, 4).is_none());
-/// let (key, value) = c2.push(1u16, 12).unwrap();
-/// assert_eq!(key, 0u16);
-/// assert_eq!(value, 4);
+/// assert!(c1.push(vec![(0u16, 4)]).pop().is_none());
+/// let (key, value) = c2.push(vec![(1u16, 12)]).pop().unwrap();
+/// assert_eq!(key, 1u16);
+/// assert_eq!(value, 12);
 ///```
 pub struct Sequential<C> {
     container: CloneCell<C>,
@@ -93,11 +93,6 @@ where
         self.container.contains(key)
     }
 
-    fn clear(&mut self) {
-        let _ = self.lock.lock_mut_for(()).unwrap();
-        self.container.clear()
-    }
-
     fn take<'b>(
         &'b mut self,
         key: &'b K,
@@ -106,14 +101,20 @@ where
         self.container.take(key)
     }
 
-    fn pop(&mut self) -> Option<(K, V)> {
+    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let _ = self.lock.lock_mut_for(()).unwrap();
-        self.container.pop()
+        self.container.pop(n)
     }
 
-    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        let _ = self.lock.lock_mut_for(()).unwrap();
-        self.container.push(key, reference)
+    fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        match self.lock.lock_mut() {
+            Ok(_) => {
+                let out = self.container.push(elements);
+                self.lock.unlock();
+                out
+            }
+            Err(_) => Vec::new(),
+        }
     }
 }
 
@@ -175,24 +176,6 @@ where
                 (*self.container).get_mut(key),
             )),
             Err(_) => Box::new(std::iter::empty()),
-        }
-    }
-}
-
-impl<'a, K, V, C> Buffered<'a, K, V> for Sequential<C>
-where
-    K: 'a,
-    V: 'a,
-    C: Container<'a, K, V> + Buffered<'a, K, V>,
-{
-    fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        match self.lock.lock_mut() {
-            Ok(_) => {
-                let out = self.container.push_buffer(elements);
-                self.lock.unlock();
-                out
-            }
-            Err(_) => Vec::new(),
         }
     }
 }

@@ -61,7 +61,7 @@ where
         };
         thread::spawn(move || {
             for (k, v) in set.into_iter() {
-                match container.push(k, v) {
+                match container.push(vec![(k, v); 1]).pop() {
                     None => {
                         count.send(1usize).unwrap();
                     }

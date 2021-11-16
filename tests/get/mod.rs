@@ -13,7 +13,7 @@ where
     C: Container<'a, u16, u32> + Get<'a, u16, u32>,
 {
     // Test insertion
-    match c.push(key, value) {
+    match c.push(vec![(key, value); 1]).pop() {
         Some((k, _)) => {
             if k != key {
                 assert!(c.get(&key).any(|(k, _)| k == &key));

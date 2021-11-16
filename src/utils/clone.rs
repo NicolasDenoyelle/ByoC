@@ -159,17 +159,14 @@ where
         self.deref_mut().take(key)
     }
 
-    fn pop(&mut self) -> Option<(K, V)> {
-        self.deref_mut().pop()
+    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+        self.deref_mut().pop(n)
     }
 
-    fn clear(&mut self) {
-        self.deref_mut().clear()
+    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
+        self.deref_mut().push(values)
     }
 
-    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        self.deref_mut().push(key, reference)
-    }
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
         self.deref_mut().flush()
     }

@@ -1,4 +1,4 @@
-use crate::container::{Buffered, Container, Get, Sequential};
+use crate::container::{Container, Get, Sequential};
 use crate::marker::Concurrent;
 use crate::utils::clone::CloneCell;
 use std::hash::{Hash, Hasher};
@@ -33,11 +33,11 @@ use std::marker::Sync;
 /// let mut c = Associative::new(2, 2, |n|{Vector::new(n)}, DefaultHasher::new());
 ///
 /// // Container as room for first and second element and returns None.
-/// assert!(c.push(0, 4).is_none());
-/// assert!(c.push(1, 12).is_none());
+/// assert!(c.push(vec![(0, 4)]).pop().is_none());
+/// assert!(c.push(vec![(1, 12)]).pop().is_none());
 ///
 /// // Then we don't know if a set is full. Next insertion may pop:
-/// match c.push(2, 14) {
+/// match c.push(vec![(2, 14)]).pop() {
 ///       None => { println!("Still room for one more"); }
 ///       Some((key, value)) => {
 ///             assert!(key == 1);
@@ -151,12 +151,6 @@ where
         (0..self.n_sets).map(|i| self.containers[i].count()).sum()
     }
 
-    fn clear(&mut self) {
-        for i in 0..self.n_sets {
-            self.containers[i].clear();
-        }
-    }
-
     fn take<'b>(
         &'b mut self,
         key: &'b K,
@@ -165,66 +159,82 @@ where
         self.containers[i].take(key)
     }
 
-    fn pop(&mut self) -> Option<(K, V)> {
-        let mut victims: Vec<Option<(K, V)>> = (0..self.n_sets)
-            .map(|i| match self.containers[i].lock_mut() {
-                // SAFETY: Lock has just been acquired.
-                Ok(_) => unsafe { self.containers[i].deref_mut().pop() },
-                Err(_) => None,
-            })
-            .collect();
+    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+        let mut victims = Vec::<(K, V)>::new();
+        if n == 0 {
+            return victims;
+        }
+        victims.reserve(n);
 
-        let n = victims.len();
+        // Collect all buckets element count.
+        // We acquire exclusive lock on buckets in the process.
+        let mut lengths =
+            Vec::<(usize, usize)>::with_capacity(self.n_sets + 1);
+        for i in 0..self.n_sets {
+            let n = match self.containers[i].lock_mut() {
+                Ok(_) => unsafe { self.containers[i].deref_mut().count() },
+                Err(_) => 0usize,
+            };
+            lengths.push((n, i));
+        }
+        lengths.sort();
+        lengths.insert(0, (0usize, 0usize));
 
-        let mut v = 0;
-        for i in 1..n {
-            v = match (&victims[i], &victims[v]) {
-                (None, None) => 0,
-                (None, Some(_)) => v,
-                (Some(_), None) => i,
-                (Some((_, vi)), Some((_, vv))) => {
-                    if vi >= vv {
-                        i
-                    } else {
-                        v
-                    }
+        // Compute the number of elements to pop from each bucket.
+        let mut tot = 0usize;
+        let mut count = vec![0usize; self.n_sets];
+        let n_sets = lengths.len();
+        for i in 1..n_sets {
+            if tot >= n {
+                break;
+            }
+            for j in (i..n_sets).rev() {
+                let (lj, cj) = lengths[j];
+                let (li, _) = lengths[j - 1];
+                let l = lj - li;
+                if tot + l >= n {
+                    let l = n - tot;
+                    count[cj] += l;
+                    lengths[j].0 -= l;
+                    tot += l;
+                    break;
+                } else {
+                    count[cj] += l;
+                    lengths[j].0 -= l;
+                    tot += l;
                 }
             }
         }
 
-        for i in (v + 1..n).rev() {
-            match victims.pop().unwrap() {
-                Some((k, r)) => {
-                    assert!(unsafe {
-                        self.containers[i].deref_mut().push(k, r).is_none()
-                    });
-                }
-                None => {}
+        // Append elements to victims vector.
+        // Buckets are unlocked in the process.
+        for (i, n) in count.iter().enumerate() {
+            if n > &0 {
+                victims.append(
+                    &mut unsafe { self.containers[i].deref_mut() }.pop(*n),
+                );
             }
             self.containers[i].unlock();
         }
-
-        let ret = victims.pop().unwrap();
-        self.containers[v].unlock();
-
-        for i in (0..v).rev() {
-            match victims.pop().unwrap() {
-                Some((k, r)) => {
-                    assert!(unsafe {
-                        self.containers[i].deref_mut().push(k, r).is_none()
-                    });
-                }
-                None => {}
-            }
-            self.containers[i].unlock();
-        }
-
-        ret
+        victims
     }
 
-    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        let i = self.set(key.clone());
-        self.containers[i].push(key, reference)
+    fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        let n = elements.len();
+        let mut set_elements: Vec<Vec<(K, V)>> =
+            Vec::with_capacity(self.n_sets);
+        for _ in 0..self.n_sets {
+            set_elements.push(Vec::with_capacity(n));
+        }
+        for e in elements.into_iter() {
+            set_elements[self.set(e.0.clone())].push(e);
+        }
+
+        let mut out = Vec::with_capacity(n);
+        for (i, v) in set_elements.into_iter().enumerate() {
+            out.append(&mut (self.containers[i].push(v)));
+        }
+        out
     }
 }
 
@@ -275,31 +285,5 @@ where
                 .iter_mut()
                 .flat_map(move |c| c.get_mut(&key)),
         )
-    }
-}
-
-impl<'a, K, V, C, H> Buffered<'a, K, V> for Associative<C, H>
-where
-    K: 'a + Hash + Clone,
-    V: 'a + Ord,
-    H: Hasher + Clone,
-    C: Container<'a, K, V> + Buffered<'a, K, V>,
-{
-    fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        let n = elements.len();
-        let mut set_elements: Vec<Vec<(K, V)>> =
-            Vec::with_capacity(self.n_sets);
-        for _ in 0..self.n_sets {
-            set_elements.push(Vec::with_capacity(n));
-        }
-        for e in elements.into_iter() {
-            set_elements[self.set(e.0.clone())].push(e);
-        }
-
-        let mut out = Vec::with_capacity(n);
-        for (i, v) in set_elements.into_iter().enumerate() {
-            out.append(&mut (self.containers[i].push_buffer(v)));
-        }
-        out
     }
 }

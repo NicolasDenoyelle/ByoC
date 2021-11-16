@@ -1,4 +1,4 @@
-use crate::container::{Buffered, Container};
+use crate::container::Container;
 use crate::marker::Packed;
 use crate::utils::ptr::OrdPtr;
 use std::collections::{BTreeMap, BTreeSet};
@@ -26,15 +26,12 @@ use std::collections::{BTreeMap, BTreeSet};
 /// let mut c = BTree::new(1);
 ///
 /// // Container as room for first element and returns None.
-/// assert!(c.push("first", 4).is_none());
+/// assert!(c.push(vec![("first", 4)]).pop().is_none());
 ///
-/// // Container is full and pops a victim.
-/// let (key, value) = c.push("second", 12).unwrap();
-///
-/// // The victim is the first reference because eviction happens before
-/// // insertion.
-/// assert!(key == "first");
-/// assert!(value == 4);
+/// // Container is full and pops a inserted element.
+/// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
+/// assert!(key == "second");
+/// assert!(value == 12);
 /// ```
 pub struct BTree<K, V>
 where
@@ -148,72 +145,64 @@ where
         self.map.contains_key(key)
     }
 
-    fn clear(&mut self) {
-        self.map.clear();
-        self.set.clear();
-        self.references.clear();
-    }
+    fn push(&mut self, mut values: Vec<(K, V)>) -> Vec<(K, V)> {
+        let n = std::cmp::min(
+            self.capacity - self.references.len(),
+            values.len(),
+        );
+        let mut out = values.split_off(n);
 
-    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        if self.capacity == 0 {
-            return Some((key, reference));
-        }
-
-        match self.map.get(&key) {
-            Some(j) => {
-                assert!(self
-                    .set
-                    .remove(&(OrdPtr::new(&self.references[*j].1), key)));
-                self.references.push((key, reference));
-                let ret = Some(self.references.swap_remove(*j));
-                assert!(self
-                    .set
-                    .insert((OrdPtr::new(&self.references[*j].1), key)));
-                ret
-            }
-            None => {
-                let out = if self.references.len() >= self.capacity {
-                    self.pop()
-                } else {
-                    None
-                };
-
-                self.references.push((key, reference));
-                let n = self.references.len() - 1;
-                assert!(self.map.insert(key, n).is_none());
-                assert!(self
-                    .set
-                    .insert((OrdPtr::new(&self.references[n].1), key)));
-                out
+        for (key, value) in values.into_iter() {
+            match self.map.get(&key) {
+                Some(_) => out.push((key, value)),
+                None => {
+                    self.references.push((key, value));
+                    let n = self.references.len() - 1;
+                    assert!(self.map.insert(key, n).is_none());
+                    assert!(self.set.insert((
+                        OrdPtr::new(&self.references[n].1),
+                        key
+                    )));
+                }
             }
         }
+        out
     }
 
-    fn pop(&mut self) -> Option<(K, V)> {
-        let k = match self.set.iter().rev().next() {
-            None => return None,
-            Some((_, k)) => k.clone(),
-        };
+    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+        let mut ret = Vec::new();
 
-        let n = self.references.len() - 1;
-        let j = self.map.remove(&k).unwrap();
-        assert!(self.set.remove(&(OrdPtr::new(&self.references[j].1), k)));
-
-        if j != n {
-            let (k_last, r_last) = {
-                let (k, r) = self.references.iter().rev().next().unwrap();
-                (k.clone(), OrdPtr::new(r))
+        for _ in 0..n {
+            let k = match self.set.iter().rev().next() {
+                None => break,
+                Some((_, k)) => k.clone(),
             };
-            assert!(self.set.remove(&(r_last, k_last)));
-            self.map.insert(k_last, j);
-            let ret = self.references.swap_remove(j);
+
+            let n = self.references.len() - 1;
+            let j = self.map.remove(&k).unwrap();
             assert!(self
                 .set
-                .insert((OrdPtr::new(&self.references[j].1), k_last)));
-            Some(ret)
-        } else {
-            Some(self.references.swap_remove(j))
+                .remove(&(OrdPtr::new(&self.references[j].1), k)));
+
+            let e = if j != n {
+                let (k_last, r_last) = {
+                    let (k, r) =
+                        self.references.iter().rev().next().unwrap();
+                    (k.clone(), OrdPtr::new(r))
+                };
+                assert!(self.set.remove(&(r_last, k_last)));
+                self.map.insert(k_last, j);
+                let ret = self.references.swap_remove(j);
+                assert!(self
+                    .set
+                    .insert((OrdPtr::new(&self.references[j].1), k_last)));
+                ret
+            } else {
+                self.references.swap_remove(j)
+            };
+            ret.push(e);
         }
+        ret
     }
 
     fn take<'b>(
@@ -231,10 +220,5 @@ impl<'a, K, V> Packed<'a, K, V> for BTree<K, V>
 where
     K: 'a + Ord + Copy,
     V: 'a + Ord,
-{
-}
-
-impl<'a, K: 'a + Ord + Copy, V: 'a + Ord> Buffered<'a, K, V>
-    for BTree<K, V>
 {
 }

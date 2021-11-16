@@ -1,4 +1,4 @@
-use crate::container::{Buffered, Container, Get};
+use crate::container::{Container, Get};
 use crate::marker::Packed;
 use std::marker::PhantomData;
 
@@ -33,14 +33,14 @@ use std::marker::PhantomData;
 /// assert_eq!(cache.capacity(), 2);
 ///
 /// // Populate cache
-/// assert!(cache.push("first", 0).is_none());
+/// assert!(cache.push(vec![("first", 0)]).pop().is_none());
 /// // First layer is full. "first" get pushed to the second layer
 /// // while "second" lives in the first one.
-/// assert!(cache.push("second", 3).is_none());
+/// assert!(cache.push(vec![("second", 3)]).pop().is_none());
 ///
-/// // Cache overflow. Victim is the max element in second layer.
-/// let victim = cache.push("third", 2).unwrap();
-/// assert_eq!(victim.0, "first");
+/// // Cache overflow.
+/// let victim = cache.push(vec![("third", 2)]).pop().unwrap();
+/// assert_eq!(victim.0, "third");
 /// ```
 pub struct Stack<'a, K: 'a, V: 'a, C1, C2>
 where
@@ -100,11 +100,6 @@ where
         self.l1.count() + self.l2.count()
     }
 
-    fn clear(&mut self) {
-        self.l1.clear();
-        self.l2.clear();
-    }
-
     fn take<'b>(
         &'b mut self,
         key: &'b K,
@@ -112,18 +107,17 @@ where
         Box::new(self.l1.take(key).chain(self.l2.take(key)))
     }
 
-    fn pop(&mut self) -> Option<(K, V)> {
-        match self.l2.pop() {
-            None => self.l1.pop(),
-            Some(x) => Some(x),
+    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+        let mut v = self.l2.pop(n);
+
+        if v.len() < n {
+            v.append(&mut self.l1.pop(n - v.len()));
         }
+        v
     }
 
-    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        match self.l1.push(key, reference) {
-            None => None,
-            Some((k, v)) => self.l2.push(k, v),
-        }
+    fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        self.l2.push(self.l1.push(elements))
     }
 }
 
@@ -153,17 +147,5 @@ where
         key: &'b K,
     ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
         Box::new(self.l1.get_mut(key).chain(self.l2.get_mut(key)))
-    }
-}
-
-impl<'a, K, V, C1, C2> Buffered<'a, K, V> for Stack<'a, K, V, C1, C2>
-where
-    K: 'a,
-    V: 'a,
-    C1: Container<'a, K, V> + Buffered<'a, K, V>,
-    C2: Container<'a, K, V> + Buffered<'a, K, V>,
-{
-    fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        self.l2.push_buffer(self.l1.push_buffer(elements))
     }
 }

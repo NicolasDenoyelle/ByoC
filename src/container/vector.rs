@@ -1,4 +1,4 @@
-use crate::container::{Buffered, Container, Get};
+use crate::container::{Container, Get};
 use crate::marker::Packed;
 use std::cmp::Eq;
 use std::vec::Vec;
@@ -25,14 +25,12 @@ use std::vec::Vec;
 /// let mut c = Vector::new(1);
 ///
 /// // Container as room for first element and returns None.
-/// assert!(c.push("first", 4).is_none());
+/// assert!(c.push(vec![("first", 4)]).pop().is_none());
 ///
-/// // Container is full and pops a victim.
-/// let (key, value) = c.push("second", 12).unwrap();
-///
-/// // The victim is the second reference because it has a greater value.
-/// assert!(key == "first");
-/// assert!(value == 4);
+/// // Container is full and pops inserted value.
+/// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
+/// assert!(key == "second");
+/// assert!(value == 12);
 /// ```
 pub struct Vector<K: Eq, V> {
     capacity: usize,
@@ -103,35 +101,23 @@ where
         return self.values.len();
     }
 
-    fn clear(&mut self) {
-        self.values.clear()
+    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+        self.values.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
+        let i = self.values.len();
+        self.values.split_off(i - std::cmp::min(i, n))
     }
 
-    fn pop(&mut self) -> Option<(K, V)> {
-        let i = match self
-            .values
-            .iter()
-            .enumerate()
-            .min_by(|(_, (_, v1)), (_, (_, v2))| v1.cmp(v2))
-        {
-            None => return None,
-            Some((i, _)) => i,
-        };
-        Some(self.values.swap_remove(i))
-    }
+    fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        let n = std::cmp::min(
+            self.capacity - self.values.len(),
+            elements.len(),
+        );
+        let out = elements.split_off(n);
 
-    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        if self.capacity == 0 {
-            return Some((key, reference));
+        if n > 0 {
+            self.values.append(&mut elements);
         }
-
-        let victim = if self.values.len() >= self.capacity {
-            self.pop()
-        } else {
-            None
-        };
-        self.values.push((key, reference));
-        victim
+        out
     }
 
     fn take<'b>(
@@ -178,29 +164,5 @@ impl<'a, K: 'a + Eq, V: 'a + Ord> Get<'a, K, V> for Vector<K, V> {
                 None
             }
         }))
-    }
-}
-
-impl<'a, K: 'a + Eq, V: 'a + Ord> Buffered<'a, K, V> for Vector<K, V> {
-    fn push_buffer(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        let n = self.capacity - self.values.len();
-        if n >= elements.len() {
-            self.values.append(&mut elements);
-            Vec::new()
-        } else if elements.len() == self.capacity {
-            std::mem::swap(&mut self.values, &mut elements);
-            elements
-        } else if elements.len() > self.capacity {
-            elements.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
-            self.values.append(&mut elements.split_off(self.capacity));
-            std::mem::swap(&mut self.values, &mut elements);
-            elements
-        } else {
-            self.values.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
-            let out =
-                self.values.split_off(self.capacity - elements.len());
-            self.values.append(&mut elements);
-            out
-        }
     }
 }

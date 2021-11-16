@@ -22,25 +22,18 @@ pub trait Container<'a, K: 'a, V: 'a> {
         key: &'b K,
     ) -> Box<dyn Iterator<Item = (K, V)> + 'b>;
 
-    /// Remove a value from the container.
-    /// If cache is empty, return None.
-    /// Else evict and return a victim key/value pair.
-    fn pop(&mut self) -> Option<(K, V)>;
+    /// Remove up to `n` values from the container.
+    /// If less than `n` values are stored in the containers,
+    /// the returned vector contains all the container values and
+    /// the container is left with not value.
+    fn pop(&mut self, n: usize) -> Vec<(K, V)>;
 
-    /// Remove all values from the container.
-    fn clear(&mut self) {
-        #[allow(unused_must_use)]
-        {
-            self.flush();
-        }
-    }
-
-    /// Insert a key/value pair in the container. If the container was
-    /// full, a victim is removed before insertion then returned.
+    /// Insert key/value pairs in the container. If the container cannot
+    /// store all the values, overflowing values are returned.
     ///
     /// * `key`: The key associated with the value to insert.
-    /// * `value`: The cache value to insert.
-    fn push(&mut self, key: K, value: V) -> Option<(K, V)>;
+    /// * `values`: The cache values to insert.
+    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)>;
 
     /// Empty the container and retrieve all of its elements.
     /// The container becomes empty and available at the end of the call.
@@ -62,35 +55,6 @@ pub trait Get<'a, K: 'a, V: 'a>: Container<'a, K, V> {
 }
 
 //------------------------------------------------------------------------//
-/// `Buffered` trait.
-/// Containers implementing this trait can optimize
-/// [`push()`](trait.Container.html#method.push) method when inserting
-/// multiple elements at once.  
-/// For instance the
-/// [`FileMap`](./sequential/struct.FileMap.html) container walks
-/// the entire file when pushing a (key, value) pair.
-/// This trait implementation will also walk the entire file once but
-/// will perform all possible insertions meanwhile.
-pub trait Buffered<'a, K: 'a, V: 'a>: Container<'a, K, V> {
-    /// Insert a buffer of keys and value in the container.
-    /// Returns a vector of victims if the container overflows.
-    /// Any container can implement this trait for free.
-    /// The default implementation will use
-    /// [`push()`](trait.Container.html#method.push) method on each
-    /// element in input.
-    fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        let mut out = Vec::new();
-        for (k, v) in elements {
-            match self.push(k, v) {
-                None => (),
-                Some(x) => out.push(x),
-            }
-        }
-        out
-    }
-}
-
-//------------------------------------------------------------------------//
 // Containers implementations.
 //------------------------------------------------------------------------//
 
@@ -106,7 +70,3 @@ mod stack;
 pub use crate::container::stack::Stack;
 mod vector;
 pub use crate::container::vector::Vector;
-#[cfg(feature = "filemap")]
-mod filemap;
-#[cfg(feature = "filemap")]
-pub use crate::container::filemap::FileMap;

@@ -1,4 +1,4 @@
-use crate::container::{Buffered, Container, Get};
+use crate::container::{Container, Get};
 use crate::marker::Concurrent;
 use crate::utils::clone::CloneCell;
 use std::marker::PhantomData;
@@ -30,8 +30,7 @@ use std::time::Instant;
 /// let mut c = Profiler::new(c);
 ///
 /// // Populate Container
-/// c.push("first", 0);
-/// c.push("second", 1);
+/// c.push(vec![("first", 0), ("second", 1)]);
 ///
 /// // look at statistics
 /// assert_eq!(c.write(), 2);
@@ -68,9 +67,10 @@ use std::time::Instant;
 /// assert_eq!(c.hit(), 2);
 /// assert_eq!(c.miss(), 1);
 ///
-/// // `clear()` updates writes by the amount of elements in the container.
-/// c.clear();
-/// assert_eq!(c.write(), 5);
+/// // `flush()` updates reads and writes only if the result is iterated.
+/// // Reads and writes are incremented at each iteration.
+/// c.flush();
+/// assert_eq!(c.write(), 4);
 ///
 /// // `contains()` is consider as one read and will update hits and misses.
 /// c.contains(&"first");
@@ -338,16 +338,6 @@ where
         out
     }
 
-    fn clear(&mut self) {
-        let c = self.cache.count();
-        let t0 = Instant::now();
-        self.cache.clear();
-        let tf = t0.elapsed().as_millis();
-
-        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.write.fetch_add(c as u64, Ordering::SeqCst);
-    }
-
     fn contains(&self, key: &K) -> bool {
         let t0 = Instant::now();
         let out = self.cache.contains(key);
@@ -385,45 +375,25 @@ where
 
     /// Counts for one cache access and one hit.
     /// See [`pop` function](../trait.Container.html)
-    fn pop(&mut self) -> Option<(K, V)> {
+    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let t0 = Instant::now();
-        let out = self.cache.pop();
+        let out = self.cache.pop(n);
         let tf = t0.elapsed().as_millis();
         self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(n as u64, Ordering::SeqCst);
         self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
+        self.stats.write.fetch_add(n as u64, Ordering::SeqCst);
         out
     }
 
-    fn push(&mut self, key: K, reference: V) -> Option<(K, V)> {
-        let t0 = Instant::now();
-        let out = self.cache.push(key, reference);
-        let tf = t0.elapsed().as_millis();
-        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
-        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
-        out
-    }
-}
-
-impl<'a, K, V, C> Buffered<'a, K, V> for Profiler<K, V, C>
-where
-    K: 'a,
-    V: 'a,
-    C: Container<'a, K, V> + Buffered<'a, K, V>,
-{
-    fn push_buffer(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+    fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = elements.len();
         let t0 = Instant::now();
-        let out = self.cache.push_buffer(elements);
+        let out = self.cache.push(elements);
         let tf = t0.elapsed().as_millis();
 
         self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats
-            .read
-            .fetch_add(out.len() as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(n as u64, Ordering::SeqCst);
         self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
         self.stats.write.fetch_add(n as u64, Ordering::SeqCst);
         out

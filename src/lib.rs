@@ -69,15 +69,12 @@ pub mod reference;
 /// let mut c = Vector::new(1);
 ///
 /// // Container as room for first element and returns None.
-/// assert!(c.push("first", 4).is_none());
+/// assert!(c.push(vec![("first", 4)]).pop().is_none());
 ///
-/// // Container is full and pops a victim.
-/// let (key, value) = c.push("second", 12).unwrap();
-///
-/// // The victim is the first element because evictions happens before
-/// // insertions.
-/// assert!(key == "first");
-/// assert!(value == 4);
+/// // Container is full and pops a inserted element.
+/// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
+/// assert!(key == "second");
+/// assert!(value == 12);
 /// ```
 pub mod container;
 

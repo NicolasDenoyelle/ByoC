@@ -16,7 +16,7 @@ where
     let capacity = c.capacity();
 
     // Test insertion
-    match c.push(key, value) {
+    match c.push(vec![(key, value); 1]).pop() {
         Some((k, v)) => {
             // Insertion popped then count is not updated.
             assert_eq!(c.count(), count);
@@ -34,7 +34,7 @@ where
                 // Take and reinsert of just inserted key must work.
                 let (k, v) = c.take(&key).next().unwrap();
                 assert_eq!(key, k);
-                assert!(c.push(k, v).is_none());
+                assert!(c.push(vec![(k, v); 1]).pop().is_none());
             }
         }
         None => {
@@ -69,7 +69,11 @@ where
 {
     let mut i = 0;
     let count = c.count();
-    while let Some((k, v)) = c.pop() {
+    loop {
+        let (k, v) = match c.pop(1).pop() {
+            None => break,
+            Some(x) => x,
+        };
         assert!(pushed
             .iter()
             .find(|(_k, _v)| { _k == &k && _v == &v })
