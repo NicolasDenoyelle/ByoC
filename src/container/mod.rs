@@ -70,3 +70,7 @@ mod stack;
 pub use crate::container::stack::Stack;
 mod vector;
 pub use crate::container::vector::Vector;
+#[cfg(feature = "stream")]
+mod stream;
+#[cfg(feature = "stream")]
+pub use crate::container::stream::Stream;

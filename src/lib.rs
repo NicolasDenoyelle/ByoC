@@ -2,7 +2,8 @@
 /// This code is not available to user but used throughout the
 /// library.
 mod utils;
-pub use utils::io::{IOStruct, IOStructMut};
+#[cfg(feature = "stream")]
+pub use utils::io::{IOError, IOResult, IOStruct, IOStructMut};
 
 /// Library custom read/write lock.
 mod lock;
