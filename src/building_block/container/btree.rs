@@ -1,13 +1,12 @@
-use crate::container::Container;
-use crate::marker::Packed;
-use crate::utils::ptr::OrdPtr;
+use crate::private::ptr::OrdPtr;
+use crate::BuildingBlock;
 use std::collections::{BTreeMap, BTreeSet};
 
 //------------------------------------------------------------------------//
 // Ordered set of references and key value map.                           //
 //------------------------------------------------------------------------//
 
-/// [`Container`](trait.Container.html) with ordered keys and values.
+/// [`BuildingBlock`](../trait.BuildingBlock.html) with ordered keys and values.
 ///
 /// BTree is a container organized with a binary tree structures.
 /// Keys are kept in a binary tree for fast lookups.
@@ -20,15 +19,16 @@ use std::collections::{BTreeMap, BTreeSet};
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, BTree};
+/// use cache::BuildingBlock;
+/// use cache::building_block::container::BTree;
 ///
 /// // container with only 1 element.
 /// let mut c = BTree::new(1);
 ///
-/// // Container as room for first element and returns None.
+/// // BuildingBlock as room for first element and returns None.
 /// assert!(c.push(vec![("first", 4)]).pop().is_none());
 ///
-/// // Container is full and pops a inserted element.
+/// // BuildingBlock is full and pops a inserted element.
 /// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
 /// assert!(key == "second");
 /// assert!(value == 12);
@@ -38,7 +38,7 @@ where
     K: Copy + Ord,
     V: Ord,
 {
-    // Container capacity
+    // BuildingBlock capacity
     capacity: usize,
     // Sparse vector of references.
     references: Vec<(K, V)>,
@@ -94,7 +94,7 @@ where
 }
 
 //------------------------------------------------------------------------//
-//  Container implementation.                                             //
+//  BuildingBlock implementation.                                             //
 //------------------------------------------------------------------------//
 
 struct BTreeTakeIterator<'a, K, V>
@@ -117,7 +117,7 @@ where
     }
 }
 
-impl<'a, K, V> Container<'a, K, V> for BTree<K, V>
+impl<'a, K, V> BuildingBlock<'a, K, V> for BTree<K, V>
 where
     K: 'a + Copy + Ord,
     V: 'a + Ord,
@@ -214,11 +214,4 @@ where
             key: &key,
         })
     }
-}
-
-impl<'a, K, V> Packed<'a, K, V> for BTree<K, V>
-where
-    K: 'a + Ord + Copy,
-    V: 'a + Ord,
-{
 }

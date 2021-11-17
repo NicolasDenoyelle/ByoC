@@ -1,6 +1,6 @@
 mod container;
 mod get;
-use cache::container::Vector;
+use cache::building_block::container::Vector;
 
 #[test]
 fn container_test() {

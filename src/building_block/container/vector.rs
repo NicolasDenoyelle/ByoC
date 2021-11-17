@@ -1,5 +1,4 @@
-use crate::container::{Container, Get};
-use crate::marker::Packed;
+use crate::{BuildingBlock, Get};
 use std::cmp::Eq;
 use std::vec::Vec;
 
@@ -7,27 +6,28 @@ use std::vec::Vec;
 //  Vector struct
 //-------------------------------------------------------------------------
 
-/// Unordered [`container`](trait.Container.html).
+/// Unordered [`BuildingBlock`](../trait.BuildingBlock.html).
 ///
 /// Vector holds values in a `Vec<(index, value)>`.
 /// It is an unordered container.
 /// Any operation on vector (
-/// [`push()`](trait.Container.html#tymethod.push),
-/// [`take()`](trait.Container.html#tymethod.take),
-/// [`pop()`](trait.Container.html#tymethod.pop)
+/// [`push()`](../trait.BuildingBlock.html#tymethod.push),
+/// [`take()`](../trait.BuildingBlock.html#tymethod.take),
+/// [`pop()`](../trait.BuildingBlock.html#tymethod.pop)
 ///
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Vector};
+/// use cache::BuildingBlock;
+/// use cache::building_block::container::Vector;
 ///
 /// // container with only 1 element.
 /// let mut c = Vector::new(1);
 ///
-/// // Container as room for first element and returns None.
+/// // BuildingBlock as room for first element and returns None.
 /// assert!(c.push(vec![("first", 4)]).pop().is_none());
 ///
-/// // Container is full and pops inserted value.
+/// // BuildingBlock is full and pops inserted value.
 /// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
 /// assert!(key == "second");
 /// assert!(value == 12);
@@ -77,10 +77,10 @@ impl<'a, K: Eq, V> Iterator for VectorTakeIterator<'a, K, V> {
 }
 
 //------------------------------------------------------------------------//
-//  Container implementation.                                             //
+//  BuildingBlock implementation.                                             //
 //------------------------------------------------------------------------//
 
-impl<'a, K, V> Container<'a, K, V> for Vector<K, V>
+impl<'a, K, V> BuildingBlock<'a, K, V> for Vector<K, V>
 where
     K: 'a + Eq,
     V: 'a + Ord,
@@ -130,13 +130,6 @@ where
             current: 0usize,
         })
     }
-}
-
-impl<'a, K, V> Packed<'a, K, V> for Vector<K, V>
-where
-    K: 'a + Eq,
-    V: 'a + Ord,
-{
 }
 
 impl<'a, K: 'a + Eq, V: 'a + Ord> Get<'a, K, V> for Vector<K, V> {

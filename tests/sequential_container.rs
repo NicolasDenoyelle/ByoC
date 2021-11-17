@@ -2,7 +2,8 @@ mod concurrent;
 mod container;
 mod get;
 
-use cache::container::{Sequential, Vector};
+use cache::building_block::container::Vector;
+use cache::building_block::wrapper::Sequential;
 
 #[test]
 fn container_test() {

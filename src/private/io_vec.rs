@@ -1,69 +1,8 @@
+use crate::utils::stream::Resize;
 use serde::{de::DeserializeOwned, Serialize};
-use std::fs::File;
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
 use std::vec::Vec;
-
-//----------------------------------------------------------------------------//
-// Resize trait
-//----------------------------------------------------------------------------//
-
-/// Resize a stream.
-/// If the stream is extended, the part of the stream beyond
-/// current stream size is filled with 0s.
-/// If the stream is shrinked, it is truncated from the end of it.
-///
-/// # Arguments
-///
-/// * size: The new stream size in bytes.
-pub trait Resize {
-    fn resize(&mut self, size: u64) -> std::io::Result<()>;
-}
-
-impl Resize for File {
-    fn resize(&mut self, size: u64) -> std::io::Result<()> {
-        match self.set_len(size) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
-        }
-    }
-}
-
-impl<R: Resize + Read> Resize for BufReader<R> {
-    fn resize(&mut self, size: u64) -> std::io::Result<()> {
-        self.get_mut().resize(size)
-    }
-}
-
-impl<R: Resize + Write> Resize for BufWriter<R> {
-    fn resize(&mut self, size: u64) -> std::io::Result<()> {
-        self.get_mut().resize(size)
-    }
-}
-
-//----------------------------------------------------------------------------//
-// Error type definition
-//----------------------------------------------------------------------------//
-
-#[derive(Debug)]
-pub enum IOError {
-    /// Error returned by call to `seek()` from `std::io::Seek` trait.
-    SeekError(std::io::Error),
-    /// Error returned by call to `read()` from `std::io::Read` trait.
-    ReadError(std::io::Error),
-    /// Error returned by call to `write()` from `std::io::Write` trait.
-    WriteError(std::io::Error),
-    /// Error returned by call to `serialize()` from `bincode::serialize()`.
-    SerializeError(bincode::Error),
-    /// Error returned by call to `deserialize()` from `bincode::deserialize()`.
-    DeserializeError(bincode::Error),
-    /// Error related to some size.
-    InvalidSizeError,
-}
-
-/// Result type of [`cache::utils::io`](index.html)
-/// See [`IOError`](enum.IOError.html).
-pub type IOResult<T> = Result<T, IOError>;
 
 //----------------------------------------------------------------------------//
 // In-memory representation of a chunk.
@@ -71,7 +10,7 @@ pub type IOResult<T> = Result<T, IOError>;
 
 /// A dynamically sized chunk of data.
 /// The size is set once at initialization and can never be changed.
-struct IOChunk {
+pub struct IOChunk {
     buf: Vec<u8>,
 }
 
@@ -145,6 +84,44 @@ impl IOChunk {
         }
     }
 }
+
+/// Vector of fixed size chunks stored into a stream of bytes (e.g a file).
+/// The vector primitives will
+/// [serialize](../../../bincode/fn.serialize.html)/[deserialize](../../../bincode/fn.deserialize_from.html) items into/from fixed size chunks.
+/// If items cannot fit chunks, methods will fail.
+pub struct IOVec<O, T>
+where
+    O: DeserializeOwned + Serialize,
+    T: Read + Write + Seek + Resize + Clone,
+{
+    stream: T,
+    chunk_size: usize,
+    _o: PhantomData<O>,
+}
+
+//----------------------------------------------------------------------------//
+// Error type definition
+//----------------------------------------------------------------------------//
+
+#[derive(Debug)]
+pub enum IOError {
+    /// Error returned by call to `seek()` from `std::io::Seek` trait.
+    SeekError(std::io::Error),
+    /// Error returned by call to `read()` from `std::io::Read` trait.
+    ReadError(std::io::Error),
+    /// Error returned by call to `write()` from `std::io::Write` trait.
+    WriteError(std::io::Error),
+    /// Error returned by call to `serialize()` from `bincode::serialize()`.
+    SerializeError(bincode::Error),
+    /// Error returned by call to `deserialize()` from `bincode::deserialize()`.
+    DeserializeError(bincode::Error),
+    /// Error related to some size.
+    InvalidSizeError,
+}
+
+/// Result type of [`cache::utils::io`](index.html)
+/// See [`IOError`](enum.IOError.html).
+pub type IOResult<T> = Result<T, IOError>;
 
 //----------------------------------------------------------------------------//
 //  On-disk chunk representation
@@ -275,22 +252,180 @@ impl<'a, T> std::ops::Deref for IOStruct<'a, T> {
 }
 
 //----------------------------------------------------------------------------//
-// IO vector implementation
+// Iterators implementation
 //----------------------------------------------------------------------------//
 
-/// Vector of fixed size chunks stored into a stream of bytes (e.g a file).
-/// The vector primitives will
-/// [serialize](../../../bincode/fn.serialize.html)/[deserialize](../../../bincode/fn.deserialize_from.html) items into/from fixed size chunks.
-/// If items cannot fit chunks, methods will fail.
-pub struct IOVec<O, T>
+pub struct IOIter<O, T>
 where
-    O: DeserializeOwned + Serialize,
-    T: Read + Write + Seek + Resize,
+    O: DeserializeOwned,
+    T: Read + Seek,
 {
-    stream: T,
+    stream: BufReader<T>,
     chunk_size: usize,
     _o: PhantomData<O>,
 }
+
+impl<O, T> IOIter<O, T>
+where
+    O: DeserializeOwned + Serialize,
+    T: Read + Seek,
+{
+    pub fn new(stream: BufReader<T>, chunk_size: usize) -> Self {
+        IOIter {
+            stream: stream,
+            chunk_size: chunk_size,
+            _o: PhantomData,
+        }
+    }
+}
+
+impl<O, T> Iterator for IOIter<O, T>
+where
+    O: DeserializeOwned,
+    T: Read + Seek,
+{
+    type Item = O;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match IOChunk::from_stream(self.chunk_size, &mut self.stream) {
+            Err(_) => panic!("Read error while iterating stream."),
+            Ok(None) => None,
+            Ok(Some(mut c)) => match c.deserialize::<O>() {
+                Err(_) => {
+                    panic!("Deserialize error while iterating stream.")
+                }
+                Ok(o) => Some(o),
+            },
+        }
+    }
+}
+
+pub struct IOVecIter<'a, O, T>
+where
+    O: DeserializeOwned,
+    T: Read + Seek,
+{
+    stream: BufReader<T>,
+    chunk_size: usize,
+    _o: PhantomData<&'a O>,
+}
+
+impl<'a, O, T> IOVecIter<'a, O, T>
+where
+    O: DeserializeOwned + Serialize,
+    T: Read + Seek,
+{
+    pub fn new(stream: BufReader<T>, chunk_size: usize) -> Self {
+        IOVecIter {
+            stream: stream,
+            chunk_size: chunk_size,
+            _o: PhantomData,
+        }
+    }
+}
+
+impl<'a, O, T> Iterator for IOVecIter<'a, O, T>
+where
+    O: DeserializeOwned,
+    T: Read + Seek,
+{
+    type Item = IOStruct<'a, O>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match IOChunk::from_stream(self.chunk_size, &mut self.stream) {
+            Err(_) => panic!("Read error while iterating stream."),
+            Ok(None) => None,
+            Ok(Some(mut c)) => match c.deserialize::<O>() {
+                Err(_) => {
+                    panic!("Deserialize error while iterating stream.")
+                }
+                Ok(o) => Some(IOStruct::new(o)),
+            },
+        }
+    }
+}
+
+pub struct IOVecIterMut<'a, O, T>
+where
+    O: DeserializeOwned + Serialize,
+    T: Read + Seek + Write,
+{
+    stream: BufReader<T>,
+    chunk_size: usize,
+    pos: T,
+    _o: PhantomData<&'a O>,
+}
+
+impl<'a, O, T> IOVecIterMut<'a, O, T>
+where
+    O: DeserializeOwned + Serialize,
+    T: Read + Seek + Write,
+{
+    pub fn new(stream: BufReader<T>, chunk_size: usize, pos: T) -> Self {
+        IOVecIterMut {
+            stream: stream,
+            chunk_size: chunk_size,
+            pos: pos,
+            _o: PhantomData,
+        }
+    }
+}
+
+impl<'a, O, T> Iterator for IOVecIterMut<'a, O, T>
+where
+    O: DeserializeOwned + Serialize,
+    T: Read + Seek + Write + Clone,
+{
+    type Item = IOStructMut<'a, O, T>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // Create stream at position where to write back the next chunk.
+        let current = self.pos.clone();
+
+        // Read stream
+        let out = match IOChunk::from_stream(
+            self.chunk_size,
+            &mut self.stream,
+        ) {
+            Err(e) => Err(e),
+            Ok(None) => Ok(None),
+            Ok(Some(mut c)) => match c.deserialize::<O>() {
+                Err(e) => Err(e),
+                Ok(o) => match IOStructMut::<O, T>::new(current, o) {
+                    Err(e) => Err(e),
+                    Ok(s) => {
+                        self.pos
+                            .seek(SeekFrom::Current(
+                                self.chunk_size as i64,
+                            ))
+                            .expect("Seek error after reading chunk.");
+                        Ok(Some(s))
+                    }
+                },
+            },
+        };
+
+        match out {
+            Ok(o) => o,
+            Err(e) => match e {
+                IOError::SeekError(_) => {
+                    panic!("Seek error while iterating stream.")
+                }
+                IOError::ReadError(_) => {
+                    panic!("Read error while iterating stream.")
+                }
+                IOError::DeserializeError(_) => {
+                    panic!("Deserialize error while iterating stream.")
+                }
+                _ => panic!("Error while iterating stream."),
+            },
+        }
+    }
+}
+
+//----------------------------------------------------------------------------//
+// IOVec implementation.
+//----------------------------------------------------------------------------//
 
 #[allow(dead_code)]
 impl<O, T> IOVec<O, T>
@@ -310,6 +445,11 @@ where
             chunk_size: chunk_size,
             _o: PhantomData,
         }
+    }
+
+    /// Get a clone of inner stream.
+    pub fn get_stream(&self) -> T {
+        self.stream.clone()
     }
 
     /// The number of element in the vector.
@@ -502,19 +642,11 @@ where
         let mut stream = self.stream.clone();
         stream.seek(SeekFrom::Start(0)).unwrap();
 
-        IOVecIter {
-            stream: BufReader::new(stream),
-            chunk_size: self.chunk_size,
-            _o: PhantomData,
-        }
+        IOVecIter::new(BufReader::new(stream), self.chunk_size)
     }
 
     pub fn into_iter(self) -> IOIter<O, T> {
-        IOIter {
-            stream: BufReader::new(self.stream),
-            chunk_size: self.chunk_size,
-            _o: PhantomData,
-        }
+        IOIter::new(BufReader::new(self.stream), self.chunk_size)
     }
 
     /// Build an iterator over mutable items of this `IOVec`.
@@ -524,144 +656,14 @@ where
         let mut stream = self.stream.clone();
         stream.seek(SeekFrom::Start(0)).unwrap();
         let pos = stream.clone();
-        IOVecIterMut {
-            stream: BufReader::new(stream),
-            chunk_size: self.chunk_size,
-            pos: pos,
-            _o: PhantomData,
-        }
-    }
-}
-
-pub struct IOIter<O, T>
-where
-    O: DeserializeOwned,
-    T: Read + Seek,
-{
-    stream: BufReader<T>,
-    chunk_size: usize,
-    _o: PhantomData<O>,
-}
-
-impl<O, T> Iterator for IOIter<O, T>
-where
-    O: DeserializeOwned,
-    T: Read + Seek,
-{
-    type Item = O;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match IOChunk::from_stream(self.chunk_size, &mut self.stream) {
-            Err(_) => panic!("Read error while iterating stream."),
-            Ok(None) => None,
-            Ok(Some(mut c)) => match c.deserialize::<O>() {
-                Err(_) => {
-                    panic!("Deserialize error while iterating stream.")
-                }
-                Ok(o) => Some(o),
-            },
-        }
-    }
-}
-
-pub struct IOVecIter<'a, O, T>
-where
-    O: DeserializeOwned,
-    T: Read + Seek,
-{
-    stream: BufReader<T>,
-    chunk_size: usize,
-    _o: PhantomData<&'a O>,
-}
-
-impl<'a, O, T> Iterator for IOVecIter<'a, O, T>
-where
-    O: DeserializeOwned,
-    T: Read + Seek,
-{
-    type Item = IOStruct<'a, O>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match IOChunk::from_stream(self.chunk_size, &mut self.stream) {
-            Err(_) => panic!("Read error while iterating stream."),
-            Ok(None) => None,
-            Ok(Some(mut c)) => match c.deserialize::<O>() {
-                Err(_) => {
-                    panic!("Deserialize error while iterating stream.")
-                }
-                Ok(o) => Some(IOStruct::new(o)),
-            },
-        }
-    }
-}
-
-pub struct IOVecIterMut<'a, O, T>
-where
-    O: DeserializeOwned + Serialize,
-    T: Read + Seek + Write,
-{
-    stream: BufReader<T>,
-    chunk_size: usize,
-    pos: T,
-    _o: PhantomData<&'a O>,
-}
-
-impl<'a, O, T> Iterator for IOVecIterMut<'a, O, T>
-where
-    O: DeserializeOwned + Serialize,
-    T: Read + Seek + Write + Clone,
-{
-    type Item = IOStructMut<'a, O, T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        // Create stream at position where to write back the next chunk.
-        let current = self.pos.clone();
-
-        // Read stream
-        let out = match IOChunk::from_stream(
-            self.chunk_size,
-            &mut self.stream,
-        ) {
-            Err(e) => Err(e),
-            Ok(None) => Ok(None),
-            Ok(Some(mut c)) => match c.deserialize::<O>() {
-                Err(e) => Err(e),
-                Ok(o) => match IOStructMut::<O, T>::new(current, o) {
-                    Err(e) => Err(e),
-                    Ok(s) => {
-                        self.pos
-                            .seek(SeekFrom::Current(
-                                self.chunk_size as i64,
-                            ))
-                            .expect("Seek error after reading chunk.");
-                        Ok(Some(s))
-                    }
-                },
-            },
-        };
-
-        match out {
-            Ok(o) => o,
-            Err(e) => match e {
-                IOError::SeekError(_) => {
-                    panic!("Seek error while iterating stream.")
-                }
-                IOError::ReadError(_) => {
-                    panic!("Read error while iterating stream.")
-                }
-                IOError::DeserializeError(_) => {
-                    panic!("Deserialize error while iterating stream.")
-                }
-                _ => panic!("Error while iterating stream."),
-            },
-        }
+        IOVecIterMut::new(BufReader::new(stream), self.chunk_size, pos)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::IOVec;
-    use crate::utils::vstream::VecStream;
+    use crate::utils::stream::VecStream;
 
     #[test]
     fn test_iovec() {
@@ -669,9 +671,10 @@ mod tests {
         let n = 10;
 
         // Test append increases length.
-        vec.append(vec![[1u8; 4]; 2]).unwrap();
+        vec.append(&mut vec![[1u8; 4]; 2]).unwrap();
         assert_eq!(vec.len().unwrap(), 2);
-        vec.append(vec![[1u8; 4]; n - vec.len().unwrap()]).unwrap();
+        vec.append(&mut vec![[1u8; 4]; n - vec.len().unwrap()])
+            .unwrap();
         assert_eq!(vec.len().unwrap(), n);
 
         // Test appended element can be removed and removal updates len.
@@ -686,7 +689,7 @@ mod tests {
 
         // Fill IOVec.
         for i in 0u8..(n as u8) {
-            vec.append(vec![[i; 4]]).unwrap();
+            vec.append(&mut vec![[i; 4]]).unwrap();
         }
         assert_eq!(vec.len().unwrap(), n);
 

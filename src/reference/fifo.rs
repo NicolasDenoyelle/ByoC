@@ -1,5 +1,5 @@
 use crate::reference::Reference;
-use crate::timestamp::{Counter, Timestamp};
+use crate::utils::timestamp::{Counter, Timestamp};
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
 
@@ -10,15 +10,7 @@ use std::ops::{Deref, DerefMut};
 /// Implementation of [`Reference`](trait.Reference.html) with
 /// a First In First Out eviction policy.
 ///
-/// ## Details
-///
-/// `FIFO` cache references are not affected by `touch()` call.
 /// Eviction of these references is not affected by cache lookups.
-///
-/// ## Generics:
-///
-/// * `V`: The type of the value held in the
-/// [`Reference`](trait.Reference.html).
 ///
 /// ## Examples
 ///

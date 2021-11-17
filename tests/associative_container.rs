@@ -2,7 +2,8 @@ mod concurrent;
 mod container;
 mod get;
 
-use cache::container::{Associative, Vector};
+use cache::building_block::container::Vector;
+use cache::building_block::multiplexer::Associative;
 use std::collections::hash_map::DefaultHasher;
 
 #[test]

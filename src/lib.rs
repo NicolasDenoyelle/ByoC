@@ -1,26 +1,87 @@
-/// Library boilerplate code.
-/// This code is not available to user but used throughout the
-/// library.
-mod utils;
-#[cfg(feature = "stream")]
-pub use utils::io::{IOError, IOResult, IOStruct, IOStructMut};
-
-/// Library custom read/write lock.
-mod lock;
-pub use lock::RWLockGuard;
-
-/// Fixed point in time.
+/// BuildingBlock trait for Key/Value storage of references.
 ///
 /// ## Details
 ///
-/// [`Timestamp`](trait.Timestamp.html) is a trait that represent a
-/// point in time, such that consecutive timestamps are getting greater as the time flies.
-/// Timestamp module contains [`Timestamp`](trait.Timestamp.html) trait
-/// definition and implementations as [`Counter`](struct.Counter.html) and
-/// [Clock](struct.Clock.html). [timestamp](index.html) module
-/// is used to implement [LRFU](../reference/struct.LRFU.html)
-/// cache [references](../reference/trait.Reference.html).
-pub mod timestamp;
+/// A container is a key/value storage with set maximum capacity.
+/// When maximum capacity is reached, new insertion cause the container
+/// to evict the element with the highest value in the container.
+/// Each container implementation implements a specific way to perform
+/// insertions and lookups, and target a specific storage tier.
+///
+/// ## Examples
+///
+/// ```
+/// use cache::BuildingBlock;
+/// use cache::building_block::container::Vector;
+///
+/// // container with only 1 element.
+/// let mut c = Vector::new(1);
+///
+/// // BuildingBlock as room for first element and returns None.
+/// assert!(c.push(vec![("first", 4)]).pop().is_none());
+///
+/// // BuildingBlock is full and pops a inserted element.
+/// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
+/// assert!(key == "second");
+/// assert!(value == 12);
+/// ```
+///
+/// ## Generics:
+///
+/// * `K`: Is the key type, used for cache lookups.
+/// * `V`: Value to insert in container.
+pub trait BuildingBlock<'a, K: 'a, V: 'a> {
+    /// Get the number of elements fitting in the container.
+    fn capacity(&self) -> usize;
+
+    /// Get the number of elements in the container.    
+    fn count(&self) -> usize;
+
+    /// Check if container contains a matchig key.
+    fn contains(&self, key: &K) -> bool;
+
+    /// Get every values matching key out of the container.
+    ///
+    /// * `key`: The key associated with the values to take.
+    fn take<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = (K, V)> + 'b>;
+
+    /// Remove up to `n` values from the container.
+    /// If less than `n` values are stored in the containers,
+    /// the returned vector contains all the container values and
+    /// the container is left with not value.
+    fn pop(&mut self, n: usize) -> Vec<(K, V)>;
+
+    /// Insert key/value pairs in the container. If the container cannot
+    /// store all the values, overflowing values are returned.
+    ///
+    /// * `key`: The key associated with the value to insert.
+    /// * `values`: The cache values to insert.
+    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)>;
+
+    /// Empty the container and retrieve all of its elements.
+    /// The container becomes empty and available at the end of the call.
+    /// This functions yields an iterator because the amount of items to
+    /// iterate over might exceed the size of computer memory.
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
+}
+
+pub trait Get<'a, K: 'a, V: 'a>: BuildingBlock<'a, K, V> {
+    fn get<'b>(
+        &'b self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b>;
+
+    fn get_mut<'b>(
+        &'b mut self,
+        key: &'b K,
+    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b>;
+}
+
+/// Implementations of building blocks.
+pub mod building_block;
 
 /// Cache references.
 ///
@@ -29,7 +90,7 @@ pub mod timestamp;
 /// interior mutability such that derefencing it may update the reference
 /// internal state and order with other references. This typically used,
 /// for instance, to find most the recently used value as implemented by
-/// [LRU](reference/struct.LRU.html) reference.
+/// [LRU](./struct.LRU.html) reference.
 ///
 /// ## Examples
 ///
@@ -52,35 +113,14 @@ pub mod timestamp;
 /// ```
 pub mod reference;
 
-/// Key/Value storage of references.
-///
-/// ## Details
-///
-/// A container is a key/value storage with set maximum capacity.
-/// When maximum capacity is reached, new insertion cause the container
-/// to evict the element with the highest value in the container.
-/// Each container implementation implements a specific way to perform
-/// insertions and lookups, and target a specific storage tier.
-///
-/// ## Examples
-///
-/// ```
-/// use cache::container::{Container, Vector};
-///
-/// // container with only 1 element.
-/// let mut c = Vector::new(1);
-///
-/// // Container as room for first element and returns None.
-/// assert!(c.push(vec![("first", 4)]).pop().is_none());
-///
-/// // Container is full and pops a inserted element.
-/// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
-/// assert!(key == "second");
-/// assert!(value == 12);
-/// ```
-pub mod container;
+/// Utils
+pub mod utils;
 
-/// Marker traits for containers.
-/// Marker traits are traits that combine several traits without
-/// implementing new methods.
-pub mod marker;
+/// Library boilerplate code.
+/// This code is not available to user but used throughout the
+/// library.
+mod private;
+
+// /// Public test module available only for testing purposes.
+// #[cfg(test)]
+// pub mod tests;

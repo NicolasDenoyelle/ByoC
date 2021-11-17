@@ -1,11 +1,10 @@
-use crate::container::{Container, Get};
-use crate::marker::Concurrent;
-use crate::utils::clone::CloneCell;
+use crate::private::clone::CloneCell;
+use crate::{building_block::Concurrent, BuildingBlock, Get};
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-/// [`Container`](../trait.Container.html) wrapper to collect access,
+/// [`BuildingBlock`](../trait.BuildingBlock.html) wrapper to collect access,
 /// misses, hits and statistics about methods access time.
 ///
 /// Recording statistics is thread safe.
@@ -21,7 +20,9 @@ use std::time::Instant;
 /// # Examples
 ///
 /// ```
-/// use cache::container::{Container, Get, Profiler, Vector};
+/// use cache::{BuildingBlock, Get};
+/// use cache::building_block::container::Vector;
+/// use cache::building_block::wrapper::Profiler;
 ///
 /// // Build a cache:
 /// let c = Vector::new(3);
@@ -29,7 +30,7 @@ use std::time::Instant;
 /// // Wrap it into a profiler.
 /// let mut c = Profiler::new(c);
 ///
-/// // Populate Container
+/// // Populate BuildingBlock
 /// c.push(vec![("first", 0), ("second", 1)]);
 ///
 /// // look at statistics
@@ -180,17 +181,6 @@ impl<K, V, C> Profiler<K, V, C> {
     }
 }
 
-impl<K, V, C: Clone> Clone for Profiler<K, V, C> {
-    fn clone(&self) -> Self {
-        Profiler {
-            cache: self.cache.clone(),
-            stats: self.stats.clone(),
-            unused_k: PhantomData,
-            unused_v: PhantomData,
-        }
-    }
-}
-
 //------------------------------------------------------------------------//
 // Flush iterator
 //------------------------------------------------------------------------//
@@ -247,7 +237,7 @@ impl<'a, K, V, C> std::fmt::Debug for Profiler<K, V, C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -268,7 +258,7 @@ impl<'a, K, V, C> std::fmt::Display for Profiler<K, V, C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let read_ms = self.read_ms();
@@ -316,14 +306,14 @@ where
 }
 
 //------------------------------------------------------------------------//
-// Container implementation                                               //
+// BuildingBlock implementation                                               //
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, C> Container<'a, K, V> for Profiler<K, V, C>
+impl<'a, K, V, C> BuildingBlock<'a, K, V> for Profiler<K, V, C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
 {
     fn capacity(&self) -> usize {
         self.cache.capacity()
@@ -355,7 +345,7 @@ where
 
     /// Counts for one cache access.
     /// If key is found, count a hit else count a miss.
-    /// See [`take` function](../trait.Container.html)
+    /// See [`take` function](../trait.BuildingBlock.html#tymethod.take)
     fn take<'b>(
         &'b mut self,
         key: &'b K,
@@ -374,7 +364,7 @@ where
     }
 
     /// Counts for one cache access and one hit.
-    /// See [`pop` function](../trait.Container.html)
+    /// See [`pop` function](../trait.BuildingBlock.html#tymethod.pop)
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let t0 = Instant::now();
         let out = self.cache.pop(n);
@@ -412,15 +402,23 @@ impl<'a, K, V, C> Concurrent<'a, K, V> for Profiler<K, V, C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V> + Concurrent<'a, K, V>,
+    C: BuildingBlock<'a, K, V> + Concurrent<'a, K, V>,
 {
+    fn clone(&self) -> Self {
+        Profiler {
+            cache: Concurrent::clone(&self.cache),
+            stats: self.stats.clone(),
+            unused_k: PhantomData,
+            unused_v: PhantomData,
+        }
+    }
 }
 
 impl<'a, K, V, C> Get<'a, K, V> for Profiler<K, V, C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V> + Get<'a, K, V>,
+    C: BuildingBlock<'a, K, V> + Get<'a, K, V>,
 {
     fn get<'b>(
         &'b self,

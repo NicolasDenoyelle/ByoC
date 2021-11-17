@@ -1,5 +1,5 @@
-use crate::utils::clone::CloneCell;
-use crate::utils::io::Resize;
+use crate::private::clone::CloneCell;
+use crate::utils::stream::{Resize, Stream, StreamFactory};
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 
 pub struct VecStream {
@@ -99,5 +99,16 @@ impl Resize for VecStream {
         self.vec.resize(size, 0u8);
         self.pos = if self.pos > size { size } else { self.pos };
         Ok(())
+    }
+}
+
+impl Stream for VecStream {}
+
+#[derive(Clone)]
+pub struct VecStreamFactory {}
+
+impl StreamFactory<VecStream> for VecStreamFactory {
+    fn create(&mut self) -> VecStream {
+        VecStream::new()
     }
 }

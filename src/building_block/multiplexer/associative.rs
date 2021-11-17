@@ -1,6 +1,6 @@
-use crate::container::{Container, Get, Sequential};
-use crate::marker::Concurrent;
-use crate::utils::clone::CloneCell;
+use crate::building_block::wrapper::Sequential;
+use crate::private::clone::CloneCell;
+use crate::{building_block::Concurrent, BuildingBlock, Get};
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
 
@@ -8,7 +8,7 @@ use std::marker::Sync;
 // Concurrent implementation of container                                 //
 //------------------------------------------------------------------------//
 
-/// Associative [`container`](trait.Container.html) wrapper with
+/// Associative [`BuildingBlock`](../trait.BuildingBlock.html) wrapper with
 /// multiple sets.
 ///
 /// Associative container is an array of containers. Whenever an element
@@ -16,9 +16,7 @@ use std::marker::Sync;
 /// container key/value pair will be stored.  
 /// On insertion, if the target set is full, an element is popped from the
 /// same set. Therefore, the container may pop while not being full.
-/// This why it does not implement the trait
-/// [`Packed`](../marker/trait.Packed.html).  
-/// When invoking [`pop()`](trait.Container.html#tymethod.pop) to evict a
+/// When invoking [`pop()`](../trait.BuildingBlock.html#tymethod.pop) to evict a
 /// container element, the method is called on all sets. A victim is elected
 /// and then all elements that are not elected are reinserted inside the
 /// container.
@@ -26,13 +24,15 @@ use std::marker::Sync;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Vector, Associative};
+/// use cache::BuildingBlock;
+/// use cache::building_block::container::Vector;
+/// use cache::building_block::multiplexer::Associative;
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// // Build a Vector cache of 2 sets. Each set hold one element.
 /// let mut c = Associative::new(2, 2, |n|{Vector::new(n)}, DefaultHasher::new());
 ///
-/// // Container as room for first and second element and returns None.
+/// // BuildingBlock as room for first and second element and returns None.
 /// assert!(c.push(vec![(0, 4)]).pop().is_none());
 /// assert!(c.push(vec![(1, 12)]).pop().is_none());
 ///
@@ -125,11 +125,11 @@ where
     }
 }
 
-impl<'a, K, V, C, H> Container<'a, K, V> for Associative<C, H>
+impl<'a, K, V, C, H> BuildingBlock<'a, K, V> for Associative<C, H>
 where
     K: 'a + Clone + Hash,
     V: 'a + Ord,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
     H: Hasher + Clone,
 {
     fn capacity(&self) -> usize {
@@ -246,12 +246,9 @@ impl<'a, K, V, C, H> Concurrent<'a, K, V> for Associative<C, H>
 where
     K: 'a + Hash + Clone,
     V: 'a + Ord,
-    C: 'a + Container<'a, K, V>,
+    C: 'a + BuildingBlock<'a, K, V>,
     H: Hasher + Clone,
 {
-}
-
-impl<C, H: Hasher + Clone> Clone for Associative<C, H> {
     fn clone(&self) -> Self {
         Associative {
             n_sets: self.n_sets,
@@ -267,7 +264,7 @@ where
     K: 'a + Hash + Clone,
     V: 'a + Ord,
     H: Hasher + Clone,
-    C: Container<'a, K, V> + Get<'a, K, V>,
+    C: BuildingBlock<'a, K, V> + Get<'a, K, V>,
 {
     fn get<'b>(
         &'b self,

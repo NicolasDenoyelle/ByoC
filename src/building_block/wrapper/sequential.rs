@@ -1,29 +1,26 @@
-use crate::container::{Container, Get};
-use crate::lock::{LockError, RWLock, RWLockGuard};
-use crate::marker::{Concurrent, Packed};
-use crate::utils::clone::CloneCell;
+use crate::private::clone::CloneCell;
+use crate::private::lock::{LockError, RWLock, RWLockGuard};
+use crate::{building_block::Concurrent, BuildingBlock, Get};
 use std::marker::Sync;
 
 //------------------------------------------------------------------------//
 // Concurrent cache                                                       //
 //------------------------------------------------------------------------//
 
-/// Concurrent [`container`](trait.Container.html) wrapper with a lock.
+/// Concurrent [`BuildingBlock`](../trait.BuildingBlock.html) wrapper with a lock.
 /// Makes a container thread safe by sequentializing its access.
-///
-/// ## Generics:
-///
-/// * `C`: A type of [Container](trait.Container.html).
 ///
 /// ## Examples
 ///
 /// ```
-/// use cache::marker::Concurrent;
-/// use cache::container::{Container, Vector, Sequential};
+/// use cache::BuildingBlock;
+/// use cache::building_block::Concurrent;
+/// use cache::building_block::container::Vector;
+/// use cache::building_block::wrapper::Sequential;
 ///
 /// // Build a concurrent Vector cache.
 /// let mut c1 = Sequential::new(Vector::new(1));
-/// let mut c2 = c1.clone();
+/// let mut c2 = Concurrent::clone(&c1);
 ///
 /// assert!(c1.push(vec![(0u16, 4)]).pop().is_none());
 /// let (key, value) = c2.push(vec![(1u16, 12)]).pop().unwrap();
@@ -65,11 +62,11 @@ impl<C> Sequential<C> {
     }
 }
 
-impl<'a, K, V, C> Container<'a, K, V> for Sequential<C>
+impl<'a, K, V, C> BuildingBlock<'a, K, V> for Sequential<C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
 {
     fn capacity(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
@@ -118,23 +115,6 @@ where
     }
 }
 
-impl<C> Clone for Sequential<C> {
-    fn clone(&self) -> Self {
-        Sequential {
-            container: self.container.clone(),
-            lock: self.lock.clone(),
-        }
-    }
-}
-
-impl<'a, K, V, C> Packed<'a, K, V> for Sequential<C>
-where
-    K: 'a,
-    V: 'a,
-    C: Container<'a, K, V> + Packed<'a, K, V>,
-{
-}
-
 unsafe impl<C> Send for Sequential<C> {}
 
 unsafe impl<C> Sync for Sequential<C> {}
@@ -143,15 +123,21 @@ impl<'a, K, V, C> Concurrent<'a, K, V> for Sequential<C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
 {
+    fn clone(&self) -> Self {
+        Sequential {
+            container: self.container.clone(),
+            lock: self.lock.clone(),
+        }
+    }
 }
 
 impl<'a, K, V, C> Get<'a, K, V> for Sequential<C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V> + Get<'a, K, V>,
+    C: BuildingBlock<'a, K, V> + Get<'a, K, V>,
 {
     fn get<'b>(
         &'b self,

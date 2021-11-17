@@ -1,37 +1,37 @@
-use crate::container::Container;
-use crate::utils::io::{IOResult, IOVec, Resize};
-use crate::utils::set::MinSet;
+use crate::private::io_vec::{IOResult, IOVec};
+use crate::private::set::MinSet;
+use crate::utils::stream::Stream as Streamable;
+use crate::utils::stream::StreamFactory;
+use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
-use std::io::{Read, Seek, Write};
 
-pub struct Stream<T, S>
+pub struct Stream<T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Read + Write + Seek + Resize + Clone,
+    S: Streamable,
+    F: StreamFactory<S> + Clone,
 {
-    make_stream: fn() -> IOResult<S>,
+    factory: F,
     vec: IOVec<T, S>,
     capacity: usize,
     chunk_size: usize,
 }
 
-impl<T, S> Stream<T, S>
+impl<T, S, F> Stream<T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Read + Write + Seek + Resize + Clone,
+    S: Streamable,
+    F: StreamFactory<S> + Clone,
 {
     pub fn new(
+        mut factory: F,
         capacity: usize,
         chunk_size: usize,
-        make_stream: fn() -> IOResult<S>,
     ) -> IOResult<Self> {
-        let store = match make_stream() {
-            Ok(s) => s,
-            Err(e) => return Err(e),
-        };
+        let store = factory.create();
 
         Ok(Stream {
-            make_stream: make_stream,
+            factory: factory,
             vec: IOVec::new(store, chunk_size),
             capacity: capacity,
             chunk_size: chunk_size,
@@ -61,11 +61,12 @@ where
     }
 }
 
-impl<'a, K, V, S> Container<'a, K, V> for Stream<(K, V), S>
+impl<'a, K, V, S, F> BuildingBlock<'a, K, V> for Stream<(K, V), S, F>
 where
     K: 'a + DeserializeOwned + Serialize + Eq,
     V: 'a + DeserializeOwned + Serialize + Ord,
-    S: 'a + Read + Write + Seek + Resize + Clone,
+    S: 'a + Streamable,
+    F: StreamFactory<S> + Clone,
 {
     fn capacity(&self) -> usize {
         self.capacity
@@ -162,10 +163,7 @@ where
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        let store = match (self.make_stream)() {
-            Ok(s) => s,
-            Err(_) => return Box::new(std::iter::empty()),
-        };
+        let store = self.factory.create();
         let vec = IOVec::new(store, self.chunk_size);
 
         let vec = std::mem::replace(&mut self.vec, vec);

@@ -1,5 +1,5 @@
 use crate::reference::Reference;
-use crate::timestamp::Timestamp;
+use crate::utils::timestamp::Timestamp;
 use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
@@ -42,8 +42,6 @@ impl<T: Timestamp + Copy> Stats<T> {
 /// Implementation of [`Reference`](trait.Reference.html)
 /// with a Least Recently Frequently Used (LRFU) eviction policy.
 ///
-/// ## Details
-///
 /// `LRFU` references implement an order
 /// based on the Least Recently Frequently Used (LRFU) policy.
 /// It tries to keep in cache frequently used elements while giving a chance
@@ -51,17 +49,11 @@ impl<T: Timestamp + Copy> Stats<T> {
 /// When a cache lookup occures the state of the reference is updated according
 /// to the number of times it is accessed and the timestamp of accesses.
 ///
-/// ## Generics
-///
-/// * `V`: type of value held in reference.
-/// * `T`: a type implementing [`Timestamp`](../timestamp/trait.Timestamp.html) trait
-/// for measuring access frequency.
-///
 /// ## Examples
 ///
 /// ```
 /// use cache::reference::{Reference, LRFU};
-/// use cache::timestamp::{Timestamp, Counter};
+/// use cache::utils::timestamp::{Timestamp, Counter};
 ///
 /// // Least Recently Used cache reference storing f32 values and
 /// // counting time with Counter.

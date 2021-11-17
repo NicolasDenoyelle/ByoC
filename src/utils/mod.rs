@@ -1,13 +1,6 @@
-/// Utils for obtaining multiple writable shallow copies of a resource.
-pub mod clone;
-/// Utils for reading and writing a stream in fixed sized chunks.
+/// Utils for `Stream` bounds
 #[cfg(feature = "stream")]
-pub mod io;
-/// Utils for ordering pointers of orderable elements.
-pub mod ptr;
-/// Utils for extracting n min elements.
-pub mod set;
-// pub mod stats;
+pub mod stream;
 
-#[cfg(test)]
-pub mod vstream;
+/// Fixed point in time used with some cache [references](../reference/trait.Reference.html).
+pub mod timestamp;

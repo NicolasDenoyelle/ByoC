@@ -9,18 +9,7 @@ use std::ops::{Deref, DerefMut};
 /// Implementation of [`Reference`](trait.Reference.html) with
 /// an eviction policy based on fixed priority.
 ///
-/// ## Details
-///
-/// `Priority` cache references are not affected by `touch()` call.
 /// Eviction of these references is not affected by cache lookups.
-///
-///
-/// ## Generics:
-///
-/// * `V`: The type of the value held in the
-/// [`Reference`](trait.Reference.html).
-/// * `P`: The type of priority. P implementation of `Ord` is used
-/// to implement this reference `Ord` trait.
 ///
 /// ## Examples
 ///

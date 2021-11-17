@@ -8,11 +8,6 @@ use std::ops::{Deref, DerefMut};
 
 /// Implementation of [`Reference`](trait.Reference.html) as its inner value.
 ///
-/// ## Generics:
-///
-/// * `V`: The type of the value held in the
-/// [`Reference`](trait.Reference.html). Must be orderable.
-///
 /// ## Examples
 ///
 /// ```

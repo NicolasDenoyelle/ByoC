@@ -1,6 +1,6 @@
 extern crate rand;
 
-use cache::container::Container;
+use cache::BuildingBlock;
 use rand::random;
 use std::vec::Vec;
 
@@ -10,7 +10,7 @@ pub fn rand(a: u64, b: u64) -> u64 {
 
 fn test_push<'a, C>(c: &mut C, key: u16, value: u32, packed: bool)
 where
-    C: Container<'a, u16, u32>,
+    C: BuildingBlock<'a, u16, u32>,
 {
     let count = c.count();
     let capacity = c.capacity();
@@ -48,7 +48,7 @@ where
 
 fn test_flush<'a, C>(c: &mut C, pushed: &Vec<(u16, u32)>)
 where
-    C: Container<'a, u16, u32>,
+    C: BuildingBlock<'a, u16, u32>,
 {
     let mut i = 0;
     let count = c.count();
@@ -65,7 +65,7 @@ where
 
 fn test_pop<'a, C>(c: &mut C, pushed: &Vec<(u16, u32)>)
 where
-    C: Container<'a, u16, u32>,
+    C: BuildingBlock<'a, u16, u32>,
 {
     let mut i = 0;
     let count = c.count();
@@ -86,7 +86,7 @@ where
 
 pub fn test_n<'a, C>(c: &mut C, n: usize, packed: bool)
 where
-    C: Container<'a, u16, u32>,
+    C: BuildingBlock<'a, u16, u32>,
 {
     let elements: Vec<(u16, u32)> = (0..n as u64)
         .map(|i| (i as u16, rand(0u64, n as u64) as u32))
@@ -107,7 +107,7 @@ where
 
 pub fn test_container<'a, C>(mut c: C, is_packed: bool)
 where
-    C: Container<'a, u16, u32>,
+    C: BuildingBlock<'a, u16, u32>,
 {
     let mut n = 0;
     test_n(&mut c, n, is_packed);

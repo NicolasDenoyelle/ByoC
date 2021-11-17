@@ -1,4 +1,5 @@
-use cache::container::{Stack, Vector};
+use cache::building_block::connector::Stack;
+use cache::building_block::container::Vector;
 mod container;
 mod get;
 

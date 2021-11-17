@@ -1,30 +1,31 @@
-use crate::container::{Container, Get};
-use crate::marker::Packed;
+use crate::{BuildingBlock, Get};
 use std::marker::PhantomData;
 
 //------------------------------------------------------------------------//
-// Container Stack                                                        //
+// BuildingBlock Stack                                                        //
 //------------------------------------------------------------------------//
 
-/// [`Container`](trait.Container.html) wrapper to build multi-level
-/// cache.
+/// [`BuildingBlock`](../trait.BuildingBlock.html) wrapper to build
+/// multi-level cache.
 ///
 /// Stack container implements a stack of 2 containers.
 /// Insertions will be performed at the bottom of the stack.
 /// Pops on insertions are propagated from the bottom to the top of the
 /// stack.
 ///
-/// Container lookups will look from the bottom to the top of the stack
+/// BuildingBlock lookups will look from the bottom to the top of the stack
 /// for matches.
 ///
-/// [`pop()`](trait.Container.html#tymethod.pop)
+/// [`pop()`](../trait.BuildingBlock.html#tymethod.pop)
 /// invocation will search from the top to the bottom of the stack
 /// for an element to evict.
 ///
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Stack, Vector};
+/// use cache::BuildingBlock;
+/// use cache::building_block::connector::Stack;
+/// use cache::building_block::container::Vector;
 ///
 /// // Create cache
 /// let mut l1 = Vector::new(1);
@@ -44,8 +45,8 @@ use std::marker::PhantomData;
 /// ```
 pub struct Stack<'a, K: 'a, V: 'a, C1, C2>
 where
-    C1: Container<'a, K, V>,
-    C2: Container<'a, K, V>,
+    C1: BuildingBlock<'a, K, V>,
+    C2: BuildingBlock<'a, K, V>,
 {
     l1: C1,
     l2: C2,
@@ -55,8 +56,8 @@ where
 
 impl<'a, K: 'a, V: 'a, C1, C2> Stack<'a, K, V, C1, C2>
 where
-    C1: Container<'a, K, V>,
-    C2: Container<'a, K, V>,
+    C1: BuildingBlock<'a, K, V>,
+    C2: BuildingBlock<'a, K, V>,
 {
     /// Construct a Stack Cache.
     ///
@@ -74,11 +75,11 @@ where
     }
 }
 
-impl<'a, K: 'a, V: 'a, C1, C2> Container<'a, K, V>
+impl<'a, K: 'a, V: 'a, C1, C2> BuildingBlock<'a, K, V>
     for Stack<'a, K, V, C1, C2>
 where
-    C1: Container<'a, K, V>,
-    C2: Container<'a, K, V>,
+    C1: BuildingBlock<'a, K, V>,
+    C2: BuildingBlock<'a, K, V>,
 {
     fn capacity(&self) -> usize {
         self.l1.capacity() + self.l2.capacity()
@@ -121,19 +122,12 @@ where
     }
 }
 
-impl<'a, K: 'a, V: 'a, C1, C2> Packed<'a, K, V> for Stack<'a, K, V, C1, C2>
-where
-    C1: Container<'a, K, V> + Packed<'a, K, V>,
-    C2: Container<'a, K, V> + Packed<'a, K, V>,
-{
-}
-
 impl<'a, K, V, C1, C2> Get<'a, K, V> for Stack<'a, K, V, C1, C2>
 where
     K: 'a,
     V: 'a,
-    C1: Container<'a, K, V> + Get<'a, K, V>,
-    C2: Container<'a, K, V> + Get<'a, K, V>,
+    C1: BuildingBlock<'a, K, V> + Get<'a, K, V>,
+    C2: BuildingBlock<'a, K, V> + Get<'a, K, V>,
 {
     fn get<'b>(
         &'b self,

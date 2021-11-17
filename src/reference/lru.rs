@@ -1,5 +1,5 @@
 use crate::reference::Reference;
-use crate::timestamp::{Counter, Timestamp};
+use crate::utils::timestamp::{Counter, Timestamp};
 use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 use std::ops::{Deref, DerefMut};
@@ -7,14 +7,10 @@ use std::ops::{Deref, DerefMut};
 /// Implementation of [`Reference`](trait.Reference.html)
 /// with a Least Recently Used (LRU) eviction policy.
 ///
-/// ## Details
-///
-/// `LRU` references implement an order based on the Least Recently Used (LRU) policy.
+/// `LRU` references implement an order based on the Least Recently Used
+/// (LRU) policy.
 /// It tries to keep in cache elements that were recently accessed.
 ///
-/// ## Generics
-///
-/// * `V`: type of value held in reference.
 /// ## Examples
 ///
 /// ```
