@@ -143,3 +143,18 @@ where
         Box::new(self.l1.get_mut(key).chain(self.l2.get_mut(key)))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Stack;
+    use crate::building_block::container::Vector;
+    use crate::tests::building_block::test_building_block;
+
+    #[test]
+    fn building_block() {
+        test_building_block(Stack::new(Vector::new(0), Vector::new(0)));
+        test_building_block(Stack::new(Vector::new(0), Vector::new(10)));
+        test_building_block(Stack::new(Vector::new(10), Vector::new(0)));
+        // test_building_block(Stack::new(Vector::new(10), Vector::new(100)));
+    }
+}

@@ -159,3 +159,16 @@ impl<'a, K: 'a + Eq, V: 'a + Ord> Get<'a, K, V> for Vector<K, V> {
         }))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Vector;
+    use crate::tests::building_block::test_building_block;
+
+    #[test]
+    fn building_block() {
+        test_building_block(Vector::new(0));
+        test_building_block(Vector::new(10));
+        test_building_block(Vector::new(100));
+    }
+}

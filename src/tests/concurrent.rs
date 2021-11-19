@@ -1,4 +1,4 @@
-use cache::{building_block::Concurrent, BuildingBlock};
+use crate::{building_block::Concurrent, BuildingBlock};
 use std::{sync::mpsc::channel, thread, vec::Vec};
 
 fn test_after_push<C>(
@@ -30,7 +30,7 @@ fn test_after_push<C>(
     assert!(c.count() <= c.capacity());
 }
 
-pub fn push_concurrent<C>(c: C, num_thread: u8)
+fn push_concurrent<C>(c: C, num_thread: u8)
 where
     C: 'static
         + BuildingBlock<'static, u16, u32>

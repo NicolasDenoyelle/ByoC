@@ -165,3 +165,29 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Sequential;
+    use crate::building_block::container::Vector;
+    use crate::tests::building_block::test_building_block;
+    use crate::tests::concurrent::test_concurrent;
+
+    #[test]
+    fn building_block() {
+        test_building_block(Sequential::new(Vector::new(0)));
+        test_building_block(Sequential::new(Vector::new(100)));
+    }
+
+    #[test]
+    fn concurrent() {
+        test_concurrent(Sequential::new(Vector::new(0)), 64);
+        test_concurrent(Sequential::new(Vector::new(100)), 64);
+    }
+
+    // #[test]
+    // fn get() {
+    //     get::test_get(Sequential::new(Vector::new(0)));
+    //     get::test_get(Sequential::new(Vector::new(100)));
+    // }
+}

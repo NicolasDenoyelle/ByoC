@@ -122,5 +122,5 @@ pub mod utils;
 mod private;
 
 // /// Public test module available only for testing purposes.
-// #[cfg(test)]
-// pub mod tests;
+#[cfg(test)]
+pub mod tests;

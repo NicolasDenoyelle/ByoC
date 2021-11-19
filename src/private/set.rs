@@ -24,7 +24,7 @@ impl<T: Ord> MinSet<T> {
         if !self.btree.insert(item) {
             false
         } else {
-            if self.btree.len() >= self.max_len {
+            if self.btree.len() > self.max_len {
                 let mut btree =
                     std::mem::replace(&mut self.btree, BTreeSet::new())
                         .into_iter();

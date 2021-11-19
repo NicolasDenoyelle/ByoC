@@ -284,3 +284,45 @@ where
         )
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Associative;
+    use crate::building_block::container::Vector;
+    // use crate::tests::building_block::test_building_block;
+    use crate::tests::concurrent::test_concurrent;
+    use std::collections::hash_map::DefaultHasher;
+
+    // #[test]
+    // fn building_block() {
+    //     test_building_block(Associative::new(
+    //         5,
+    //         10,
+    //         |n| Vector::<u16, u32>::new(n),
+    //         DefaultHasher::new(),
+    //     ));
+    // }
+
+    #[test]
+    fn concurrent() {
+        test_concurrent(
+            Associative::new(
+                30,
+                30,
+                |n| Vector::new(n),
+                DefaultHasher::new(),
+            ),
+            64,
+        );
+    }
+
+    // #[test]
+    // fn get() {
+    //     get::test_get(Associative::new(
+    //         5,
+    //         10,
+    //         |n| Vector::<u16, u32>::new(n),
+    //         DefaultHasher::new(),
+    //     ));
+    // }
+}

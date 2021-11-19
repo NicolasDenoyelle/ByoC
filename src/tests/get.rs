@@ -1,12 +1,6 @@
-extern crate rand;
-
-use cache::{BuildingBlock, Get};
-use rand::random;
+use crate::tests::building_block::rand;
+use crate::{BuildingBlock, Get};
 use std::vec::Vec;
-
-pub fn rand(a: u64, b: u64) -> u64 {
-    a + (random::<u64>() % (b - a))
-}
 
 fn test_push<'a, C>(c: &mut C, key: u16, value: u32)
 where
@@ -25,7 +19,7 @@ where
     }
 }
 
-pub fn test_n<'a, C>(c: &mut C, n: usize)
+fn test_n<'a, C>(c: &mut C, n: usize)
 where
     C: BuildingBlock<'a, u16, u32> + Get<'a, u16, u32>,
 {

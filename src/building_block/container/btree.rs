@@ -215,3 +215,16 @@ where
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::BTree;
+    use crate::tests::building_block::test_building_block;
+
+    #[test]
+    fn building_block() {
+        test_building_block(BTree::new(0));
+        test_building_block(BTree::new(10));
+        test_building_block(BTree::new(100));
+    }
+}
