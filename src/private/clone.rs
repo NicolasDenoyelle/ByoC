@@ -1,5 +1,5 @@
 use crate::private::lock::RWLock;
-use crate::{building_block::Concurrent, BuildingBlock};
+use crate::{BuildingBlock, Concurrent};
 use std::boxed::Box;
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
@@ -152,10 +152,7 @@ where
         self.deref().contains(key)
     }
 
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
         self.deref_mut().take(key)
     }
 

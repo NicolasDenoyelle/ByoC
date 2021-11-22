@@ -1,2 +1,2 @@
 mod associative;
-pub use crate::building_block::multiplexer::associative::Associative;
+pub use crate::multiplexer::associative::Associative;

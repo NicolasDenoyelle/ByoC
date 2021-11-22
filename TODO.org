@@ -1,31 +1,31 @@
 * CloneMut Pinnning instead of Boxing
 * DONE Lock Poisoning.
-When a thread owning a lock panics, it goes out of scope without unlocking,
-leaving other lock users in a deadlock situation.
+	When a thread owning a lock panics, it goes out of scope without unlocking,
+	leaving other lock users in a deadlock situation.
 #+begin_src 
 #+language: rust
 std::thread::panicking
 #+end_src
-
-* Use Dynamic Dispatch on Container Wrappers Instead of Generics.
-
-* Const Hash Trait:
-Add a user interface to for customizing how keys are 
-hashed into buckets for associative container.
-
-* Parallel Associative Container Methods.
-Make methods in associative container parallel.
-
+* DEL Use Dynamic Dispatch on Container Wrappers Instead of Generics.
+* TODO Const Hash Trait:
+	Add a user interface for customizing how keys are 
+	hashed into buckets for associative container.
+* DEL Parallel Associative Container Methods.
+	Make methods in associative container parallel.
 * DONE Clone for Concurrent Containers.
-
-* Compact IO Map
-Instead of building a map with elements offset based on key hash,
-just pack elements to be more space efficient.
-
-* Prefetcher:
-Build a Prefetcher trait and Prefetcher container wrapping a container
- and prefetching data.
-
-* Parallel Tests
-Build Concurrent Container trait tests.
+* DEL Compact IO Map
+	Instead of building a map with elements offset based on key hash,
+	just pack elements to be more space efficient.
+* TODO Prefetcher:
+	Build a Prefetcher trait and Prefetcher container wrapping a container
+	and prefetching data.
+* DONE Parallel Tests
+	Build Concurrent Container trait tests.
+* TODO Test Stream building block
+* TODO Individual components unit tests.
+* TODO Builder pattern to build a cache.
+* TODO Reference wrapper to wrap values into references.
+	The building block name is "policy" and goes in a different directory
+	than wrapper.
+* TODO Rename wrapper into transform
 

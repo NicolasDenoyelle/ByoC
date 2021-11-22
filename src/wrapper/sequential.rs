@@ -1,10 +1,11 @@
 use crate::private::clone::CloneCell;
-use crate::private::lock::{LockError, RWLock, RWLockGuard};
-use crate::{building_block::Concurrent, BuildingBlock, Get};
-use std::marker::Sync;
+use crate::private::lock::{LockError, RWLock};
+use crate::{BuildingBlock, Concurrent, Get};
+use std::marker::{PhantomData, Sync};
+use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
-// Concurrent cache                                                       //
+// Sequential wrapper implementation                                      //
 //------------------------------------------------------------------------//
 
 /// Concurrent [`BuildingBlock`](../trait.BuildingBlock.html) wrapper with a lock.
@@ -14,9 +15,9 @@ use std::marker::Sync;
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::building_block::Concurrent;
-/// use cache::building_block::container::Vector;
-/// use cache::building_block::wrapper::Sequential;
+/// use cache::Concurrent;
+/// use cache::container::Vector;
+/// use cache::wrapper::Sequential;
 ///
 /// // Build a concurrent Vector cache.
 /// let mut c1 = Sequential::new(Vector::new(1));
@@ -90,10 +91,7 @@ where
         self.container.contains(key)
     }
 
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
         let _ = self.lock.lock_mut_for(()).unwrap();
         self.container.take(key)
     }
@@ -115,6 +113,10 @@ where
     }
 }
 
+//------------------------------------------------------------------------//
+// Concurrent trait implementation                                        //
+//------------------------------------------------------------------------//
+
 unsafe impl<C> Send for Sequential<C> {}
 
 unsafe impl<C> Sync for Sequential<C> {}
@@ -133,45 +135,127 @@ where
     }
 }
 
-impl<'a, K, V, C> Get<'a, K, V> for Sequential<C>
-where
-    K: 'a,
-    V: 'a,
-    C: BuildingBlock<'a, K, V> + Get<'a, K, V>,
-{
-    fn get<'b>(
-        &'b self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
-        match self.lock.lock() {
-            Ok(_) => Box::new(RWLockGuard::new(
-                &self.lock,
-                (*self.container).get(key),
-            )),
-            Err(_) => Box::new(std::iter::empty()),
-        }
-    }
+//------------------------------------------------------------------------//
+// Get Trait Implementation                                               //
+//------------------------------------------------------------------------//
 
-    fn get_mut<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
-        match self.lock.lock_mut() {
-            Ok(_) => Box::new(RWLockGuard::new(
-                &self.lock,
-                (*self.container).get_mut(key),
-            )),
-            Err(_) => Box::new(std::iter::empty()),
+pub struct LockedItem<'a, V> {
+    value: V,
+    lock: RWLock,
+    lifetime: PhantomData<&'a V>,
+}
+
+impl<'a, V> LockedItem<'a, V> {
+    pub fn new(value: V, lock: &RWLock) -> Self {
+        LockedItem {
+            value: value,
+            lock: lock.clone(),
+            lifetime: PhantomData,
         }
     }
 }
 
+impl<'a, V> Drop for LockedItem<'a, V> {
+    fn drop(&mut self) {
+        self.lock.unlock()
+    }
+}
+
+impl<'a, V, W> Deref for LockedItem<'a, V>
+where
+    V: Deref<Target = W>,
+{
+    type Target = W;
+    fn deref(&self) -> &Self::Target {
+        self.value.deref()
+    }
+}
+
+pub struct LockedMutItem<'a, V> {
+    value: V,
+    lock: RWLock,
+    lifetime: PhantomData<&'a V>,
+}
+
+impl<'a, V> LockedMutItem<'a, V> {
+    pub fn new(value: V, lock: &RWLock) -> Self {
+        LockedMutItem {
+            value: value,
+            lock: lock.clone(),
+            lifetime: PhantomData,
+        }
+    }
+}
+
+impl<'a, V> Drop for LockedMutItem<'a, V> {
+    fn drop(&mut self) {
+        self.lock.unlock()
+    }
+}
+
+impl<'a, V, W> Deref for LockedMutItem<'a, V>
+where
+    V: Deref<Target = W>,
+{
+    type Target = W;
+    fn deref(&self) -> &Self::Target {
+        self.value.deref()
+    }
+}
+
+impl<'a, V, W> DerefMut for LockedMutItem<'a, V>
+where
+    V: DerefMut<Target = W>,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.value.deref_mut()
+    }
+}
+
+impl<'a, K, V, U, W, C>
+    Get<'a, K, V, LockedItem<'a, U>, LockedMutItem<'a, W>>
+    for Sequential<C>
+where
+    U: Deref<Target = V>,
+    W: DerefMut<Target = V>,
+    C: Get<'a, K, V, U, W>,
+{
+    fn get(&'a self, key: &K) -> Option<LockedItem<'a, U>> {
+        match self.lock.lock() {
+            Ok(_) => match (*self.container).get(key) {
+                None => {
+                    self.lock.unlock();
+                    None
+                }
+                Some(w) => Some(LockedItem::new(w, &self.lock)),
+            },
+            Err(_) => None,
+        }
+    }
+
+    fn get_mut(&'a mut self, key: &K) -> Option<LockedMutItem<'a, W>> {
+        match self.lock.lock_mut() {
+            Ok(_) => match (*self.container).get_mut(key) {
+                None => {
+                    self.lock.unlock();
+                    None
+                }
+                Some(w) => Some(LockedMutItem::new(w, &self.lock)),
+            },
+            Err(_) => None,
+        }
+    }
+}
+
+//------------------------------------------------------------------------//
+//  Tests
+//------------------------------------------------------------------------//
+
 #[cfg(test)]
 mod tests {
     use super::Sequential;
-    use crate::building_block::container::Vector;
-    use crate::tests::building_block::test_building_block;
-    use crate::tests::concurrent::test_concurrent;
+    use crate::container::Vector;
+    use crate::tests::{test_building_block, test_concurrent};
 
     #[test]
     fn building_block() {

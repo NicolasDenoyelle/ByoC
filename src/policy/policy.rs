@@ -155,9 +155,7 @@ where
     }
 }
 
-impl<'a, K, V, U, W, R, F, C>
-    Get<'a, K, V, U, W>
-    for Policy<C, V, R, F>
+impl<'a, K, V, U, W, R, F, C> Get<'a, K, V, U, W> for Policy<C, V, R, F>
 where
     R: 'a + Reference<V>,
     F: ReferenceFactory<V, R> + Clone + Send + Sync,

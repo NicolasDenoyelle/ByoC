@@ -1,7 +1,7 @@
 extern crate rand;
-use crate::BuildingBlock;
+use crate::{BuildingBlock, Concurrent};
 use rand::random;
-use std::vec::Vec;
+use std::{sync::mpsc::channel, thread, vec::Vec};
 
 pub fn rand(a: u64, b: u64) -> u64 {
     a + (random::<u64>() % (b - a))
@@ -39,24 +39,64 @@ where
     }
 }
 
-fn test_flush<'a, C>(c: &mut C, pushed: &Vec<(u16, u32)>)
+pub fn insert<'a, C>(
+    c: &mut C,
+    elements: Vec<(u16, u32)>,
+) -> (Vec<(u16, u32)>, Vec<(u16, u32)>)
 where
     C: BuildingBlock<'a, u16, u32>,
 {
-    let mut i = 0;
-    let count = c.count();
+    let out = c.push(elements.clone());
+    let inserted: Vec<(u16, u32)> = elements
+        .iter()
+        .filter(|e| out.iter().all(|_e| e != &_e))
+        .map(|e| e.clone())
+        .collect();
+    (inserted, out)
+}
+
+fn test_flush<'a, C>(c: &mut C, elements: Vec<(u16, u32)>)
+where
+    C: BuildingBlock<'a, u16, u32>,
+{
+    #[allow(unused_must_use)]
+    {
+        c.flush();
+    }
+    assert_eq!(c.count(), 0);
+    let (inserted, _) = insert(c, elements.clone());
+
     for (k, v) in c.flush() {
-        assert!(pushed
+        assert!(inserted
             .iter()
             .find(|(_k, _v)| { _k == &k && _v == &v })
             .is_some());
-        i += 1;
     }
-    assert_eq!(i, count);
     assert_eq!(c.count(), 0);
 }
 
-fn test_pop<'a, C>(c: &mut C, n: usize, victims: &Vec<(u16, u32)>)
+fn test_take<'a, C>(c: &mut C, elements: Vec<(u16, u32)>)
+where
+    C: BuildingBlock<'a, u16, u32>,
+{
+    #[allow(unused_must_use)]
+    {
+        c.flush();
+    }
+    let (inserted, _) = insert(c, elements.clone());
+
+    let count = c.count();
+    for (i, (k, v)) in inserted.iter().enumerate() {
+        let out = c.take(k);
+        assert!(out.is_some());
+        let (_k, _v) = out.unwrap();
+        assert_eq!(k, &_k);
+        assert_eq!(v, &_v);
+        assert_eq!(count - i - 1, c.count());
+    }
+}
+
+fn test_pop<'a, C>(c: &mut C, n: usize)
 where
     C: BuildingBlock<'a, u16, u32>,
 {
@@ -69,12 +109,6 @@ where
     assert!(popped.len() <= count);
     // New count is the difference between old count and popped.
     assert_eq!(c.count(), count - popped.len());
-    // All popped elements are expected victims
-    if n > 0 {
-        for (_, v) in popped {
-            assert!(victims.iter().any(|(_, _v)| &v == _v))
-        }
-    }
 }
 
 fn test_n<'a, C>(c: &mut C, n: usize)
@@ -84,8 +118,9 @@ where
     let elements: Vec<(u16, u32)> = (0..n as u64)
         .map(|i| (i as u16, rand(0u64, n as u64) as u32))
         .collect();
+
+    // Push Test
     test_push(c, Vec::new());
-
     if elements.len() > 0 {
         test_push(c, vec![elements[0]]);
         test_push(c, vec![elements[0]]);
@@ -96,26 +131,20 @@ where
     }
     test_push(c, elements.clone());
 
-    test_flush(c, &elements);
-    assert_eq!(c.count(), 0);
+    // Flush Test
+    test_flush(c, elements.clone());
 
-    let out = c.push(elements.clone());
-    let mut victims: Vec<(u16, u32)> = elements
-        .iter()
-        .filter(|e| out.iter().all(|_e| e != &_e))
-        .map(|e| e.clone())
-        .collect();
-    victims.sort_by(|(_, v1), (_, v2)| v1.cmp(v2));
+    // Take Test
+    test_take(c, elements.clone());
 
-    if victims.len() > 0 {
-        let first = vec![victims.pop().unwrap()];
-        let count = c.count();
-        test_pop(c, 1, &first);
-        assert_eq!(c.count(), count - 1);
+    // Pop Test
+    let (inserted, _) = insert(c, elements.clone());
+    test_pop(c, 0);
+    test_pop(c, 1);
+    if inserted.len() > 0 {
+        test_pop(c, inserted.len() - 1);
+        test_pop(c, 1);
     }
-
-    test_pop(c, victims.len(), &victims);
-    assert_eq!(c.count(), 0);
 }
 
 pub fn test_building_block<'a, C>(mut c: C)
@@ -127,4 +156,97 @@ where
     test_n(&mut c, capacity / 2);
     test_n(&mut c, capacity);
     test_n(&mut c, capacity * 2);
+}
+
+fn test_after_push<C>(
+    c: C,
+    count: usize,
+    keys: Vec<u16>,
+    popped_keys: Vec<u16>,
+) where
+    C: 'static
+        + BuildingBlock<'static, u16, u32>
+        + Concurrent<'static, u16, u32>,
+{
+    // Test container count is the incremented count.
+    assert!(c.count() == count);
+    // Test popped keys plus inserted keys is the number of keys.
+    assert!(keys.len() == c.count() + popped_keys.len());
+
+    // Test popped keys and inside keys do not overlap,
+    // All keys are distinct. They are either in or out.
+    for key in keys {
+        if c.contains(&key) {
+            assert!(!popped_keys.contains(&key));
+        } else {
+            assert!(popped_keys.contains(&key));
+        }
+    }
+
+    // Test container count does not exceed capacity:
+    assert!(c.count() <= c.capacity());
+}
+
+fn push_concurrent<C>(c: C, num_thread: u8)
+where
+    C: 'static
+        + BuildingBlock<'static, u16, u32>
+        + Concurrent<'static, u16, u32>,
+{
+    let capacity = c.capacity();
+    let mut set: Vec<(u16, u32)> =
+        (0..capacity * 2).map(|i| (i as u16, i as u32)).collect();
+    // The total number of elements to push in the container c.
+    let keys: Vec<u16> = set.iter().map(|(k, _)| k.clone()).collect();
+
+    // The base set size for each thread.
+    let t_size = set.len() / num_thread as usize;
+    // Elements popped out.
+    let (count, counted) = channel();
+    // Elements popped out.
+    let (pop, popped) = channel();
+
+    // Parallel push.
+    let handles = (0..num_thread).map(|i| {
+        let count = count.clone();
+        let mut container = c.clone();
+        let pop = pop.clone();
+        let set = if i == num_thread - 1 {
+            set.split_off(0)
+        } else {
+            set.split_off(set.len() - t_size)
+        };
+        thread::spawn(move || {
+            for (k, v) in set.into_iter() {
+                match container.push(vec![(k, v); 1]).pop() {
+                    None => {
+                        count.send(1usize).unwrap();
+                    }
+                    Some((k, _)) => {
+                        pop.send(k).unwrap();
+                    }
+                }
+            }
+        })
+    });
+
+    for h in handles {
+        h.join().unwrap()
+    }
+
+    test_after_push(
+        c,
+        counted.try_iter().sum(),
+        keys,
+        popped.try_iter().collect(),
+    );
+}
+
+pub fn test_concurrent<C>(c: C, num_thread: u8)
+where
+    C: 'static
+        + BuildingBlock<'static, u16, u32>
+        + Concurrent<'static, u16, u32>,
+{
+    push_concurrent(c, num_thread);
 }

@@ -1,8 +1,9 @@
-use crate::building_block::wrapper::Sequential;
 use crate::private::clone::CloneCell;
-use crate::{building_block::Concurrent, BuildingBlock, Get};
+use crate::wrapper::{LockedItem, LockedMutItem, Sequential};
+use crate::{BuildingBlock, Concurrent, Get};
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
+use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
 // Concurrent implementation of container                                 //
@@ -25,8 +26,8 @@ use std::marker::Sync;
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::building_block::container::Vector;
-/// use cache::building_block::multiplexer::Associative;
+/// use cache::container::Vector;
+/// use cache::multiplexer::Associative;
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// // Build a Vector cache of 2 sets. Each set hold one element.
@@ -151,10 +152,7 @@ where
         (0..self.n_sets).map(|i| self.containers[i].count()).sum()
     }
 
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
         let i = self.set(key.clone());
         self.containers[i].take(key)
     }
@@ -259,49 +257,43 @@ where
     }
 }
 
-impl<'a, K, V, C, H> Get<'a, K, V> for Associative<C, H>
+impl<'a, K, V, U, W, C, H>
+    Get<'a, K, V, LockedItem<'a, U>, LockedMutItem<'a, W>>
+    for Associative<C, H>
 where
-    K: 'a + Hash + Clone,
-    V: 'a + Ord,
+    K: Hash + Clone,
+    U: 'a + Deref<Target = V>,
+    W: 'a + DerefMut<Target = V>,
     H: Hasher + Clone,
-    C: BuildingBlock<'a, K, V> + Get<'a, K, V>,
+    C: Get<'a, K, V, U, W>,
 {
-    fn get<'b>(
-        &'b self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
-        Box::new(self.containers.iter().flat_map(move |c| c.get(&key)))
+    fn get(&'a self, key: &K) -> Option<LockedItem<'a, U>> {
+        let i = self.set(key.clone());
+        self.containers[i].get(key)
     }
 
-    fn get_mut<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
-        Box::new(
-            self.containers
-                .iter_mut()
-                .flat_map(move |c| c.get_mut(&key)),
-        )
+    fn get_mut(&'a mut self, key: &K) -> Option<LockedMutItem<'a, W>> {
+        let i = self.set(key.clone());
+        self.containers[i].get_mut(key)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Associative;
-    use crate::building_block::container::Vector;
-    // use crate::tests::building_block::test_building_block;
-    use crate::tests::concurrent::test_concurrent;
+    use crate::container::Vector;
+    use crate::tests::{test_building_block, test_concurrent};
     use std::collections::hash_map::DefaultHasher;
 
-    // #[test]
-    // fn building_block() {
-    //     test_building_block(Associative::new(
-    //         5,
-    //         10,
-    //         |n| Vector::<u16, u32>::new(n),
-    //         DefaultHasher::new(),
-    //     ));
-    // }
+    #[test]
+    fn building_block() {
+        test_building_block(Associative::new(
+            5,
+            10,
+            |n| Vector::<u16, u32>::new(n),
+            DefaultHasher::new(),
+        ));
+    }
 
     #[test]
     fn concurrent() {

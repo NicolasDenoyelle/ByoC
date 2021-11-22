@@ -1,13 +1,21 @@
-use crate::reference::Reference;
+use crate::policy::{Reference, ReferenceFactory};
 use crate::utils::timestamp::Timestamp;
 use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
-use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
 // Least Frequently Used Policy on cache references                       //
 //------------------------------------------------------------------------//
 
+/// This structure keeps track of access statistics.
+/// The access statistics is the exponential average of
+/// time difference between accesses.
+/// The exponential average can grant either higher or lower weight to
+/// recent touches than older ones while time differences grants higher
+/// weight to unfrequent touches, thus increasing the likelyhood of
+/// eviction for unfrequently touched element even if they have been
+/// frequently touched long ago, and decreasing the likelyhood of eviction
+/// for recently inserted elements.
 #[derive(Clone, Debug, Copy)]
 pub struct Stats<T: Timestamp + Copy> {
     /// Last touch timestamp
@@ -19,6 +27,9 @@ pub struct Stats<T: Timestamp + Copy> {
 }
 
 impl<T: Timestamp + Copy> Stats<T> {
+    /// Create a new statistic tracker with a set exponent.
+    /// On each touch, the weight of previous accesses is divided
+    /// by this exponent.
     pub fn new(exponent: f32) -> Self {
         Stats {
             exponent: exponent,
@@ -27,6 +38,11 @@ impl<T: Timestamp + Copy> Stats<T> {
         }
     }
 
+    /// Update statistic tracker with a new access.
+    /// This function gets the current time timestamp,
+    /// computes the time difference between now and the timestamp of
+    /// last touch. The difference is summed to the current statistic
+    /// and the total statistic is then divided by the tracker exponent.
     pub fn touch(&mut self) {
         let last = T::new();
         let diff = last.diff(&self.last);
@@ -34,6 +50,7 @@ impl<T: Timestamp + Copy> Stats<T> {
         self.eavg = diff + self.eavg / self.exponent;
     }
 
+    /// Read the current statistic of this tracker.
     pub fn score(&self) -> f32 {
         T::new().diff(&self.last) + self.eavg / self.exponent
     }
@@ -42,62 +59,89 @@ impl<T: Timestamp + Copy> Stats<T> {
 /// Implementation of [`Reference`](trait.Reference.html)
 /// with a Least Recently Frequently Used (LRFU) eviction policy.
 ///
-/// `LRFU` references implement an order
+/// `LRFUCell` references implement an order
 /// based on the Least Recently Frequently Used (LRFU) policy.
-/// It tries to keep in cache frequently used elements while giving a chance
-/// to recently added but not frequently usef elements to stay in the cache.
-/// When a cache lookup occures the state of the reference is updated according
-/// to the number of times it is accessed and the timestamp of accesses.
 ///
-/// ## Examples
-///
-/// ```
-/// use cache::reference::{Reference, LRFU};
-/// use cache::utils::timestamp::{Timestamp, Counter};
-///
-/// // Least Recently Used cache reference storing f32 values and
-/// // counting time with Counter.
-/// let mut r0 = LRFU::<u32, Counter>::new(999, 2.0);
-/// let mut r1 = LRFU::<u32, Counter>::new(666, 2.0);
-/// *r0;
-/// assert!( r0 < r1 ); // r0 is the most frequently and recently touched.
-/// *r1;
-/// assert!( r1 < r0 ); // r0 and r1 are as frequently used but r1 is more
-/// // recent.
-/// *r0;
-/// assert!( r0 < r1 ); // r0 is the most frequently and recently touched.
-/// *r0;
-/// *r1;
-/// assert!( r0 < r1 ); // r0 is more frequently and only slightly older than
-/// // r1.
-/// ```
+/// See [`LRFU`](struct.LRFU.html)
 #[derive(Debug)]
-pub struct LRFU<V, T: Timestamp + Copy> {
+struct LRFUCell<V, T: Timestamp + Copy> {
     /// Reference value.
     value: V,
     stats: Cell<Stats<T>>,
 }
 
-impl<V, T: Timestamp + Copy> LRFU<V, T> {
-    /// Construct a [`LRFU`](struct.LRFU.html) cache reference.
+/// Value wrappers implementing Least Recently Frequently Used ordering.
+///
+/// `LRFU` wraps values into cells implementing LRFU ordering policy.
+/// It tries to keep in cache frequently used elements while giving a chance
+/// to recently added but not frequently used elements to stay in the cache.
+/// When a cache lookup occures the state of the cell is updated
+/// according to the number of times it is accessed and the timestamp of
+/// accesses.
+///
+/// When a cache element wrapped into a LRFU cell is accessed, its
+/// statistic is updated as follow:
+/// the time difference between now and the timestamp of
+/// last touch is computed. The difference is summed to the current
+/// statistic and the total statistic is then divided by the policy
+/// `exponent`.
+///
+/// See [`LRFU::new()`](struct.LRFU.html#tymethod.new)
+///
+/// ## Examples
+///
+/// ```
+/// use cache::container::Vector;
+/// use cache::policy::{Policy, LRFU};
+///
+/// // let c = Policy::new(Vector::new(3), LRFU::new(2.0));
+/// ```
+pub struct LRFU<T: Timestamp + Copy> {
+    exponent: f32,
+    phantom: std::marker::PhantomData<T>,
+}
+
+impl<T: Timestamp + Copy> LRFU<T> {
+    /// Construct a LRFU references factory.
     ///
-    /// The importance of "recently" and "frequently" used can be
-    /// weighted for the computation of ordering of references in cache.
-    /// This computation is done in `score()` of
-    /// [`LRFU`](struct.LRFU.html) references.
-    ///
-    /// ## Arguments:    
-    ///
-    /// * `v`: The value to store in the cache reference.
-    /// * `exponent`: The exponential decay of weight of old access. Must be > 0.
-    /// The greater the exponent the closer to LRU policy gets.
-    /// The smaller (>=1) the exponent, the closer to LFU policy gets.
+    /// The `exponent` decay must be strictly greater than 0.
+    /// The greater the exponent (>>1) the closer to Least Recently Used
+    /// this policy becomes.
+    /// The smaller (>=1) the exponent, the closer to Least Frequently Used
+    /// this  policy gets.
     /// If exponent is < 1, then the policy put more weight on old elements.
+    ///
+    /// See [`LRFU`](struct.LRFU.html)
+    pub fn new(exponent: f32) -> Self {
+        LRFU {
+            exponent: exponent,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+unsafe impl<T: Timestamp + Copy> Send for LRFU<T> {}
+unsafe impl<T: Timestamp + Copy> Sync for LRFU<T> {}
+
+impl<V, T: Timestamp + Copy> ReferenceFactory<V, LRFUCell<V, T>>
+    for LRFU<T>
+{
+    fn wrap(&mut self, v: V) -> LRFUCell<V, T> {
+        LRFUCell::new(v, self.exponent)
+    }
+}
+
+impl<V, T: Timestamp + Copy> LRFUCell<V, T> {
+    /// Construct a [`LRFUCell`](struct.LRFUCell.html) cache reference.
+    ///
+    /// See [`LRFU`](struct.LRFU.html) and
+    /// [`LRFU::new()`](struct.LRFU.html#tymethod.new)
+    /// for more details on exponent argument.
     pub fn new(v: V, exponent: f32) -> Self {
         if exponent <= 0.0 {
-            panic!("LRFU exponent cannot be <= 0.");
+            panic!("LRFUCell exponent cannot be <= 0.");
         }
-        LRFU {
+        LRFUCell {
             value: v,
             stats: Cell::new(Stats::new(exponent)),
         }
@@ -112,22 +156,7 @@ impl<V, T: Timestamp + Copy> LRFU<V, T> {
     }
 }
 
-impl<V, T: Timestamp + Copy> Deref for LRFU<V, T> {
-    type Target = V;
-    fn deref(&self) -> &Self::Target {
-        self.touch();
-        &self.value
-    }
-}
-
-impl<V, T: Timestamp + Copy> DerefMut for LRFU<V, T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.touch();
-        &mut self.value
-    }
-}
-
-impl<V, T: Timestamp + Copy> Ord for LRFU<V, T> {
+impl<V, T: Timestamp + Copy> Ord for LRFUCell<V, T> {
     fn cmp(&self, other: &Self) -> Ordering {
         // SAFETY:
         // self.stats and other.stats are initialized.
@@ -140,18 +169,54 @@ impl<V, T: Timestamp + Copy> Ord for LRFU<V, T> {
     }
 }
 
-impl<V, T: Timestamp + Copy> PartialOrd for LRFU<V, T> {
+impl<V, T: Timestamp + Copy> PartialOrd for LRFUCell<V, T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(&other))
     }
 }
 
-impl<V, T: Timestamp + Copy> PartialEq for LRFU<V, T> {
+impl<V, T: Timestamp + Copy> PartialEq for LRFUCell<V, T> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(&other) == Ordering::Equal
     }
 }
 
-impl<V, T: Timestamp + Copy> Eq for LRFU<V, T> {}
+impl<V, T: Timestamp + Copy> Eq for LRFUCell<V, T> {}
 
-impl<V, T: Timestamp + Copy> Reference<V> for LRFU<V, T> {}
+impl<V, T: Timestamp + Copy> Reference<V> for LRFUCell<V, T> {
+    fn unwrap(self) -> V {
+        self.value
+    }
+    fn get<'a>(&'a self) -> &'a V {
+        self.touch();
+        &self.value
+    }
+    fn get_mut<'a>(&'a mut self) -> &'a mut V {
+        self.touch();
+        &mut self.value
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::LRFUCell;
+    use crate::policy::Reference;
+    use crate::utils::timestamp::Counter;
+
+    #[test]
+    fn test_lrfu_ref() {
+        let r0 = LRFUCell::<u32, Counter>::new(999, 2.0);
+        let r1 = LRFUCell::<u32, Counter>::new(666, 2.0);
+        r0.get();
+        assert!(r0 < r1); // r0 is the most frequently and recently touched.
+        r1.get();
+        assert!(r1 < r0); // r0 and r1 are as frequently used but r1 is more
+                          // recent.
+        r0.get();
+        assert!(r0 < r1); // r0 is the most frequently and recently touched.
+        r0.get();
+        r1.get();
+        assert!(r0 < r1); // r0 is more frequently and only slightly older than
+                          // r1.
+    }
+}

@@ -1,6 +1,5 @@
-use crate::reference::Reference;
+use crate::policy::{Reference, ReferenceFactory};
 use std::cmp::Ord;
-use std::ops::{Deref, DerefMut};
 
 //----------------------------------------------------------------------------//
 // Default reference                                                          //
@@ -11,37 +10,59 @@ use std::ops::{Deref, DerefMut};
 /// ## Examples
 ///
 /// ```
-/// use cache::reference::{Reference, Default};
+/// use cache::container::Vector;
+/// use cache::policy::{Policy, Default};
 ///
-/// let p0 = Default::new("item0");
-/// let p1 = Default::new("item1");
-/// assert!( p0 < p1 );
-/// assert!( p1 > p0 );
-/// assert!( p0 == p0 );
-/// assert!( p1 == p1 );
+/// let c = Policy::new(Vector::new(3), Default::new());
+/// c.push(vec!["item1", "item2", "item0"]);
+/// assert_eq!(c.pop(1).pop().unwrap(), "item2");
+/// assert_eq!(c.pop(1).pop().unwrap(), "item1");
+/// assert_eq!(c.pop(1).pop().unwrap(), "item0");
 /// ```
 #[derive(Debug, PartialOrd, Ord, Eq, PartialEq)]
-pub struct Default<V: Ord> {
+pub struct DefaultCell<V: Ord> {
     value: V,
 }
 
-impl<V: Ord> Default<V> {
+impl<V: Ord> DefaultCell<V> {
     pub fn new(v: V) -> Self {
-        Default { value: v }
+        DefaultCell { value: v }
     }
 }
 
-impl<V: Ord> Deref for Default<V> {
-    type Target = V;
-    fn deref(&self) -> &Self::Target {
+impl<V: Ord> Reference<V> for DefaultCell<V> {
+    fn unwrap(self) -> V {
+        self.value
+    }
+    fn get<'a>(&'a self) -> &'a V {
         &self.value
     }
-}
-
-impl<V: Ord> DerefMut for Default<V> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
+    fn get_mut<'a>(&'a mut self) -> &'a mut V {
         &mut self.value
     }
 }
 
-impl<V: Ord> Reference<V> for Default<V> {}
+pub struct Default {}
+impl<V: Ord> ReferenceFactory<V, DefaultCell<V>> for Default {
+    fn wrap(&mut self, v: V) -> DefaultCell<V> {
+        DefaultCell { value: v }
+    }
+}
+
+unsafe impl Send for Default {}
+unsafe impl Sync for Default {}
+
+#[cfg(test)]
+mod tests {
+    use super::DefaultCell;
+
+    #[test]
+    fn test_default_ref() {
+        let p0 = DefaultCell::new("item0");
+        let p1 = DefaultCell::new("item1");
+        assert!(p0 < p1);
+        assert!(p1 > p0);
+        assert!(p0 == p0);
+        assert!(p1 == p1);
+    }
+}

@@ -19,7 +19,7 @@ use std::vec::Vec;
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::building_block::container::Vector;
+/// use cache::container::Vector;
 ///
 /// // container with only 1 element.
 /// let mut c = Vector::new(1);
@@ -42,36 +42,6 @@ impl<K: Eq, V> Vector<K, V> {
         Vector {
             capacity: n,
             values: Vec::with_capacity(n + 1),
-        }
-    }
-}
-
-//------------------------------------------------------------------------//
-// Iterator to take elements out.                                         //
-//------------------------------------------------------------------------//
-
-struct VectorTakeIterator<'a, K, V> {
-    vec: &'a mut Vec<(K, V)>,
-    key: &'a K,
-    current: usize,
-}
-
-impl<'a, K: Eq, V> Iterator for VectorTakeIterator<'a, K, V> {
-    type Item = (K, V);
-    fn next(&mut self) -> Option<Self::Item> {
-        let n = self.vec.len();
-        if n == 0 {
-            None
-        } else {
-            loop {
-                if n <= self.current {
-                    break None;
-                } else if &self.vec[self.current].0 == self.key {
-                    break Some(self.vec.swap_remove(self.current));
-                } else {
-                    self.current += 1;
-                }
-            }
         }
     }
 }
@@ -120,55 +90,61 @@ where
         out
     }
 
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
-        Box::new(VectorTakeIterator {
-            vec: &mut self.values,
-            key: key,
-            current: 0usize,
-        })
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
+        match self.values.iter().enumerate().find_map(|(i, (k, _))| {
+            if k == key {
+                Some(i.clone())
+            } else {
+                None
+            }
+        }) {
+            None => None,
+            Some(i) => Some(self.values.swap_remove(i)),
+        }
     }
 }
 
-impl<'a, K: 'a + Eq, V: 'a + Ord> Get<'a, K, V> for Vector<K, V> {
-    fn get<'b>(
-        &'b self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
-        Box::new(self.values.iter().filter_map(move |kv| {
-            if &kv.0 == key {
-                Some(kv)
-            } else {
-                None
-            }
-        }))
+impl<'a, K: Eq, V: Ord> Get<'a, K, V, &'a V, &'a mut V> for Vector<K, V> {
+    fn get(&'a self, key: &K) -> Option<&'a V> {
+        self.values.iter().find_map(
+            move |(k, v)| {
+                if k == key {
+                    Some(v)
+                } else {
+                    None
+                }
+            },
+        )
     }
 
-    fn get_mut<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
-        Box::new(self.values.iter_mut().filter_map(move |kv| {
-            if &kv.0 == key {
-                Some(kv)
+    fn get_mut(&'a mut self, key: &K) -> Option<&'a mut V> {
+        self.values.iter_mut().find_map(move |(k, v)| {
+            if k == key {
+                Some(v)
             } else {
                 None
             }
-        }))
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::Vector;
-    use crate::tests::building_block::test_building_block;
+    use crate::container::tests::test_container;
+    use crate::tests::test_building_block;
 
     #[test]
     fn building_block() {
         test_building_block(Vector::new(0));
         test_building_block(Vector::new(10));
         test_building_block(Vector::new(100));
+    }
+
+    #[test]
+    fn container() {
+        test_container(Vector::new(0));
+        test_container(Vector::new(10));
+        test_container(Vector::new(100));
     }
 }

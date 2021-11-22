@@ -1,26 +1,36 @@
 use std::cmp::Ord;
-use std::ops::{Deref, DerefMut};
 
-/// Definition of [`Reference`](trait.Reference.html) trait.
+/// Value ordering implementation.
 ///
-/// **References shall not implement an order based on their
-/// inner pointer value.** Cache elements can be accessed and modified
-/// while in the cache.
-/// If `Ord` is implemented on references value then `Ord` inside the
-/// [`BuildingBlock`](../trait.BuildingBlock.html) can be broke and lead to
-/// buggy eviction policy.
-pub trait Reference<V>:
-    Ord + Deref<Target = V> + DerefMut<Target = V>
-{
+/// A reference is a value wrapper that lives in
+/// [containers](../container/index.html).
+/// This trait implements an ordering of victims in containers
+/// to therefore an eviction policy. It also implements access
+/// to the value it wraps.
+pub trait Reference<V>: Ord {
+    fn unwrap(self) -> V;
+    fn get<'a>(&'a self) -> &'a V;
+    fn get_mut<'a>(&'a mut self) -> &'a mut V;
 }
 
-mod priority;
-pub use crate::reference::priority::Priority;
+/// Facility to wrap a value into a cache reference.
+pub trait ReferenceFactory<V, R>
+where
+    R: Reference<V>,
+{
+    /// Wrap a value into a reference.
+    fn wrap(&mut self, v: V) -> R;
+}
+
+mod policy;
+pub use crate::policy::policy::Policy;
 mod lrfu;
-pub use crate::reference::lrfu::LRFU;
+pub use crate::policy::lrfu::LRFU;
 mod lru;
-pub use crate::reference::lru::LRU;
+pub use crate::policy::lru::LRU;
 mod fifo;
-pub use crate::reference::fifo::FIFO;
+pub use crate::policy::fifo::FIFO;
+#[cfg(test)]
 mod default;
-pub use crate::reference::default::Default;
+#[cfg(test)]
+pub use crate::policy::default::{Default, DefaultCell};

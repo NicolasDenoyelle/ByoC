@@ -1,18 +1,10 @@
 /// BuildingBlock trait for Key/Value storage of references.
 ///
-/// ## Details
-///
-/// A container is a key/value storage with set maximum capacity.
-/// When maximum capacity is reached, new insertion cause the container
-/// to evict the element with the highest value in the container.
-/// Each container implementation implements a specific way to perform
-/// insertions and lookups, and target a specific storage tier.
-///
 /// ## Examples
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::building_block::container::Vector;
+/// use cache::container::Vector;
 ///
 /// // container with only 1 element.
 /// let mut c = Vector::new(1);
@@ -41,24 +33,18 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     fn contains(&self, key: &K) -> bool;
 
     /// Get every values matching key out of the container.
-    ///
-    /// * `key`: The key associated with the values to take.
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b>;
+    fn take(&mut self, key: &K) -> Option<(K, V)>;
 
     /// Remove up to `n` values from the container.
     /// If less than `n` values are stored in the containers,
     /// the returned vector contains all the container values and
     /// the container is left with not value.
+    /// Usually implementations will be selecting the
+    /// nth max elements in the building block.
     fn pop(&mut self, n: usize) -> Vec<(K, V)>;
 
     /// Insert key/value pairs in the container. If the container cannot
     /// store all the values, overflowing values are returned.
-    ///
-    /// * `key`: The key associated with the value to insert.
-    /// * `values`: The cache values to insert.
     fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)>;
 
     /// Empty the container and retrieve all of its elements.
@@ -68,50 +54,94 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
 }
 
-pub trait Get<'a, K: 'a, V: 'a>: BuildingBlock<'a, K, V> {
-    fn get<'b>(
-        &'b self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b>;
-
-    fn get_mut<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b>;
+pub trait Get<'a, K, V, W, U>
+where
+    W: std::ops::Deref<Target = V>,
+    U: std::ops::DerefMut<Target = V>,
+{
+    fn get(&'a self, key: &K) -> Option<W>;
+    fn get_mut(&'a mut self, key: &K) -> Option<U>;
 }
 
-/// Implementations of building blocks.
-pub mod building_block;
+/// Mark a [`building blocks`](trait.BuildingBlock.html) as thread safe.
+/// When this trait is implemented, the implementer guarantees that the
+/// container can be used safely concurrently in between its clones
+/// obtained with the method
+/// [`Concurrent::clone()`](trait.Concurrent.html#tymethod.clone).
+/// Clones of this container are shallow copies referring to the same
+/// building block.
+pub trait Concurrent<'a, K: 'a, V: 'a>:
+    crate::BuildingBlock<'a, K, V> + Send + Sync
+{
+    /// Create a shallow copy of the container pointing to the same
+    /// container that can be later used concurrently.
+    fn clone(&self) -> Self;
+}
 
-/// Cache references.
+/// Key, Value store implementations.
 ///
-/// A cache reference is a smart pointer trait for struct implementing
-/// `Ord`, `Deref` and `DerefMut` traits. A cache reference may implement
-/// interior mutability such that derefencing it may update the reference
-/// internal state and order with other references. This typically used,
-/// for instance, to find most the recently used value as implemented by
-/// [LRU](./struct.LRU.html) reference.
+/// Containers implement the
+/// [`BuildingBlock`](../trait.BuildingBlock.html) interface and
+/// provide additional guarantees about the behavior of the implementation.
+///
+/// * As long as a container is not full, it must accept new key/value
+/// pairs. Although containers are not required to prevent insertion of
+/// duplicate keys, some container implementation may reject a key/value
+/// pair if the key is already stored in the container.
+/// * Additionally, containers must guarantee that the victims
+/// (key/value pairs) evicted on
+/// [`pop()`](../trait.BuildingBlock.html#tymethod.pop) are indeed the
+/// smallest values.
+pub mod container;
+
+/// Connect two other [`BuildingBlock`](../trait.BuildingBlock.html)s.
+///
+/// Connectors implement the [`BuildingBlock`](../trait.BuildingBlock.html)s
+/// interface to connect two other building blocks.
+///
+/// Connectors typically implement the way data transitions from
+/// one stage of the cache to another. For instance, a connector can
+/// implement an inclusive cache to facilitate the search for keys
+/// in different stages of the cache.
+///
+/// Unlike containers, connectors do not ensure that insertion are
+/// possible even when one of the connected buiding blocks still
+/// has room to fit more elements.
+pub mod connector;
+
+/// [`BuildingBlock`](../trait.BuildingBlock.html) splitting the key/value
+/// pairs traffic toward different other building blocks.
+pub mod multiplexer;
+
+/// [`BuildingBlock`](../trait.BuildingBlock.html) wrapping another one.
+pub mod wrapper;
+
+/// [`BuildingBlock`](../trait.BuildingBlock.html) implementing a cache
+/// policy.
+///
+/// [Container](container/index.html) eviction on
+/// [`pop()`](trait.BuildingBlock.html#tymethod.pop) takes the nth highest
+/// elements out of the container. [Policy](./policy/struct.Policy.html)
+/// is a wrapper implementation of a
+/// [building block](trait.BuildingBlock.html) that
+/// [wraps](./policy/trait.ReferenceFactory.html#tymethod.wrap)/[unwraps](./policy/trait.Reference.html#tymethod.unwrap)
+/// values into/from an ordered cell before inserting or removing them
+/// from the underlying building block.
+/// As a result, when values get evicted, they are evicted according to
+/// the order defined by the policy.
+///
+/// User of policies must be careful that accessing values wrapped into
+/// an order cell might change the order of elements in the container, and
+/// therefore, policies should not be used with containers relying on
+/// a stable order of its values. Note that containers that rely on a
+/// stable order of values should not allow access to their inner values
+/// alltogether to avoid this problem.
 ///
 /// ## Examples
 ///
-/// Least Recently Used references will be updated when they are used.
 /// ```
-/// use std::ops::Deref;
-/// use cache::reference::{Reference, LRU};
-///
-/// let mut r0 = LRU::new("first reference");
-/// let r1 = LRU::new("second reference");
-///
-/// // r0 is the least recently created reference.
-/// assert!( r0 > r1 );
-///
-/// // Access r0 to make it the most recently used.
-/// assert!( r0.deref() == &"first reference" );
-///
-/// // Now r1 is the least recently used reference.
-/// assert!( r0 < r1 );
 /// ```
-pub mod reference;
+pub mod policy;
 
 /// Utils
 pub mod utils;
@@ -121,6 +151,7 @@ pub mod utils;
 /// library.
 mod private;
 
-// /// Public test module available only for testing purposes.
 #[cfg(test)]
+/// Public test module available only for testing building blocks
+/// implementation.
 pub mod tests;

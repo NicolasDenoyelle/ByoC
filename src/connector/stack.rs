@@ -1,4 +1,4 @@
-use crate::{BuildingBlock, Get};
+use crate::BuildingBlock;
 use std::marker::PhantomData;
 
 //------------------------------------------------------------------------//
@@ -24,8 +24,8 @@ use std::marker::PhantomData;
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::building_block::connector::Stack;
-/// use cache::building_block::container::Vector;
+/// use cache::connector::Stack;
+/// use cache::container::Vector;
 ///
 /// // Create cache
 /// let mut l1 = Vector::new(1);
@@ -101,11 +101,11 @@ where
         self.l1.count() + self.l2.count()
     }
 
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
-        Box::new(self.l1.take(key).chain(self.l2.take(key)))
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
+        match self.l1.take(key) {
+            Some(x) => Some(x),
+            None => self.l2.take(key),
+        }
     }
 
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
@@ -122,39 +122,39 @@ where
     }
 }
 
-impl<'a, K, V, C1, C2> Get<'a, K, V> for Stack<'a, K, V, C1, C2>
-where
-    K: 'a,
-    V: 'a,
-    C1: BuildingBlock<'a, K, V> + Get<'a, K, V>,
-    C2: BuildingBlock<'a, K, V> + Get<'a, K, V>,
-{
-    fn get<'b>(
-        &'b self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
-        Box::new(self.l1.get(key).chain(self.l2.get(key)))
-    }
+// impl<'a, K, V, C1, C2> Get<'a, K, V> for Stack<'a, K, V, C1, C2>
+// where
+//     K: 'a,
+//     V: 'a,
+//     C1: BuildingBlock<'a, K, V> + Get<'a, K, V>,
+//     C2: BuildingBlock<'a, K, V> + Get<'a, K, V>,
+// {
+//     fn get<'b>(
+//         &'b self,
+//         key: &'b K,
+//     ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
+//         Box::new(self.l1.get(key).chain(self.l2.get(key)))
+//     }
 
-    fn get_mut<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
-        Box::new(self.l1.get_mut(key).chain(self.l2.get_mut(key)))
-    }
-}
+//     fn get_mut<'b>(
+//         &'b mut self,
+//         key: &'b K,
+//     ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
+//         Box::new(self.l1.get_mut(key).chain(self.l2.get_mut(key)))
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
     use super::Stack;
-    use crate::building_block::container::Vector;
-    use crate::tests::building_block::test_building_block;
+    use crate::container::Vector;
+    use crate::tests::test_building_block;
 
     #[test]
     fn building_block() {
         test_building_block(Stack::new(Vector::new(0), Vector::new(0)));
         test_building_block(Stack::new(Vector::new(0), Vector::new(10)));
         test_building_block(Stack::new(Vector::new(10), Vector::new(0)));
-        // test_building_block(Stack::new(Vector::new(10), Vector::new(100)));
+        test_building_block(Stack::new(Vector::new(10), Vector::new(100)));
     }
 }

@@ -83,32 +83,22 @@ where
         self.vec.iter().any(|s| &(*s).0 == key)
     }
 
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
         // Get indexes of matching keys.
-        let mut indexes: Vec<usize> = self
-            .vec
-            .iter()
-            .enumerate()
-            .filter_map(
-                |(i, s)| if &(*s).0 == key { Some(i) } else { None },
-            )
-            .collect();
-        // Sort in ascending order
-        indexes.sort();
-
-        // Iterator removes keys with swap remove from the end.
-        // Position of other matching elements is not impacted
-        // by the swap.
-        Box::new(indexes.into_iter().rev().map(move |i| {
-            match self.vec.swap_remove(i) {
+        match self.vec.iter().enumerate().find_map(|(i, s)| {
+            if &(*s).0 == key {
+                Some(i)
+            } else {
+                None
+            }
+        }) {
+            None => None,
+            Some(i) => match self.vec.swap_remove(i) {
                 Err(_) => panic!(),
                 Ok(None) => panic!(),
-                Ok(Some(v)) => v,
-            }
-        }))
+                Ok(Some(v)) => Some(v),
+            },
+        }
     }
 
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {

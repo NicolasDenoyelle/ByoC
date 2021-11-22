@@ -10,7 +10,7 @@ use std::time::Instant;
 /// * `Clone`: Since timestamps are supposed to be lightweight it is reasonable
 /// to ask for it to be copy in order to facilitate management of object using
 /// timestamps.
-pub trait Timestamp: Ord + Clone {
+pub trait Timestamp: Ord + Eq + PartialOrd + PartialEq + Copy {
     /// Timestamp default constructor.
     fn new() -> Self;
     /// Timestamp difference to f32.

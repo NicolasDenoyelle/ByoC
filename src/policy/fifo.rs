@@ -1,62 +1,70 @@
-use crate::reference::Reference;
-use crate::utils::timestamp::{Counter, Timestamp};
+use crate::policy::{Reference, ReferenceFactory};
 use std::cmp::{Ord, Ordering};
-use std::ops::{Deref, DerefMut};
-
+use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 //----------------------------------------------------------------------------//
 // FIFO eviction policy                                                       //
 //----------------------------------------------------------------------------//
 
 /// Implementation of [`Reference`](trait.Reference.html) with
 /// a First In First Out eviction policy.
+#[derive(Debug)]
+pub struct FIFOCell<V> {
+    value: V,
+    counter: u64,
+}
+
+/// Value wrappers implementing First In First Out ordering.
 ///
-/// Eviction of these references is not affected by cache lookups.
+/// `FIFO` wraps values into cells implementing FIFO ordering policy.
+/// It tries to keep in cache last inserted elements while evicting older
+/// insertions.
+///
+/// FIFO implementations keeps a counter of fifo cells creation and
+/// attached the counter value to the value wrapped into a FIFO cell.
+/// FIFO cells are further ordered in reverse order of their counter value
+/// such that the oldest counter are the one evicted first.
 ///
 /// ## Examples
 ///
 /// ```
-/// use cache::reference::{Reference, FIFO};
+/// use cache::BuildingBlock;
+/// use cache::container::Vector;
+/// use cache::policy::{Policy, FIFO};
 ///
-/// let p0 = FIFO::new("item0");
-/// let p1 = FIFO::new("item1");
-/// assert!( p0 > p1 );
-/// assert!( p1 < p0 );
-/// assert!( p0 == p0 );
-/// assert!( p1 == p1 );
-/// ```
-#[derive(Debug)]
-pub struct FIFO<V> {
-    value: V,
-    timestamp: Counter,
+/// let mut c = Policy::new(Vector::new(3), FIFO::new());
+/// c.push(vec![("item1",()), ("item2",()), ("item0",())]);
+/// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
+/// assert_eq!(c.pop(1).pop().unwrap().0, "item2");
+/// assert_eq!(c.pop(1).pop().unwrap().0, "item0");
+pub struct FIFO {
+    counter: AtomicU64,
 }
 
-impl<V> FIFO<V> {
-    pub fn new(v: V) -> Self {
+impl FIFO {
+    pub fn new() -> Self {
         FIFO {
-            value: v,
-            timestamp: Counter::new(),
+            counter: AtomicU64::new(0),
         }
     }
 }
 
-impl<V> Deref for FIFO<V> {
-    type Target = V;
-    fn deref(&self) -> &Self::Target {
-        &self.value
+impl<V> ReferenceFactory<V, FIFOCell<V>> for FIFO {
+    fn wrap(&mut self, v: V) -> FIFOCell<V> {
+        FIFOCell {
+            value: v,
+            counter: self.counter.fetch_add(1, Relaxed),
+        }
     }
 }
 
-impl<V> DerefMut for FIFO<V> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.value
-    }
-}
+unsafe impl Send for FIFO {}
+unsafe impl Sync for FIFO {}
 
-impl<V> Ord for FIFO<V> {
+impl<V> Ord for FIFOCell<V> {
     fn cmp(&self, other: &Self) -> Ordering {
-        if self.timestamp > other.timestamp {
+        if self.counter > other.counter {
             Ordering::Less
-        } else if self.timestamp < other.timestamp {
+        } else if self.counter < other.counter {
             Ordering::Greater
         } else {
             Ordering::Equal
@@ -64,18 +72,49 @@ impl<V> Ord for FIFO<V> {
     }
 }
 
-impl<V> PartialOrd for FIFO<V> {
+impl<V> PartialOrd for FIFOCell<V> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<V> PartialEq for FIFO<V> {
+impl<V> PartialEq for FIFOCell<V> {
     fn eq(&self, other: &Self) -> bool {
-        self.timestamp == other.timestamp
+        self.counter == other.counter
     }
 }
 
-impl<V> Eq for FIFO<V> {}
+impl<V> Eq for FIFOCell<V> {}
 
-impl<V> Reference<V> for FIFO<V> {}
+impl<V> Reference<V> for FIFOCell<V> {
+    fn unwrap(self) -> V {
+        self.value
+    }
+    fn get<'a>(&'a self) -> &'a V {
+        &self.value
+    }
+    fn get_mut<'a>(&'a mut self) -> &'a mut V {
+        &mut self.value
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FIFOCell;
+
+    #[test]
+    fn test_fifo_ref() {
+        let p0 = FIFOCell {
+            value: "item0",
+            counter: 0u64,
+        };
+        let p1 = FIFOCell {
+            value: "item1",
+            counter: 1u64,
+        };
+        assert!(p0 > p1);
+        assert!(p1 < p0);
+        assert!(p0 == p0);
+        assert!(p1 == p1);
+    }
+}

@@ -20,7 +20,7 @@ use std::collections::{BTreeMap, BTreeSet};
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::building_block::container::BTree;
+/// use cache::container::BTree;
 ///
 /// // container with only 1 element.
 /// let mut c = BTree::new(1);
@@ -60,60 +60,6 @@ where
             set: BTreeSet::new(),
             map: BTreeMap::new(),
         }
-    }
-
-    fn take_one(&mut self, key: &K) -> Option<(K, V)> {
-        match self.map.remove(key) {
-            None => None,
-            Some(i) => {
-                let n = self.references.len() - 1;
-                assert!(self
-                    .set
-                    .remove(&(OrdPtr::new(&self.references[i].1), *key)));
-                if i != n {
-                    let (k_last, r_last) = {
-                        let (k, r) =
-                            self.references.iter().rev().next().unwrap();
-                        (k.clone(), OrdPtr::new(r))
-                    };
-                    assert!(self.set.remove(&(r_last, k_last)));
-                    self.map.insert(k_last, i);
-                    let (key, reference) = self.references.swap_remove(i);
-                    assert!(self.set.insert((
-                        OrdPtr::new(&self.references[i].1),
-                        k_last
-                    )));
-                    Some((key, reference))
-                } else {
-                    let (key, reference) = self.references.swap_remove(i);
-                    Some((key, reference))
-                }
-            }
-        }
-    }
-}
-
-//------------------------------------------------------------------------//
-//  BuildingBlock implementation.                                             //
-//------------------------------------------------------------------------//
-
-struct BTreeTakeIterator<'a, K, V>
-where
-    K: 'a + Copy + Ord,
-    V: 'a + Ord,
-{
-    btree: &'a mut BTree<K, V>,
-    key: &'a K,
-}
-
-impl<'a, K, V> Iterator for BTreeTakeIterator<'a, K, V>
-where
-    K: 'a + Copy + Ord,
-    V: 'a + Ord,
-{
-    type Item = (K, V);
-    fn next(&mut self) -> Option<Self::Item> {
-        self.btree.take_one(self.key)
     }
 }
 
@@ -205,26 +151,54 @@ where
         ret
     }
 
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
-        Box::new(BTreeTakeIterator {
-            btree: self,
-            key: &key,
-        })
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
+        match self.map.remove(key) {
+            None => None,
+            Some(i) => {
+                let n = self.references.len() - 1;
+                assert!(self
+                    .set
+                    .remove(&(OrdPtr::new(&self.references[i].1), *key)));
+                if i != n {
+                    let (k_last, r_last) = {
+                        let (k, r) =
+                            self.references.iter().rev().next().unwrap();
+                        (k.clone(), OrdPtr::new(r))
+                    };
+                    assert!(self.set.remove(&(r_last, k_last)));
+                    self.map.insert(k_last, i);
+                    let (key, reference) = self.references.swap_remove(i);
+                    assert!(self.set.insert((
+                        OrdPtr::new(&self.references[i].1),
+                        k_last
+                    )));
+                    Some((key, reference))
+                } else {
+                    let (key, reference) = self.references.swap_remove(i);
+                    Some((key, reference))
+                }
+            }
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::BTree;
-    use crate::tests::building_block::test_building_block;
+    use crate::container::tests::test_container;
+    use crate::tests::test_building_block;
 
     #[test]
     fn building_block() {
         test_building_block(BTree::new(0));
         test_building_block(BTree::new(10));
         test_building_block(BTree::new(100));
+    }
+
+    #[test]
+    fn container() {
+        test_container(BTree::new(0));
+        test_container(BTree::new(10));
+        test_container(BTree::new(100));
     }
 }
