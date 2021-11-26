@@ -1,5 +1,5 @@
 use crate::private::lock::RWLock;
-use crate::{BuildingBlock, Concurrent};
+use crate::{BuildingBlock, Concurrent, Get};
 use std::boxed::Box;
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
@@ -177,6 +177,25 @@ where
 {
     fn clone(&self) -> Self {
         Clone::clone(&self)
+    }
+}
+
+//------------------------------------------------------------------------//
+// Get trait implementation
+//------------------------------------------------------------------------//
+
+impl<K, V, C, U, W> Get<K, V, U, W> for CloneCell<C>
+where
+    U: Deref<Target = V>,
+    W: Deref<Target = V> + DerefMut,
+    C: Get<K, V, U, W>,
+{
+    fn get<'a>(&'a self, key: &K) -> Option<U> {
+        self.deref().get(key)
+    }
+
+    fn get_mut<'a>(&'a mut self, key: &K) -> Option<W> {
+        self.deref_mut().get_mut(key)
     }
 }
 

@@ -1,3 +1,5 @@
+use std::ops::{Deref, DerefMut};
+
 /// BuildingBlock trait for Key/Value storage of references.
 ///
 /// ## Examples
@@ -54,13 +56,13 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
 }
 
-pub trait Get<'a, K, V, W, U>
+pub trait Get<K, V, U, W>
 where
-    W: std::ops::Deref<Target = V>,
-    U: std::ops::DerefMut<Target = V>,
+    U: Deref<Target = V>,
+    W: Deref<Target = V> + DerefMut,
 {
-    fn get(&'a self, key: &K) -> Option<W>;
-    fn get_mut(&'a mut self, key: &K) -> Option<U>;
+    fn get<'a>(&'a self, key: &K) -> Option<U>;
+    fn get_mut<'a>(&'a mut self, key: &K) -> Option<W>;
 }
 
 /// Mark a [`building blocks`](trait.BuildingBlock.html) as thread safe.

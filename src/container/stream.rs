@@ -1,9 +1,11 @@
-use crate::private::io_vec::{IOResult, IOVec};
+use crate::policy::Ordered;
+use crate::private::io_vec::{IOResult, IOStruct, IOStructMut, IOVec};
 use crate::private::set::MinSet;
 use crate::utils::stream::Stream as Streamable;
 use crate::utils::stream::StreamFactory;
-use crate::BuildingBlock;
+use crate::{BuildingBlock, Get};
 use serde::{de::DeserializeOwned, Serialize};
+use std::ops::{Deref, DerefMut};
 
 pub struct Stream<T, S, F>
 where
@@ -60,6 +62,10 @@ where
         1usize + (!0usize >> i)
     }
 }
+
+//------------------------------------------------------------------------//
+// BuildingBlock trait implementation
+//------------------------------------------------------------------------//
 
 impl<'a, K, V, S, F> BuildingBlock<'a, K, V> for Stream<(K, V), S, F>
 where
@@ -158,5 +164,102 @@ where
 
         let vec = std::mem::replace(&mut self.vec, vec);
         Box::new(vec.into_iter())
+    }
+}
+
+// Make this container usable with a policy.
+impl<K, V, S, F> Ordered<V> for Stream<(K, V), S, F>
+where
+    K: DeserializeOwned + Serialize + Eq,
+    V: DeserializeOwned + Serialize + Ord,
+    S: Streamable,
+    F: StreamFactory<S> + Clone,
+{
+}
+
+//------------------------------------------------------------------------//
+// Get trait implementation
+//------------------------------------------------------------------------//
+
+pub struct StreamCell<K, V> {
+    item: IOStruct<(K, V)>,
+}
+
+impl<K, V> Deref for StreamCell<K, V> {
+    type Target = V;
+    fn deref(&self) -> &Self::Target {
+        &self.item.deref().1
+    }
+}
+
+pub struct StreamCellMut<K, V, S>
+where
+    K: Serialize,
+    V: Serialize,
+    S: Streamable,
+{
+    item: IOStructMut<(K, V), S>,
+}
+
+impl<K, V, S> Deref for StreamCellMut<K, V, S>
+where
+    K: Serialize,
+    V: Serialize,
+    S: Streamable,
+{
+    type Target = V;
+    fn deref(&self) -> &Self::Target {
+        &self.item.deref().1
+    }
+}
+
+impl<K, V, S> DerefMut for StreamCellMut<K, V, S>
+where
+    K: Serialize,
+    V: Serialize,
+    S: Streamable,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.item.deref_mut().1
+    }
+}
+
+impl<K, V, F, S> Get<K, V, StreamCell<K, V>, StreamCellMut<K, V, S>>
+    for Stream<(K, V), S, F>
+where
+    K: DeserializeOwned + Serialize + Eq,
+    V: DeserializeOwned + Serialize,
+    S: Streamable,
+    F: StreamFactory<S> + Clone,
+{
+    fn get<'a>(&'a self, key: &K) -> Option<StreamCell<K, V>> {
+        self.vec
+            .iter()
+            .filter_map(|item| {
+                let (k, _) = &*item;
+                if k == key {
+                    Some(StreamCell { item: item })
+                } else {
+                    None
+                }
+            })
+            .next()
+    }
+
+    fn get_mut<'a>(
+        &'a mut self,
+        key: &K,
+    ) -> Option<StreamCellMut<K, V, S>> {
+        self.vec
+            .iter_mut()
+            .filter_map(|item| {
+                let (k, _) = &*item;
+                if k == key {
+                    Some(StreamCellMut { item: item })
+                } else {
+                    None
+                }
+            })
+            .next()
     }
 }

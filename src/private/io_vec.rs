@@ -133,7 +133,7 @@ pub type IOResult<T> = Result<T, IOError>;
 /// The item is written at its initial position in the stream and writing
 /// will occure only if `deref_mut()` method from `DerefMut` trait is
 /// invoked.
-pub struct IOStructMut<'a, T, S>
+pub struct IOStructMut<T, S>
 where
     T: Serialize,
     S: Write + Seek,
@@ -142,10 +142,9 @@ where
     stream: S,
     pos: u64,
     is_written: bool,
-    _a: PhantomData<&'a T>,
 }
 
-impl<'a, T, S> IOStructMut<'a, T, S>
+impl<T, S> IOStructMut<T, S>
 where
     T: Serialize,
     S: Write + Seek,
@@ -168,12 +167,11 @@ where
             item: item,
             pos: pos,
             is_written: false,
-            _a: PhantomData,
         })
     }
 }
 
-impl<'a, T, S> Drop for IOStructMut<'a, T, S>
+impl<T, S> Drop for IOStructMut<T, S>
 where
     T: Serialize,
     S: Write + Seek,
@@ -198,7 +196,7 @@ where
     }
 }
 
-impl<'a, T, S> std::ops::Deref for IOStructMut<'a, T, S>
+impl<T, S> std::ops::Deref for IOStructMut<T, S>
 where
     T: Serialize,
     S: Write + Seek,
@@ -210,7 +208,7 @@ where
     }
 }
 
-impl<'a, T, S> std::ops::DerefMut for IOStructMut<'a, T, S>
+impl<T, S> std::ops::DerefMut for IOStructMut<T, S>
 where
     T: Serialize,
     S: Write + Seek,
@@ -224,18 +222,14 @@ where
 /// RAII structure wrapping an item read from a stream.
 /// The item will not be writen back to the stream.
 #[derive(Eq, Ord, PartialEq, PartialOrd)]
-pub struct IOStruct<'a, T> {
+pub struct IOStruct<T> {
     item: T,
-    _a: PhantomData<&'a T>,
 }
 
-impl<'a, T> IOStruct<'a, T> {
+impl<T> IOStruct<T> {
     /// `IOStruct` constructor.
     pub fn new(item: T) -> Self {
-        IOStruct {
-            item: item,
-            _a: PhantomData,
-        }
+        IOStruct { item: item }
     }
 
     pub fn unwrap(self) -> T {
@@ -243,7 +237,7 @@ impl<'a, T> IOStruct<'a, T> {
     }
 }
 
-impl<'a, T> std::ops::Deref for IOStruct<'a, T> {
+impl<T> std::ops::Deref for IOStruct<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -300,17 +294,17 @@ where
     }
 }
 
-pub struct IOVecIter<'a, O, T>
+pub struct IOVecIter<O, T>
 where
     O: DeserializeOwned,
     T: Read + Seek,
 {
     stream: BufReader<T>,
     chunk_size: usize,
-    _o: PhantomData<&'a O>,
+    _o: PhantomData<O>,
 }
 
-impl<'a, O, T> IOVecIter<'a, O, T>
+impl<O, T> IOVecIter<O, T>
 where
     O: DeserializeOwned + Serialize,
     T: Read + Seek,
@@ -324,12 +318,12 @@ where
     }
 }
 
-impl<'a, O, T> Iterator for IOVecIter<'a, O, T>
+impl<O, T> Iterator for IOVecIter<O, T>
 where
     O: DeserializeOwned,
     T: Read + Seek,
 {
-    type Item = IOStruct<'a, O>;
+    type Item = IOStruct<O>;
 
     fn next(&mut self) -> Option<Self::Item> {
         match IOChunk::from_stream(self.chunk_size, &mut self.stream) {
@@ -345,7 +339,7 @@ where
     }
 }
 
-pub struct IOVecIterMut<'a, O, T>
+pub struct IOVecIterMut<O, T>
 where
     O: DeserializeOwned + Serialize,
     T: Read + Seek + Write,
@@ -353,10 +347,10 @@ where
     stream: BufReader<T>,
     chunk_size: usize,
     pos: T,
-    _o: PhantomData<&'a O>,
+    _o: PhantomData<O>,
 }
 
-impl<'a, O, T> IOVecIterMut<'a, O, T>
+impl<O, T> IOVecIterMut<O, T>
 where
     O: DeserializeOwned + Serialize,
     T: Read + Seek + Write,
@@ -371,12 +365,12 @@ where
     }
 }
 
-impl<'a, O, T> Iterator for IOVecIterMut<'a, O, T>
+impl<O, T> Iterator for IOVecIterMut<O, T>
 where
     O: DeserializeOwned + Serialize,
     T: Read + Seek + Write + Clone,
 {
-    type Item = IOStructMut<'a, O, T>;
+    type Item = IOStructMut<O, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Create stream at position where to write back the next chunk.
@@ -475,10 +469,7 @@ where
     /// On success, this method returns an
     /// [`IOStruct`](struct.IOStruct.html) that can be dereferenced
     /// to access the underlying item.
-    pub fn get<'a>(
-        &'a self,
-        n: usize,
-    ) -> IOResult<Option<IOStruct<'a, O>>> {
+    pub fn get<'a>(&'a self, n: usize) -> IOResult<Option<IOStruct<O>>> {
         let mut stream = self.stream.clone();
 
         if let Err(e) =
@@ -515,7 +506,7 @@ where
     pub fn get_mut<'a>(
         &'a mut self,
         n: usize,
-    ) -> IOResult<Option<IOStructMut<'a, O, T>>> {
+    ) -> IOResult<Option<IOStructMut<O, T>>> {
         let mut stream = self.stream.clone();
 
         if let Err(e) =
@@ -638,7 +629,7 @@ where
     }
 
     /// Build an iterator over items of this `IOVec`.
-    pub fn iter<'a>(&'a self) -> IOVecIter<'a, O, T> {
+    pub fn iter<'a>(&'a self) -> IOVecIter<O, T> {
         let mut stream = self.stream.clone();
         stream.seek(SeekFrom::Start(0)).unwrap();
 
@@ -652,7 +643,7 @@ where
     /// Build an iterator over mutable items of this `IOVec`.
     /// Items modified during iteration will be written back to the
     /// vector underlying stream.
-    pub fn iter_mut<'a>(&'a mut self) -> IOVecIterMut<'a, O, T> {
+    pub fn iter_mut<'a>(&'a mut self) -> IOVecIterMut<O, T> {
         let mut stream = self.stream.clone();
         stream.seek(SeekFrom::Start(0)).unwrap();
         let pos = stream.clone();

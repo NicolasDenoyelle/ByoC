@@ -1,7 +1,7 @@
 use crate::private::clone::CloneCell;
 use crate::private::lock::{LockError, RWLock};
 use crate::{BuildingBlock, Concurrent, Get};
-use std::marker::{PhantomData, Sync};
+use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
@@ -139,29 +139,27 @@ where
 // Get Trait Implementation                                               //
 //------------------------------------------------------------------------//
 
-pub struct LockedItem<'a, V> {
+pub struct LockedItem<V> {
     value: V,
     lock: RWLock,
-    lifetime: PhantomData<&'a V>,
 }
 
-impl<'a, V> LockedItem<'a, V> {
+impl<V> LockedItem<V> {
     pub fn new(value: V, lock: &RWLock) -> Self {
         LockedItem {
             value: value,
             lock: lock.clone(),
-            lifetime: PhantomData,
         }
     }
 }
 
-impl<'a, V> Drop for LockedItem<'a, V> {
+impl<V> Drop for LockedItem<V> {
     fn drop(&mut self) {
         self.lock.unlock()
     }
 }
 
-impl<'a, V, W> Deref for LockedItem<'a, V>
+impl<V, W> Deref for LockedItem<V>
 where
     V: Deref<Target = W>,
 {
@@ -171,39 +169,7 @@ where
     }
 }
 
-pub struct LockedMutItem<'a, V> {
-    value: V,
-    lock: RWLock,
-    lifetime: PhantomData<&'a V>,
-}
-
-impl<'a, V> LockedMutItem<'a, V> {
-    pub fn new(value: V, lock: &RWLock) -> Self {
-        LockedMutItem {
-            value: value,
-            lock: lock.clone(),
-            lifetime: PhantomData,
-        }
-    }
-}
-
-impl<'a, V> Drop for LockedMutItem<'a, V> {
-    fn drop(&mut self) {
-        self.lock.unlock()
-    }
-}
-
-impl<'a, V, W> Deref for LockedMutItem<'a, V>
-where
-    V: Deref<Target = W>,
-{
-    type Target = W;
-    fn deref(&self) -> &Self::Target {
-        self.value.deref()
-    }
-}
-
-impl<'a, V, W> DerefMut for LockedMutItem<'a, V>
+impl<V, W> DerefMut for LockedItem<V>
 where
     V: DerefMut<Target = W>,
 {
@@ -212,15 +178,14 @@ where
     }
 }
 
-impl<'a, K, V, U, W, C>
-    Get<'a, K, V, LockedItem<'a, U>, LockedMutItem<'a, W>>
+impl<K, V, U, W, C> Get<K, V, LockedItem<U>, LockedItem<W>>
     for Sequential<C>
 where
     U: Deref<Target = V>,
     W: DerefMut<Target = V>,
-    C: Get<'a, K, V, U, W>,
+    C: Get<K, V, U, W>,
 {
-    fn get(&'a self, key: &K) -> Option<LockedItem<'a, U>> {
+    fn get<'a>(&'a self, key: &K) -> Option<LockedItem<U>> {
         match self.lock.lock() {
             Ok(_) => match (*self.container).get(key) {
                 None => {
@@ -233,14 +198,14 @@ where
         }
     }
 
-    fn get_mut(&'a mut self, key: &K) -> Option<LockedMutItem<'a, W>> {
+    fn get_mut<'a>(&'a mut self, key: &K) -> Option<LockedItem<W>> {
         match self.lock.lock_mut() {
             Ok(_) => match (*self.container).get_mut(key) {
                 None => {
                     self.lock.unlock();
                     None
                 }
-                Some(w) => Some(LockedMutItem::new(w, &self.lock)),
+                Some(w) => Some(LockedItem::new(w, &self.lock)),
             },
             Err(_) => None,
         }

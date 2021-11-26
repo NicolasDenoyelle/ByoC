@@ -1,5 +1,5 @@
-use crate::BuildingBlock;
-use std::marker::PhantomData;
+use crate::{BuildingBlock, Get};
+use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
 // BuildingBlock Stack                                                        //
@@ -43,22 +43,12 @@ use std::marker::PhantomData;
 /// let victim = cache.push(vec![("third", 2)]).pop().unwrap();
 /// assert_eq!(victim.0, "third");
 /// ```
-pub struct Stack<'a, K: 'a, V: 'a, C1, C2>
-where
-    C1: BuildingBlock<'a, K, V>,
-    C2: BuildingBlock<'a, K, V>,
-{
+pub struct Stack<C1, C2> {
     l1: C1,
     l2: C2,
-    unused_k: PhantomData<&'a K>,
-    unused_v: PhantomData<&'a V>,
 }
 
-impl<'a, K: 'a, V: 'a, C1, C2> Stack<'a, K, V, C1, C2>
-where
-    C1: BuildingBlock<'a, K, V>,
-    C2: BuildingBlock<'a, K, V>,
-{
+impl<C1, C2> Stack<C1, C2> {
     /// Construct a Stack Cache.
     ///
     /// The stack spans from bottom (first element) to top (last) element
@@ -66,17 +56,11 @@ where
     ///
     /// * `containers`: The list of containers composing the stack.
     pub fn new(l1: C1, l2: C2) -> Self {
-        Stack {
-            l1: l1,
-            l2: l2,
-            unused_k: PhantomData,
-            unused_v: PhantomData,
-        }
+        Stack { l1: l1, l2: l2 }
     }
 }
 
-impl<'a, K: 'a, V: 'a, C1, C2> BuildingBlock<'a, K, V>
-    for Stack<'a, K, V, C1, C2>
+impl<'a, K: 'a, V: 'a, C1, C2> BuildingBlock<'a, K, V> for Stack<C1, C2>
 where
     C1: BuildingBlock<'a, K, V>,
     C2: BuildingBlock<'a, K, V>,
@@ -122,27 +106,76 @@ where
     }
 }
 
-// impl<'a, K, V, C1, C2> Get<'a, K, V> for Stack<'a, K, V, C1, C2>
-// where
-//     K: 'a,
-//     V: 'a,
-//     C1: BuildingBlock<'a, K, V> + Get<'a, K, V>,
-//     C2: BuildingBlock<'a, K, V> + Get<'a, K, V>,
-// {
-//     fn get<'b>(
-//         &'b self,
-//         key: &'b K,
-//     ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
-//         Box::new(self.l1.get(key).chain(self.l2.get(key)))
-//     }
+//------------------------------------------------------------------------//
+// Get trait implementation
+//------------------------------------------------------------------------//
 
-//     fn get_mut<'b>(
-//         &'b mut self,
-//         key: &'b K,
-//     ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
-//         Box::new(self.l1.get_mut(key).chain(self.l2.get_mut(key)))
-//     }
-// }
+enum DualCell<V, A, B>
+where
+    A: Deref<Target = V>,
+    B: Deref<Target = V>,
+{
+    Atype(A),
+    Btype(B),
+}
+
+impl<V, A, B> Deref for DualCell<V, A, B>
+where
+    A: Deref<Target = V>,
+    B: Deref<Target = V>,
+{
+    type Target = V;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            Self::Atype(v) => v.deref(),
+            Self::Btype(v) => v.deref(),
+        }
+    }
+}
+
+impl<V, A, B> DerefMut for DualCell<V, A, B>
+where
+    A: Deref<Target = V> + DerefMut,
+    B: Deref<Target = V> + DerefMut,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        match self {
+            Self::Atype(v) => v.deref_mut(),
+            Self::Btype(v) => v.deref_mut(),
+        }
+    }
+}
+
+impl<K, V, C1, C2, U1, U2, W1, W2>
+    Get<K, V, DualCell<V, U1, U2>, DualCell<V, W1, W2>> for Stack<C1, C2>
+where
+    U1: Deref<Target = V>,
+    U2: Deref<Target = V>,
+    W1: Deref<Target = V> + DerefMut,
+    W2: Deref<Target = V> + DerefMut,
+    C1: Get<K, V, U1, W1>,
+    C2: Get<K, V, U2, W2>,
+{
+    fn get<'a>(&'a self, key: &K) -> Option<DualCell<V, U1, U2>> {
+        match self.l1.get(key) {
+            Some(x) => Some(DualCell::Atype(x)),
+            None => match self.l2.get(key) {
+                None => None,
+                Some(x) => Some(DualCell::Btype(x)),
+            },
+        }
+    }
+
+    fn get_mut<'a>(&'a mut self, key: &K) -> Option<DualCell<V, W1, W2>> {
+        match self.l1.get_mut(key) {
+            Some(x) => Some(DualCell::Atype(x)),
+            None => match self.l2.get_mut(key) {
+                None => None,
+                Some(x) => Some(DualCell::Btype(x)),
+            },
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {

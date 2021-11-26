@@ -1,5 +1,5 @@
 use crate::private::clone::CloneCell;
-use crate::wrapper::{LockedItem, LockedMutItem, Sequential};
+use crate::wrapper::{LockedItem, Sequential};
 use crate::{BuildingBlock, Concurrent, Get};
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
@@ -257,22 +257,25 @@ where
     }
 }
 
-impl<'a, K, V, U, W, C, H>
-    Get<'a, K, V, LockedItem<'a, U>, LockedMutItem<'a, W>>
+//------------------------------------------------------------------------//
+// Get Trait Implementation                                               //
+//------------------------------------------------------------------------//
+
+impl<K, V, U, W, C, H> Get<K, V, LockedItem<U>, LockedItem<W>>
     for Associative<C, H>
 where
     K: Hash + Clone,
-    U: 'a + Deref<Target = V>,
-    W: 'a + DerefMut<Target = V>,
+    U: Deref<Target = V>,
+    W: DerefMut<Target = V>,
     H: Hasher + Clone,
-    C: Get<'a, K, V, U, W>,
+    C: Get<K, V, U, W>,
 {
-    fn get(&'a self, key: &K) -> Option<LockedItem<'a, U>> {
+    fn get<'a>(&'a self, key: &K) -> Option<LockedItem<U>> {
         let i = self.set(key.clone());
         self.containers[i].get(key)
     }
 
-    fn get_mut(&'a mut self, key: &K) -> Option<LockedMutItem<'a, W>> {
+    fn get_mut<'a>(&'a mut self, key: &K) -> Option<LockedItem<W>> {
         let i = self.set(key.clone());
         self.containers[i].get_mut(key)
     }
@@ -290,7 +293,7 @@ mod tests {
         test_building_block(Associative::new(
             5,
             10,
-            |n| Vector::<u16, u32>::new(n),
+            |n| Vector::new(n),
             DefaultHasher::new(),
         ));
     }

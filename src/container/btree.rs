@@ -1,3 +1,4 @@
+use crate::policy::Ordered;
 use crate::private::ptr::OrdPtr;
 use crate::BuildingBlock;
 use std::collections::{BTreeMap, BTreeSet};
@@ -181,6 +182,9 @@ where
         }
     }
 }
+
+// Make this container usable with a policy.
+impl<K: Ord + Copy, V: Ord> Ordered<V> for BTree<K, V> {}
 
 #[cfg(test)]
 mod tests {

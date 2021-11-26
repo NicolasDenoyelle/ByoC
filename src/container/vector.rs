@@ -1,5 +1,7 @@
+use crate::policy::Ordered;
 use crate::{BuildingBlock, Get};
 use std::cmp::Eq;
+use std::ops::{Deref, DerefMut};
 use std::vec::Vec;
 
 //-------------------------------------------------------------------------
@@ -32,12 +34,12 @@ use std::vec::Vec;
 /// assert!(key == "second");
 /// assert!(value == 12);
 /// ```
-pub struct Vector<K: Eq, V> {
+pub struct Vector<T> {
     capacity: usize,
-    values: Vec<(K, V)>,
+    values: Vec<T>,
 }
 
-impl<K: Eq, V> Vector<K, V> {
+impl<T> Vector<T> {
     pub fn new(n: usize) -> Self {
         Vector {
             capacity: n,
@@ -50,7 +52,7 @@ impl<K: Eq, V> Vector<K, V> {
 //  BuildingBlock implementation.                                             //
 //------------------------------------------------------------------------//
 
-impl<'a, K, V> BuildingBlock<'a, K, V> for Vector<K, V>
+impl<'a, K, V> BuildingBlock<'a, K, V> for Vector<(K, V)>
 where
     K: 'a + Eq,
     V: 'a + Ord,
@@ -104,23 +106,56 @@ where
     }
 }
 
-impl<'a, K: Eq, V: Ord> Get<'a, K, V, &'a V, &'a mut V> for Vector<K, V> {
-    fn get(&'a self, key: &K) -> Option<&'a V> {
-        self.values.iter().find_map(
-            move |(k, v)| {
-                if k == key {
-                    Some(v)
-                } else {
-                    None
-                }
-            },
-        )
+// Make this container usable with a policy.
+impl<K, V: Ord> Ordered<V> for Vector<(K, V)> {}
+
+//------------------------------------------------------------------------//
+// Get trait implementation
+//------------------------------------------------------------------------//
+
+struct VecCell<T> {
+    t: *const T,
+}
+
+impl<T> Deref for VecCell<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.t.as_ref().unwrap() }
+    }
+}
+
+struct VecMutCell<T> {
+    t: *mut T,
+}
+
+impl<T> Deref for VecMutCell<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.t.as_ref().unwrap() }
+    }
+}
+
+impl<T> DerefMut for VecMutCell<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.t.as_mut().unwrap() }
+    }
+}
+
+impl<K: Eq, V> Get<K, V, VecCell<V>, VecMutCell<V>> for Vector<(K, V)> {
+    fn get<'a>(&'a self, key: &K) -> Option<VecCell<V>> {
+        self.values.iter().find_map(move |(k, v)| {
+            if k == key {
+                Some(VecCell { t: v })
+            } else {
+                None
+            }
+        })
     }
 
-    fn get_mut(&'a mut self, key: &K) -> Option<&'a mut V> {
+    fn get_mut<'a>(&'a mut self, key: &K) -> Option<VecMutCell<V>> {
         self.values.iter_mut().find_map(move |(k, v)| {
             if k == key {
-                Some(v)
+                Some(VecMutCell { t: v })
             } else {
                 None
             }
@@ -132,7 +167,7 @@ impl<'a, K: Eq, V: Ord> Get<'a, K, V, &'a V, &'a mut V> for Vector<K, V> {
 mod tests {
     use super::Vector;
     use crate::container::tests::test_container;
-    use crate::tests::test_building_block;
+    use crate::tests::{test_building_block, test_get};
 
     #[test]
     fn building_block() {
@@ -146,5 +181,12 @@ mod tests {
         test_container(Vector::new(0));
         test_container(Vector::new(10));
         test_container(Vector::new(100));
+    }
+
+    #[test]
+    fn get() {
+        test_get(Vector::new(0));
+        test_get(Vector::new(10));
+        test_get(Vector::new(100));
     }
 }

@@ -1,4 +1,4 @@
-use crate::policy::{Reference, ReferenceFactory};
+use crate::policy::{Ordered, Reference, ReferenceFactory};
 use crate::{BuildingBlock, Concurrent, Get};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
@@ -31,6 +31,7 @@ pub struct Policy<C, V, R, F>
 where
     R: Reference<V>,
     F: ReferenceFactory<V, R>,
+    C: Ordered<R>,
 {
     container: C,
     factory: F,
@@ -41,6 +42,7 @@ impl<C, V, R, F> Policy<C, V, R, F>
 where
     R: Reference<V>,
     F: ReferenceFactory<V, R>,
+    C: Ordered<R>,
 {
     /// Construct a new policy wrapper.
     pub fn new(container: C, factory: F) -> Self {
@@ -52,12 +54,16 @@ where
     }
 }
 
+//------------------------------------------------------------------------//
+// BuildingBlock trait implementation
+//------------------------------------------------------------------------//
+
 impl<'a, K, V, C, R, F> BuildingBlock<'a, K, V> for Policy<C, V, R, F>
 where
     K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
-    C: BuildingBlock<'a, K, R>,
+    C: BuildingBlock<'a, K, R> + Ordered<R>,
     F: ReferenceFactory<V, R>,
 {
     fn capacity(&self) -> usize {
@@ -111,7 +117,7 @@ unsafe impl<C, V, R, F> Send for Policy<C, V, R, F>
 where
     R: Reference<V>,
     F: ReferenceFactory<V, R> + Send,
-    C: Send,
+    C: Send + Ordered<R>,
 {
 }
 
@@ -119,7 +125,7 @@ unsafe impl<C, V, R, F> Sync for Policy<C, V, R, F>
 where
     R: Reference<V>,
     F: ReferenceFactory<V, R> + Sync,
-    C: Sync,
+    C: Sync + Ordered<R>,
 {
 }
 
@@ -127,7 +133,7 @@ impl<C, V, R, F> Clone for Policy<C, V, R, F>
 where
     R: Reference<V>,
     F: ReferenceFactory<V, R> + Clone,
-    C: Clone,
+    C: Clone + Ordered<R>,
 {
     fn clone(&self) -> Self {
         Policy {
@@ -144,7 +150,7 @@ where
     V: 'a,
     R: 'a + Reference<V>,
     F: ReferenceFactory<V, R> + Clone + Send + Sync,
-    C: BuildingBlock<'a, K, R> + Concurrent<'a, K, R>,
+    C: BuildingBlock<'a, K, R> + Concurrent<'a, K, R> + Ordered<R>,
 {
     fn clone(&self) -> Self {
         Policy {
@@ -155,19 +161,67 @@ where
     }
 }
 
-impl<'a, K, V, U, W, R, F, C> Get<'a, K, V, U, W> for Policy<C, V, R, F>
+//------------------------------------------------------------------------//
+// Get trait implementation
+//------------------------------------------------------------------------//
+
+struct PolicyCell<V, R, U>
 where
-    R: 'a + Reference<V>,
-    F: ReferenceFactory<V, R> + Clone + Send + Sync,
-    U: 'a + Deref<Target = V>,
-    W: 'a + DerefMut<Target = V>,
-    C: Get<'a, K, V, U, W>,
+    R: Reference<V>,
+    U: Deref<Target = R>,
 {
-    fn get(&'a self, key: &K) -> Option<U> {
-        self.container.get(key)
+    item: U,
+    unused: PhantomData<V>,
+}
+
+impl<V, R, U> Deref for PolicyCell<V, R, U>
+where
+    R: Reference<V>,
+    U: Deref<Target = R>,
+{
+    type Target = V;
+    fn deref(&self) -> &Self::Target {
+        self.item.deref().get()
+    }
+}
+
+impl<V, R, W> DerefMut for PolicyCell<V, R, W>
+where
+    R: Reference<V>,
+    W: Deref<Target = R> + DerefMut,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.item.deref_mut().get_mut()
+    }
+}
+
+impl<K, V, R, U, W, F, C>
+    Get<K, V, PolicyCell<V, R, U>, PolicyCell<V, R, W>>
+    for Policy<C, V, R, F>
+where
+    R: Reference<V>,
+    U: Deref<Target = R>,
+    W: DerefMut<Target = R>,
+    F: ReferenceFactory<V, R> + Clone + Send + Sync,
+    C: Get<K, R, U, W> + Ordered<R>,
+{
+    fn get<'a>(&'a self, key: &K) -> Option<PolicyCell<V, R, U>> {
+        match self.container.get(key) {
+            None => None,
+            Some(x) => Some(PolicyCell {
+                item: x,
+                unused: PhantomData,
+            }),
+        }
     }
 
-    fn get_mut(&'a mut self, key: &K) -> Option<W> {
-        self.container.get_mut(key)
+    fn get_mut<'a>(&'a mut self, key: &K) -> Option<PolicyCell<V, R, W>> {
+        match self.container.get_mut(key) {
+            None => None,
+            Some(x) => Some(PolicyCell {
+                item: x,
+                unused: PhantomData,
+            }),
+        }
     }
 }

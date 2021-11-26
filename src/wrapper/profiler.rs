@@ -426,13 +426,13 @@ where
 // Get trait implementation
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, U, W, C> Get<'a, K, V, U, W> for Profiler<K, V, C>
+impl<K, V, U, W, C> Get<K, V, U, W> for Profiler<K, V, C>
 where
     U: Deref<Target = V>,
     W: DerefMut<Target = V>,
-    C: Get<'a, K, V, U, W>,
+    C: Get<K, V, U, W>,
 {
-    fn get(&'a self, key: &K) -> Option<U> {
+    fn get<'a>(&'a self, key: &K) -> Option<U> {
         let t0 = Instant::now();
         let item = self.cache.get(key);
         let tf = t0.elapsed().as_millis();
@@ -447,7 +447,7 @@ where
         item
     }
 
-    fn get_mut(&'a mut self, key: &K) -> Option<W> {
+    fn get_mut<'a>(&'a mut self, key: &K) -> Option<W> {
         let t0 = Instant::now();
         let item = self.cache.get_mut(key);
         let tf = t0.elapsed().as_millis();

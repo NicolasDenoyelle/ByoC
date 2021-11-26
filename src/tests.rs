@@ -1,6 +1,7 @@
 extern crate rand;
-use crate::{BuildingBlock, Concurrent};
+use crate::{BuildingBlock, Concurrent, Get};
 use rand::random;
+use std::ops::{Deref, DerefMut};
 use std::{sync::mpsc::channel, thread, vec::Vec};
 
 pub fn rand(a: u64, b: u64) -> u64 {
@@ -53,6 +54,26 @@ where
         .map(|e| e.clone())
         .collect();
     (inserted, out)
+}
+
+pub fn test_get<'a, C, U, W>(mut c: C)
+where
+    U: Deref<Target = u32>,
+    W: Deref<Target = u32> + DerefMut,
+    C: 'a + BuildingBlock<'a, u16, u32> + Get<u16, u32, U, W>,
+{
+    let elements: Vec<(u16, u32)> =
+        (0u16..10u16).map(|i| (i, i as u32)).collect();
+    let (elements, _) = insert(&mut c, elements);
+
+    for (k, _) in elements.iter() {
+        let mut v = c.get_mut(k).unwrap();
+        *v += 1;
+    }
+
+    for (k, v) in elements.iter() {
+        assert_eq!(*c.get(k) as u32 + 1u32, *v);
+    }
 }
 
 fn test_flush<'a, C>(c: &mut C, elements: Vec<(u16, u32)>)

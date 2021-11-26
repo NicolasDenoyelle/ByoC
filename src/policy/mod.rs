@@ -22,6 +22,10 @@ where
     fn wrap(&mut self, v: V) -> R;
 }
 
+/// Trait of containers [popping](../trait.BuildingBlock.html#tymethod.pop)
+/// highest values first.
+pub trait Ordered<V: std::cmp::Ord> {}
+
 mod policy;
 pub use crate::policy::policy::Policy;
 mod lrfu;
