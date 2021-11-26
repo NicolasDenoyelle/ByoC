@@ -1,6 +1,7 @@
+use crate::concurrent::Concurrent;
+use crate::concurrent::{LockedItem, Sequential};
 use crate::private::clone::CloneCell;
-use crate::wrapper::{LockedItem, Sequential};
-use crate::{BuildingBlock, Concurrent, Get};
+use crate::{BuildingBlock, Get};
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
@@ -284,8 +285,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::Associative;
+    use crate::concurrent::tests::test_concurrent;
     use crate::container::Vector;
-    use crate::tests::{test_building_block, test_concurrent};
+    use crate::tests::test_building_block;
     use std::collections::hash_map::DefaultHasher;
 
     #[test]

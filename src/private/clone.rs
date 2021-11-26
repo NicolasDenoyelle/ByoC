@@ -1,5 +1,7 @@
+use crate::concurrent::Concurrent;
+use crate::policy::Ordered;
 use crate::private::lock::RWLock;
-use crate::{BuildingBlock, Concurrent, Get};
+use crate::{BuildingBlock, Get};
 use std::boxed::Box;
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
@@ -179,6 +181,8 @@ where
         Clone::clone(&self)
     }
 }
+
+impl<V: Ord, C: Ordered<V>> Ordered<V> for CloneCell<C> {}
 
 //------------------------------------------------------------------------//
 // Get trait implementation

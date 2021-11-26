@@ -113,7 +113,7 @@ impl<K, V: Ord> Ordered<V> for Vector<(K, V)> {}
 // Get trait implementation
 //------------------------------------------------------------------------//
 
-struct VecCell<T> {
+pub struct VecCell<T> {
     t: *const T,
 }
 
@@ -124,7 +124,7 @@ impl<T> Deref for VecCell<T> {
     }
 }
 
-struct VecMutCell<T> {
+pub struct VecMutCell<T> {
     t: *mut T,
 }
 
@@ -166,7 +166,7 @@ impl<K: Eq, V> Get<K, V, VecCell<V>, VecMutCell<V>> for Vector<(K, V)> {
 #[cfg(test)]
 mod tests {
     use super::Vector;
-    use crate::container::tests::test_container;
+    use crate::policy::tests::test_ordered;
     use crate::tests::{test_building_block, test_get};
 
     #[test]
@@ -177,10 +177,10 @@ mod tests {
     }
 
     #[test]
-    fn container() {
-        test_container(Vector::new(0));
-        test_container(Vector::new(10));
-        test_container(Vector::new(100));
+    fn ordered() {
+        test_ordered(Vector::new(0));
+        test_ordered(Vector::new(10));
+        test_ordered(Vector::new(100));
     }
 
     #[test]

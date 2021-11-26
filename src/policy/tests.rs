@@ -2,25 +2,6 @@ use crate::tests::{insert, rand};
 use crate::BuildingBlock;
 use std::vec::Vec;
 
-fn test_push<'a, C>(c: &mut C, kv: Vec<(u16, u32)>)
-where
-    C: BuildingBlock<'a, u16, u32>,
-{
-    let space = c.capacity() - c.count();
-    let num_insertion = kv.len();
-    let extra = c.push(kv.clone());
-    let num_extra = extra.len();
-    let num_inserted = num_insertion - num_extra;
-
-    // There the same amount of elements inserted than space prior to
-    // insertion.
-    if num_extra > 0 {
-        assert!(num_inserted == space);
-    } else {
-        assert!(num_inserted <= space);
-    }
-}
-
 fn test_pop<'a, C>(c: &mut C, n: usize, victims: &Vec<(u16, u32)>)
 where
     C: BuildingBlock<'a, u16, u32>,
@@ -43,11 +24,6 @@ where
         .map(|i| (i as u16, rand(0u64, n as u64) as u32))
         .collect();
 
-    test_push(c, elements.clone());
-    #[allow(unused_must_use)]
-    {
-        c.flush();
-    }
     let (mut victims, _) = insert(c, elements.clone());
     victims.sort_by(|(_, v1), (_, v2)| v1.cmp(v2));
 
@@ -58,7 +34,7 @@ where
     test_pop(c, victims.len(), &victims);
 }
 
-pub fn test_container<'a, C>(mut c: C)
+pub fn test_ordered<'a, C>(mut c: C)
 where
     C: BuildingBlock<'a, u16, u32>,
 {

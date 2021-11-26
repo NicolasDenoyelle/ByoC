@@ -1,6 +1,7 @@
+use crate::concurrent::Concurrent;
 use crate::private::clone::CloneCell;
 use crate::private::lock::{LockError, RWLock};
-use crate::{BuildingBlock, Concurrent, Get};
+use crate::{BuildingBlock, Get};
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
 
@@ -15,9 +16,9 @@ use std::ops::{Deref, DerefMut};
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::Concurrent;
+/// use cache::concurrent::Concurrent;
 /// use cache::container::Vector;
-/// use cache::wrapper::Sequential;
+/// use cache::concurrent::Sequential;
 ///
 /// // Build a concurrent Vector cache.
 /// let mut c1 = Sequential::new(Vector::new(1));
@@ -219,8 +220,9 @@ where
 #[cfg(test)]
 mod tests {
     use super::Sequential;
+    use crate::concurrent::tests::test_concurrent;
     use crate::container::Vector;
-    use crate::tests::{test_building_block, test_concurrent};
+    use crate::tests::{test_building_block, test_get};
 
     #[test]
     fn building_block() {
@@ -234,9 +236,9 @@ mod tests {
         test_concurrent(Sequential::new(Vector::new(100)), 64);
     }
 
-    // #[test]
-    // fn get() {
-    //     get::test_get(Sequential::new(Vector::new(0)));
-    //     get::test_get(Sequential::new(Vector::new(100)));
-    // }
+    #[test]
+    fn get() {
+        test_get(Sequential::new(Vector::new(0)));
+        test_get(Sequential::new(Vector::new(100)));
+    }
 }

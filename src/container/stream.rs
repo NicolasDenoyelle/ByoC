@@ -263,3 +263,53 @@ where
             .next()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::Stream;
+    use crate::policy::tests::test_ordered;
+    use crate::tests::{test_building_block, test_get};
+    use crate::utils::stream::VecStreamFactory;
+
+    #[test]
+    fn building_block() {
+        for i in vec![0, 10, 100] {
+            test_building_block(
+                Stream::new(
+                    VecStreamFactory {},
+                    i,
+                    std::mem::size_of::<(u16, u32)>(),
+                )
+                .unwrap(),
+            );
+        }
+    }
+
+    #[test]
+    fn ordered() {
+        for i in vec![0, 10, 100] {
+            test_ordered(
+                Stream::new(
+                    VecStreamFactory {},
+                    i,
+                    std::mem::size_of::<(u16, u32)>(),
+                )
+                .unwrap(),
+            );
+        }
+    }
+
+    #[test]
+    fn get() {
+        for i in vec![0, 10, 100] {
+            test_get(
+                Stream::new(
+                    VecStreamFactory {},
+                    i,
+                    std::mem::size_of::<(u16, u32)>(),
+                )
+                .unwrap(),
+            );
+        }
+    }
+}

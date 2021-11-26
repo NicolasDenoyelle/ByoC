@@ -15,6 +15,3 @@ pub use crate::container::btree::BTree;
 mod stream;
 #[cfg(feature = "stream")]
 pub use crate::container::stream::Stream;
-#[cfg(test)]
-/// Public test module available only for testing containers implementation.
-pub mod tests;

@@ -38,3 +38,6 @@ pub use crate::policy::fifo::FIFO;
 mod default;
 #[cfg(test)]
 pub use crate::policy::default::{Default, DefaultCell};
+#[cfg(test)]
+/// Public test module available only for testing containers implementation.
+pub mod tests;

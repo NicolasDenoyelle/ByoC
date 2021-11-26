@@ -1,5 +1,6 @@
+use crate::concurrent::Concurrent;
 use crate::policy::{Ordered, Reference, ReferenceFactory};
-use crate::{BuildingBlock, Concurrent, Get};
+use crate::{BuildingBlock, Get};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 

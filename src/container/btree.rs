@@ -189,7 +189,7 @@ impl<K: Ord + Copy, V: Ord> Ordered<V> for BTree<K, V> {}
 #[cfg(test)]
 mod tests {
     use super::BTree;
-    use crate::container::tests::test_container;
+    use crate::policy::tests::test_ordered;
     use crate::tests::test_building_block;
 
     #[test]
@@ -200,9 +200,9 @@ mod tests {
     }
 
     #[test]
-    fn container() {
-        test_container(BTree::new(0));
-        test_container(BTree::new(10));
-        test_container(BTree::new(100));
+    fn ordered() {
+        test_ordered(BTree::new(0));
+        test_ordered(BTree::new(10));
+        test_ordered(BTree::new(100));
     }
 }

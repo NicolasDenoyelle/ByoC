@@ -1,5 +1,6 @@
+use crate::concurrent::Concurrent;
 use crate::private::clone::CloneCell;
-use crate::{BuildingBlock, Concurrent, Get};
+use crate::{BuildingBlock, Get};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -23,7 +24,7 @@ use std::time::Instant;
 /// ```
 /// use cache::{BuildingBlock};
 /// use cache::container::Vector;
-/// use cache::wrapper::Profiler;
+/// use cache::profiler::Profiler;
 ///
 /// // Build a cache:
 /// let c = Vector::new(3);
