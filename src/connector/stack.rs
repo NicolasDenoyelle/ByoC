@@ -177,11 +177,15 @@ where
     }
 }
 
+//------------------------------------------------------------------------//
+//  Tests
+//------------------------------------------------------------------------//
+
 #[cfg(test)]
 mod tests {
     use super::Stack;
     use crate::container::Vector;
-    use crate::tests::test_building_block;
+    use crate::tests::{test_building_block, test_get};
 
     #[test]
     fn building_block() {
@@ -189,5 +193,13 @@ mod tests {
         test_building_block(Stack::new(Vector::new(0), Vector::new(10)));
         test_building_block(Stack::new(Vector::new(10), Vector::new(0)));
         test_building_block(Stack::new(Vector::new(10), Vector::new(100)));
+    }
+
+    #[test]
+    fn get() {
+        test_get(Stack::new(Vector::new(0), Vector::new(0)));
+        test_get(Stack::new(Vector::new(0), Vector::new(10)));
+        test_get(Stack::new(Vector::new(10), Vector::new(0)));
+        test_get(Stack::new(Vector::new(10), Vector::new(100)));
     }
 }

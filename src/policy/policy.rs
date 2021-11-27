@@ -226,3 +226,37 @@ where
         }
     }
 }
+
+//------------------------------------------------------------------------//
+//  Tests
+//------------------------------------------------------------------------//
+
+#[cfg(test)]
+mod tests {
+    use super::Policy;
+    use crate::container::Vector;
+    use crate::policy::default::Default;
+    use crate::policy::tests::test_ordered;
+    use crate::tests::{test_building_block, test_get};
+
+    #[test]
+    fn building_block() {
+        for i in vec![0, 10, 100] {
+            test_building_block(Policy::new(Vector::new(i), Default {}));
+        }
+    }
+
+    #[test]
+    fn get() {
+        for i in vec![0, 10, 100] {
+            test_get(Policy::new(Vector::new(i), Default {}));
+        }
+    }
+
+    #[test]
+    fn ordered() {
+        for i in vec![0, 10, 100] {
+            test_ordered(Policy::new(Vector::new(i), Default {}));
+        }
+    }
+}

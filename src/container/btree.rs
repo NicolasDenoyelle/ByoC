@@ -186,6 +186,10 @@ where
 // Make this container usable with a policy.
 impl<K: Ord + Copy, V: Ord> Ordered<V> for BTree<K, V> {}
 
+//------------------------------------------------------------------------//
+//  Tests
+//------------------------------------------------------------------------//
+
 #[cfg(test)]
 mod tests {
     use super::BTree;

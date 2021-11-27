@@ -81,7 +81,7 @@ where
 /// smallest values.
 pub mod container;
 
-/// Connect two other [`BuildingBlock`](../trait.BuildingBlock.html)s.
+/// Connect two [`BuildingBlock`](../trait.BuildingBlock.html)s.
 ///
 /// Connectors implement the [`BuildingBlock`](../trait.BuildingBlock.html)s
 /// interface to connect two other building blocks.
@@ -95,10 +95,6 @@ pub mod container;
 /// possible even when one of the connected buiding blocks still
 /// has room to fit more elements.
 pub mod connector;
-
-/// [`BuildingBlock`](../trait.BuildingBlock.html) splitting the key/value
-/// pairs traffic toward different other building blocks.
-pub mod multiplexer;
 
 /// [`BuildingBlock`](../trait.BuildingBlock.html) that can be accessed
 /// concurrently.

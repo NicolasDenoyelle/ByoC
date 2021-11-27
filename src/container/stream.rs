@@ -1,11 +1,15 @@
 use crate::policy::Ordered;
-use crate::private::io_vec::{IOResult, IOStruct, IOStructMut, IOVec};
+use crate::private::io_vec::{IOStruct, IOStructMut, IOVec};
 use crate::private::set::MinSet;
 use crate::utils::stream::Stream as Streamable;
 use crate::utils::stream::StreamFactory;
 use crate::{BuildingBlock, Get};
 use serde::{de::DeserializeOwned, Serialize};
 use std::ops::{Deref, DerefMut};
+
+//------------------------------------------------------------------------//
+// Stream for any chunk size
+//------------------------------------------------------------------------//
 
 pub struct Stream<T, S, F>
 where
@@ -14,9 +18,8 @@ where
     F: StreamFactory<S> + Clone,
 {
     factory: F,
-    vec: IOVec<T, S>,
+    streams: Vec<Option<IOVec<T, S>>>,
     capacity: usize,
-    chunk_size: usize,
 }
 
 impl<T, S, F> Stream<T, S, F>
@@ -25,47 +28,40 @@ where
     S: Streamable,
     F: StreamFactory<S> + Clone,
 {
-    pub fn new(
-        mut factory: F,
-        capacity: usize,
-        chunk_size: usize,
-    ) -> IOResult<Self> {
-        let store = factory.create();
+    pub fn new(factory: F, capacity: usize) -> Self {
+        let max_streams = 8 * std::mem::size_of::<usize>();
+        let mut streams =
+            Vec::<Option<IOVec<T, S>>>::with_capacity(max_streams);
+        for _ in 0..max_streams {
+            streams.push(None)
+        }
 
-        Ok(Stream {
+        Stream {
             factory: factory,
-            vec: IOVec::new(store, chunk_size),
+            streams: streams,
             capacity: capacity,
-            chunk_size: chunk_size,
-        })
+        }
     }
 
-    /// Returns the chunk size that fits this `value`.
-    /// This is the next power of two above the byte size occupied
-    /// by the serialized `value`.
-    /// This function panics if [`bincode`](../../bincode/index.html) cannot
-    /// compute the [serialized size](../../bincode/fn.serialized_size.html)
-    /// of this item.
-    pub fn chunk_size(value: &T) -> usize {
-        let mut n = bincode::serialized_size(value).unwrap() as usize;
+    /// Returns the position of the most significant byte
+    /// starting from the left and associated power of two.
+    /// The power of two is the size of the chunk that will hold the
+    /// serialized value of the `size` provided as input.
+    fn chunk_size(mut size: usize) -> (usize, usize) {
         let mut i = 0usize;
 
         loop {
-            let s = n << 1usize;
-            if (s >> 1usize) == n {
-                n = s;
+            let s = size << 1usize;
+            if (s >> 1usize) == size {
+                size = s;
                 i += 1;
             } else {
                 break;
             }
         }
-        1usize + (!0usize >> i)
+        (i, 1usize + (!0usize >> i))
     }
 }
-
-//------------------------------------------------------------------------//
-// BuildingBlock trait implementation
-//------------------------------------------------------------------------//
 
 impl<'a, K, V, S, F> BuildingBlock<'a, K, V> for Stream<(K, V), S, F>
 where
@@ -79,31 +75,51 @@ where
     }
 
     fn count(&self) -> usize {
-        match self.vec.len() {
-            Ok(s) => s,
-            Err(_) => 0usize,
-        }
+        self.streams
+            .iter()
+            .map(|s| match s {
+                None => 0usize,
+                Some(s) => match s.len() {
+                    Ok(s) => s,
+                    Err(_) => 0usize,
+                },
+            })
+            .sum()
     }
 
     fn contains(&self, key: &K) -> bool {
-        self.vec.iter().any(|s| &(*s).0 == key)
+        self.streams.iter().any(|s| {
+            if let Some(s) = s {
+                s.iter().any(|kv| &(*kv).0 == key)
+            } else {
+                false
+            }
+        })
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
-        // Get indexes of matching keys.
-        match self.vec.iter().enumerate().find_map(|(i, s)| {
-            if &(*s).0 == key {
-                Some(i)
-            } else {
-                None
-            }
-        }) {
+        // Get indexe of matching key container and matching key position.
+        let ij =
+            self.streams.iter().enumerate().find_map(|(i, s)| match s {
+                None => None,
+                Some(s) => s.iter().enumerate().find_map(|(j, kv)| {
+                    if &(*kv).0 == key {
+                        Some((i, j))
+                    } else {
+                        None
+                    }
+                }),
+            });
+
+        match ij {
             None => None,
-            Some(i) => match self.vec.swap_remove(i) {
-                Err(_) => panic!(),
-                Ok(None) => panic!(),
-                Ok(Some(v)) => Some(v),
-            },
+            Some((i, j)) => {
+                match self.streams[i].as_mut().unwrap().swap_remove(j) {
+                    Err(_) => panic!(),
+                    Ok(None) => panic!(),
+                    Ok(Some(v)) => Some(v),
+                }
+            }
         }
     }
 
@@ -111,67 +127,79 @@ where
         let mut set = MinSet::new(n);
 
         // Stream values and save only the top n ones with their index.
-        for e in
-            self.vec.iter().enumerate().map(|(i, s)| (s.unwrap().1, i))
-        {
-            set.push(e);
+        for (i, s) in self.streams.iter().enumerate() {
+            if let Some(s) = s.as_ref() {
+                for (j, kv) in s.iter().enumerate() {
+                    set.push((kv.unwrap().1, i, j));
+                }
+            }
         }
 
         // Filter values to only keep index and sort index.
-        let mut indexes: Vec<usize> =
-            set.into_iter().map(|(_, i)| i).collect();
+        let mut indexes: Vec<(usize, usize)> =
+            set.into_iter().map(|(_, i, j)| (i, j)).collect();
         indexes.sort();
 
         let mut ret = Vec::with_capacity(indexes.len());
         // Removes keys with swap remove from the end.
         // Position of other matching elements is not impacted
         // by the swap.
-        for i in indexes.into_iter().rev() {
-            match self.vec.swap_remove(i) {
+        for (i, j) in indexes.into_iter().rev() {
+            match self.streams[i].as_mut().unwrap().swap_remove(j) {
                 Err(_) => return ret,
                 Ok(None) => return ret,
-                Ok(Some(v)) => ret.push(v),
+                Ok(Some(kv)) => ret.push(kv),
             }
         }
         ret
     }
 
     fn push(&mut self, mut values: Vec<(K, V)>) -> Vec<(K, V)> {
-        let vlen = match self.vec.len() {
-            Ok(len) => len,
-            Err(_) => return Vec::new(),
-        };
-
-        let n = std::cmp::min(values.len(), self.capacity - vlen);
+        let n = std::cmp::min(values.len(), self.capacity - self.count());
 
         if n > 0 {
             let mut out = values.split_off(n);
-            match self.vec.append(&mut values) {
-                Ok(_) => out,
-                Err(_) => {
-                    values.append(&mut out);
-                    values
+            for value in values.into_iter() {
+                let size = match bincode::serialized_size(&value) {
+                    Err(_) => {
+                        out.push(value);
+                        continue;
+                    }
+                    Ok(s) => s as usize,
+                };
+
+                let (i, chunk_size) = Self::chunk_size(size);
+                if self.streams[i].is_none() {
+                    let store = self.factory.create();
+                    self.streams[i] = Some(IOVec::new(store, chunk_size));
+                }
+                let mut value = vec![value];
+                match self.streams[i].as_mut().unwrap().append(&mut value)
+                {
+                    Ok(_) => {}
+                    Err(_) => out.push(value.pop().unwrap()),
                 }
             }
+            out
         } else {
             values
         }
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        let store = self.factory.create();
-        let vec = IOVec::new(store, self.chunk_size);
-
-        let vec = std::mem::replace(&mut self.vec, vec);
-        Box::new(vec.into_iter())
+        let streams: Vec<IOVec<(K, V), S>> = self
+            .streams
+            .iter_mut()
+            .filter_map(|opt| opt.take())
+            .collect();
+        Box::new(streams.into_iter().flat_map(|v| v.into_iter()))
     }
 }
 
-// Make this container usable with a policy.
-impl<K, V, S, F> Ordered<V> for Stream<(K, V), S, F>
+impl<K, V: Ord, S, F> Ordered<V> for Stream<(K, V), S, F>
 where
-    K: DeserializeOwned + Serialize + Eq,
-    V: DeserializeOwned + Serialize + Ord,
+    K: DeserializeOwned + Serialize,
+    V: DeserializeOwned + Serialize,
     S: Streamable,
     F: StreamFactory<S> + Clone,
 {
@@ -233,36 +261,44 @@ where
     F: StreamFactory<S> + Clone,
 {
     fn get<'a>(&'a self, key: &K) -> Option<StreamCell<K, V>> {
-        self.vec
+        self.streams
             .iter()
-            .filter_map(|item| {
-                let (k, _) = &*item;
-                if k == key {
-                    Some(StreamCell { item: item })
-                } else {
-                    None
-                }
+            .filter_map(|s| s.as_ref())
+            .find_map(|s| {
+                s.iter().find_map(|item| {
+                    let (k, _) = &*item;
+                    if k == key {
+                        Some(StreamCell { item: item })
+                    } else {
+                        None
+                    }
+                })
             })
-            .next()
     }
 
     fn get_mut<'a>(
         &'a mut self,
         key: &K,
     ) -> Option<StreamCellMut<K, V, S>> {
-        self.vec
+        self.streams
             .iter_mut()
-            .filter_map(|item| {
-                let (k, _) = &*item;
-                if k == key {
-                    Some(StreamCellMut { item: item })
-                } else {
-                    None
-                }
+            .filter_map(|s| s.as_mut())
+            .find_map(|s| {
+                s.iter_mut().find_map(|item| {
+                    let (k, _) = &*item;
+                    if k == key {
+                        Some(StreamCellMut { item: item })
+                    } else {
+                        None
+                    }
+                })
             })
-            .next()
     }
 }
+
+//------------------------------------------------------------------------//
+//  Tests
+//------------------------------------------------------------------------//
 
 #[cfg(test)]
 mod tests {
@@ -274,42 +310,21 @@ mod tests {
     #[test]
     fn building_block() {
         for i in vec![0, 10, 100] {
-            test_building_block(
-                Stream::new(
-                    VecStreamFactory {},
-                    i,
-                    std::mem::size_of::<(u16, u32)>(),
-                )
-                .unwrap(),
-            );
+            test_building_block(Stream::new(VecStreamFactory {}, i));
         }
     }
 
     #[test]
     fn ordered() {
         for i in vec![0, 10, 100] {
-            test_ordered(
-                Stream::new(
-                    VecStreamFactory {},
-                    i,
-                    std::mem::size_of::<(u16, u32)>(),
-                )
-                .unwrap(),
-            );
+            test_ordered(Stream::new(VecStreamFactory {}, i));
         }
     }
 
     #[test]
     fn get() {
         for i in vec![0, 10, 100] {
-            test_get(
-                Stream::new(
-                    VecStreamFactory {},
-                    i,
-                    std::mem::size_of::<(u16, u32)>(),
-                )
-                .unwrap(),
-            );
+            test_get(Stream::new(VecStreamFactory {}, i));
         }
     }
 }

@@ -16,6 +16,9 @@ pub trait Concurrent<'a, K: 'a, V: 'a>:
 mod sequential;
 pub use crate::concurrent::sequential::{LockedItem, Sequential};
 
+mod associative;
+pub use crate::concurrent::associative::Associative;
+
 #[cfg(test)]
 /// Public test module available only for testing concurrent implementation.
 pub mod tests;

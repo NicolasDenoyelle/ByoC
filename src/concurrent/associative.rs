@@ -28,7 +28,7 @@ use std::ops::{Deref, DerefMut};
 /// ```
 /// use cache::BuildingBlock;
 /// use cache::container::Vector;
-/// use cache::multiplexer::Associative;
+/// use cache::concurrent::Associative;
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// // Build a Vector cache of 2 sets. Each set hold one element.
@@ -282,12 +282,16 @@ where
     }
 }
 
+//------------------------------------------------------------------------//
+//  Tests
+//------------------------------------------------------------------------//
+
 #[cfg(test)]
 mod tests {
     use super::Associative;
     use crate::concurrent::tests::test_concurrent;
     use crate::container::Vector;
-    use crate::tests::test_building_block;
+    use crate::tests::{test_building_block, test_get};
     use std::collections::hash_map::DefaultHasher;
 
     #[test]
@@ -313,13 +317,13 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn get() {
-    //     get::test_get(Associative::new(
-    //         5,
-    //         10,
-    //         |n| Vector::<u16, u32>::new(n),
-    //         DefaultHasher::new(),
-    //     ));
-    // }
+    #[test]
+    fn get() {
+        test_get(Associative::new(
+            5,
+            10,
+            |n| Vector::new(n),
+            DefaultHasher::new(),
+        ));
+    }
 }
