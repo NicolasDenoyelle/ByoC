@@ -101,9 +101,24 @@ where
         v
     }
 
-    fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+    fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let l1_capacity = self.l1.capacity();
         let l1_count = self.l1.count();
+        let l2_capacity = self.l2.capacity();
+        let l2_count = self.l2.count();
+        let n = l1_capacity + l2_capacity - l1_count - l2_count;
+
+        // This part won't fit no matter what because there is note
+        // enough combined room in l1 and l2 to fit all elements.
+        let mut out = if elements.len() > n {
+            elements.split_off(n)
+        } else {
+            Vec::new()
+        };
+        if elements.len() == 0 {
+            return out;
+        }
+
         let mut l1_pop = if elements.len() <= (l1_capacity - l1_count) {
             Vec::new()
         } else if elements.len() <= l1_capacity {
@@ -113,13 +128,11 @@ where
             self.l1.flush().collect()
         };
 
-        let mut elements = self.l1.push(elements);
-        elements.append(&mut l1_pop);
-        if elements.len() > 0 {
-            self.l2.push(elements)
-        } else {
-            Vec::new()
+        l1_pop.append(&mut self.l1.push(elements));
+        if l1_pop.len() > 0 {
+            out.append(&mut self.l2.push(l1_pop));
         }
+        out
     }
 }
 
