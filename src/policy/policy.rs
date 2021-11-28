@@ -32,7 +32,6 @@ pub struct Policy<C, V, R, F>
 where
     R: Reference<V>,
     F: ReferenceFactory<V, R>,
-    C: Ordered<R>,
 {
     container: C,
     factory: F,
@@ -43,7 +42,6 @@ impl<C, V, R, F> Policy<C, V, R, F>
 where
     R: Reference<V>,
     F: ReferenceFactory<V, R>,
-    C: Ordered<R>,
 {
     /// Construct a new policy wrapper.
     pub fn new(container: C, factory: F) -> Self {
@@ -64,7 +62,7 @@ where
     K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
-    C: BuildingBlock<'a, K, R> + Ordered<R>,
+    C: BuildingBlock<'a, K, R>,
     F: ReferenceFactory<V, R>,
 {
     fn capacity(&self) -> usize {
@@ -118,7 +116,7 @@ unsafe impl<C, V, R, F> Send for Policy<C, V, R, F>
 where
     R: Reference<V>,
     F: ReferenceFactory<V, R> + Send,
-    C: Send + Ordered<R>,
+    C: Send,
 {
 }
 
@@ -126,7 +124,7 @@ unsafe impl<C, V, R, F> Sync for Policy<C, V, R, F>
 where
     R: Reference<V>,
     F: ReferenceFactory<V, R> + Sync,
-    C: Sync + Ordered<R>,
+    C: Sync,
 {
 }
 
@@ -134,7 +132,7 @@ impl<C, V, R, F> Clone for Policy<C, V, R, F>
 where
     R: Reference<V>,
     F: ReferenceFactory<V, R> + Clone,
-    C: Clone + Ordered<R>,
+    C: Clone,
 {
     fn clone(&self) -> Self {
         Policy {
@@ -151,7 +149,7 @@ where
     V: 'a,
     R: 'a + Reference<V>,
     F: ReferenceFactory<V, R> + Clone + Send + Sync,
-    C: BuildingBlock<'a, K, R> + Concurrent<'a, K, R> + Ordered<R>,
+    C: BuildingBlock<'a, K, R> + Concurrent<'a, K, R>,
 {
     fn clone(&self) -> Self {
         Policy {
@@ -206,7 +204,7 @@ where
     F: ReferenceFactory<V, R> + Clone + Send + Sync,
     C: Get<K, R, U, W> + Ordered<R>,
 {
-    fn get<'a>(&'a self, key: &K) -> Option<PolicyCell<V, R, U>> {
+    unsafe fn get(&self, key: &K) -> Option<PolicyCell<V, R, U>> {
         match self.container.get(key) {
             None => None,
             Some(x) => Some(PolicyCell {
@@ -216,7 +214,7 @@ where
         }
     }
 
-    fn get_mut<'a>(&'a mut self, key: &K) -> Option<PolicyCell<V, R, W>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<PolicyCell<V, R, W>> {
         match self.container.get_mut(key) {
             None => None,
             Some(x) => Some(PolicyCell {

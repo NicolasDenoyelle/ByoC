@@ -186,7 +186,7 @@ where
     W: DerefMut<Target = V>,
     C: Get<K, V, U, W>,
 {
-    fn get<'a>(&'a self, key: &K) -> Option<LockedItem<U>> {
+    unsafe fn get(&self, key: &K) -> Option<LockedItem<U>> {
         match self.lock.lock() {
             Ok(_) => match (*self.container).get(key) {
                 None => {
@@ -199,7 +199,7 @@ where
         }
     }
 
-    fn get_mut<'a>(&'a mut self, key: &K) -> Option<LockedItem<W>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<LockedItem<W>> {
         match self.lock.lock_mut() {
             Ok(_) => match (*self.container).get_mut(key) {
                 None => {

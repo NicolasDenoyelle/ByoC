@@ -1,31 +1,25 @@
 use std::ops::{Deref, DerefMut};
 
-/// BuildingBlock trait for Key/Value storage of references.
+/// Building block interface for key/value storage.
 ///
-/// ## Examples
+/// `BuildingBlock` trait defines the primitives to build a
+/// data processing pipeline implementing a key/value data container.
+/// The interface is made such that `BuildingBlock` implementers can be
+/// assembled in a pipeline fashion to build a container that will meet
+/// features and performance requirement of users key/value access
+/// workloads.
 ///
-/// ```
-/// use cache::BuildingBlock;
-/// use cache::container::Vector;
+/// A typical key/value container implementation could be a cache
+/// with multiple layers of increasing size and decreasing performance,
+/// with an eviction policy such that most accessed data live in the
+/// fastest layer.
 ///
-/// // container with only 1 element.
-/// let mut c = Vector::new(1);
-///
-/// // BuildingBlock as room for first element and returns None.
-/// assert!(c.push(vec![("first", 4)]).pop().is_none());
-///
-/// // BuildingBlock is full and pops a inserted element.
-/// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
-/// assert!(key == "second");
-/// assert!(value == 12);
-/// ```
-///
-/// ## Generics:
-///
-/// * `K`: Is the key type, used for cache lookups.
-/// * `V`: Value to insert in container.
+/// See
+/// [`BuildingBlock` implementors](trait.BuildingBlock.html#implementors)
+/// for more details on structuring building blocks together.
 pub trait BuildingBlock<'a, K: 'a, V: 'a> {
-    /// Get the number of elements fitting in the container.
+    /// Get the maximum number of elements fitting in the container.
+		/// The actual number may be smaller depending on the implementation.
     fn capacity(&self) -> usize;
 
     /// Get the number of elements in the container.    
@@ -34,23 +28,28 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     /// Check if container contains a matchig key.
     fn contains(&self, key: &K) -> bool;
 
-    /// Get every values matching key out of the container.
+    /// Take the matching key/value pair out of the container.
     fn take(&mut self, key: &K) -> Option<(K, V)>;
 
     /// Remove up to `n` values from the container.
-    /// If less than `n` values are stored in the containers,
+    /// If less than `n` values are stored in the container,
     /// the returned vector contains all the container values and
-    /// the container is left with not value.
-    /// Usually implementations will be selecting the
-    /// nth max elements in the building block.
+    /// the container is left empty.
+    /// The eviction policy deciding which elements are popped out is
+		/// implementation defined.
+		/// Implementations also implementing the marker trait
+		/// [`Ordered`](policy/trait.Ordered.html) will guarantee the eviction
+		/// of elements with the largest value. Usually, such building block
+		/// are meant to be wrapped into a [`Policy`](policy/struct.Policy.html)
+		/// `BuildingBlock` to define the eviction policy.
     fn pop(&mut self, n: usize) -> Vec<(K, V)>;
 
     /// Insert key/value pairs in the container. If the container cannot
     /// store all the values, some values are returned.
-		/// The trait does not make a contract on what is returned.
-		/// It could be for instance the values not fitting in the container or
-		/// some values from the container depending for performance reasong
-		/// or desired implementation behavior.
+    /// The trait does not make a contract on what is returned.
+    /// It could be for instance the values not fitting in the container or
+    /// some values from the container depending on trade-offs
+    /// or desired behavior.
     fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)>;
 
     /// Empty the container and retrieve all of its elements.
@@ -60,40 +59,55 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
 }
 
+/// Access values inside a [building block](trait.BuildingBlock.html).
+///
+/// This trait is a companion trait of the
+/// [`BuildingBlock`](trait.BuildingBlock.html) trait.
+/// When a building block implements this trait, it provides access to
+/// values inside itself.
+/// Values are wrapped in a RAII guard such that if they are modified,
+/// modifications can be forwarded in the building block when for instance,
+/// the building block is a key/value container in a file.
+/// Values can be accessed by dereferencing the guard into the value inside
+/// the building block.
+///
+/// Safety:   
+/// At this time, it does not seam feasible to return a trait object with
+/// the same lifetime as the function call. Therefore, any lifetime
+/// inference on the returned structure would require it to have the same
+/// lifetime as building block instance which would for instance prevent
+/// to call this trait method in a loop. As a result, this trait
+/// implementation maybe `unsafe`, because the returned guard lifetime
+/// may outlive the borrowing lifetime of the container where the inner
+/// value originates from.
 pub trait Get<K, V, U, W>
 where
     U: Deref<Target = V>,
     W: Deref<Target = V> + DerefMut,
 {
-    fn get<'a>(&'a self, key: &K) -> Option<U>;
-    fn get_mut<'a>(&'a mut self, key: &K) -> Option<W>;
+		/// Get a read-only smart pointer to a value inside the container.
+    unsafe fn get(&self, key: &K) -> Option<U>;
+		/// Get a smart pointer to a mutable value inside the container.
+    unsafe fn get_mut(&mut self, key: &K) -> Option<W>;
 }
 
-/// Key, Value store implementations.
+/// Storage implementation for key/value pairs.
 ///
-/// Containers implement the
-/// [`BuildingBlock`](../trait.BuildingBlock.html) interface and
-/// provide additional guarantees about the behavior of the implementation.
-///
-/// * As long as a container is not full, it must accept new key/value
+/// As long as a container is not full, it must accept new key/value
 /// pairs. Although containers are not required to prevent insertion of
 /// duplicate keys, some container implementation may reject a key/value
 /// pair if the key is already stored in the container.
-/// * Additionally, containers must guarantee that the victims
-/// (key/value pairs) evicted on
-/// [`pop()`](../trait.BuildingBlock.html#tymethod.pop) are indeed the
-/// smallest values.
 pub mod container;
 
 /// Connect two [`BuildingBlock`](../trait.BuildingBlock.html)s.
 ///
-/// Connectors implement the [`BuildingBlock`](../trait.BuildingBlock.html)s
+/// Connectors implement the [`BuildingBlock`](trait.BuildingBlock.html)s
 /// interface to connect two other building blocks.
 ///
 /// Connectors typically implement the way data transitions from
-/// one stage of the cache to another. For instance, a connector can
-/// implement an inclusive cache to facilitate the search for keys
-/// in different stages of the cache.
+/// one stage of the cache to another when calling
+/// [`BuildinlBlock`](../trait.BuildingBlock.html) methods on a mutable
+/// instance.
 ///
 /// Unlike containers, connectors do not ensure that insertion are
 /// possible even when one of the connected buiding blocks still
@@ -111,28 +125,23 @@ pub mod profiler;
 /// [`BuildingBlock`](../trait.BuildingBlock.html) implementing a cache
 /// policy.
 ///
-/// [Container](container/index.html) eviction on
-/// [`pop()`](trait.BuildingBlock.html#tymethod.pop) takes the nth highest
-/// elements out of the container. [Policy](./policy/struct.Policy.html)
-/// is a wrapper implementation of a
-/// [building block](trait.BuildingBlock.html) that
-/// [wraps](./policy/trait.ReferenceFactory.html#tymethod.wrap)/[unwraps](./policy/trait.Reference.html#tymethod.unwrap)
-/// values into/from an ordered cell before inserting or removing them
-/// from the underlying building block.
+/// This container will evict out the nth highest elements when calling
+/// [`pop()`](../trait.BuildingBlock.html#tymethod.pop) method.
+/// [Policy](../policy/struct.Policy.html) is a wrapper implementation of a
+/// [building block](../trait.BuildingBlock.html) that
+/// [wraps](../policy/trait.ReferenceFactory.html#tymethod.new) /
+/// [unwraps](../policy/trait.Reference.html#tymethod.into_inner)
+/// values into/from an ordering cell before inserting or removing them
+/// in/from the underlying building block.
 /// As a result, when values get evicted, they are evicted according to
-/// the order defined by the policy.
+/// the order defined by the policy of the ordering cell.
 ///
-/// User of policies must be careful that accessing values wrapped into
+/// Users must be careful that accessing values wrapped into
 /// an order cell might change the order of elements in the container, and
 /// therefore, policies should not be used with containers relying on
 /// a stable order of its values. Note that containers that rely on a
 /// stable order of values should not allow access to their inner values
 /// alltogether to avoid this problem.
-///
-/// ## Examples
-///
-/// ```
-/// ```
 pub mod policy;
 
 /// Utils
@@ -143,7 +152,10 @@ pub mod utils;
 /// library.
 mod private;
 
+/// Public test module available at test time.
+/// This module tests the expected behavior of
+/// [`BuildinlBlock`](../trait.BuildingBlock.html) and
+/// [`Get`](../trait.Get.html) traits with
+/// `test_building_block()` and `test_get()`.
 #[cfg(test)]
-/// Public test module available only for testing building blocks
-/// implementation.
 pub mod tests;

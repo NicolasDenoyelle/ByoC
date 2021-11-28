@@ -194,11 +194,11 @@ where
     W: Deref<Target = V> + DerefMut,
     C: Get<K, V, U, W>,
 {
-    fn get<'a>(&'a self, key: &K) -> Option<U> {
+    unsafe fn get(&self, key: &K) -> Option<U> {
         self.deref().get(key)
     }
 
-    fn get_mut<'a>(&'a mut self, key: &K) -> Option<W> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
         self.deref_mut().get_mut(key)
     }
 }

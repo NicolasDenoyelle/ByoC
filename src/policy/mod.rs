@@ -1,5 +1,3 @@
-use std::cmp::Ord;
-
 /// Value ordering implementation.
 ///
 /// A reference is a value wrapper that lives in

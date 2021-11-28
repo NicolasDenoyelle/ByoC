@@ -7,15 +7,22 @@ use std::collections::{BTreeMap, BTreeSet};
 // Ordered set of references and key value map.                           //
 //------------------------------------------------------------------------//
 
-/// [`BuildingBlock`](../trait.BuildingBlock.html) with ordered keys and values.
+/// [`BuildingBlock`](../trait.BuildingBlock.html) with ordered keys and
+/// values.
 ///
-/// BTree is a container organized with a binary tree structures.
-/// Keys are kept in a binary tree for fast lookups.
+/// BTree is a container organized with binary tree structures for keys
+/// and values. Keys are kept in a binary tree for fast lookups.
 /// Values are kept in a binary tree for fast search of eviction candidates.
 /// Since keys are ordered, this container will not allow several matching
-/// keys in the container. However, it can store similar values paired with
-/// different keys.
-/// Insertions, removal, lookup and evictions are O(log(n)).
+/// keys in the container. However, it can store equal values.
+///
+/// BTree does not implement [`Get`](../trait.Get.html) trait because
+/// accessing values, even in a non exclusive way, may change their
+/// relative order and break the way values are stored in a binary tree.
+///
+/// See
+/// [`BuildingBlock methods implementation`](struct.BTree.html#impl-BuildingBlock%3C%27a%2C%20K%2C%20V%3E)
+/// for behavior on `push()` and `pop()`.
 ///
 /// ## Examples
 ///
@@ -23,16 +30,29 @@ use std::collections::{BTreeMap, BTreeSet};
 /// use cache::BuildingBlock;
 /// use cache::container::BTree;
 ///
-/// // container with only 1 element.
-/// let mut c = BTree::new(1);
+/// // BTree with 3 elements capacity.
+/// let mut c = BTree::new(3);
 ///
-/// // BuildingBlock as room for first element and returns None.
-/// assert!(c.push(vec![("first", 4)]).pop().is_none());
+/// // BuildingBlock as room for 2 elements and returns an empty vector.
+/// // No element is rejected.
+/// assert!(c.push(vec![("first", 4), ("second", 2)]).pop().is_none());
 ///
-/// // BuildingBlock is full and pops a inserted element.
-/// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
-/// assert!(key == "second");
-/// assert!(value == 12);
+/// // Insertion of existing keys are rejected and elements not fitting
+/// // in the container are also rejected.
+/// let out = c.push(vec![("second", 4), ("third", 3), ("fourth", 4)]);
+/// // Already in the container.
+/// assert_eq!(out[0].0, "second");
+/// // Overflow
+/// assert_eq!(out[1].0, "fourth");
+/// assert_eq!(out.len(), 2);
+///
+/// // BTree pops elements in order of the highest values.
+/// let (key, value) = c.pop(1).pop().unwrap();
+/// assert_eq!(key, "first");
+/// let (key, value) = c.pop(1).pop().unwrap();
+/// assert_eq!(key, "third");
+/// let (key, value) = c.pop(1).pop().unwrap();
+/// assert_eq!(key, "second");
 /// ```
 pub struct BTree<K, V>
 where
@@ -57,7 +77,7 @@ where
     pub fn new(n: usize) -> Self {
         BTree {
             capacity: n,
-            references: Vec::with_capacity(n + 1),
+            references: Vec::with_capacity(n),
             set: BTreeSet::new(),
             map: BTreeMap::new(),
         }
@@ -66,7 +86,7 @@ where
 
 impl<'a, K, V> BuildingBlock<'a, K, V> for BTree<K, V>
 where
-    K: 'a + Copy + Ord,
+    K: 'a + Copy + Ord + std::fmt::Debug,
     V: 'a + Ord,
 {
     fn capacity(&self) -> usize {
@@ -92,30 +112,43 @@ where
         self.map.contains_key(key)
     }
 
-    fn push(&mut self, mut values: Vec<(K, V)>) -> Vec<(K, V)> {
-        let n = std::cmp::min(
-            self.capacity - self.references.len(),
-            values.len(),
-        );
-        let mut out = values.split_off(n);
+    /// Insert key/value pairs in the container. If the container cannot
+    /// store all the values, the last input values not fitting in are
+    /// returned. This container does not accept keys matching keys
+    /// already inside the container and will return the corresponding
+    /// key/value pairs.
+    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
+        let mut out = Vec::new();
+				let mut n = self.references.len();
 
         for (key, value) in values.into_iter() {
-            match self.map.get(&key) {
-                Some(_) => out.push((key, value)),
-                None => {
-                    self.references.push((key, value));
-                    let n = self.references.len() - 1;
-                    assert!(self.map.insert(key, n).is_none());
-                    assert!(self.set.insert((
-                        OrdPtr::new(&self.references[n].1),
-                        key
-                    )));
-                }
+            if n >= self.capacity {
+								println!("Reject {:?} because capacity exceeded.", key);
+                out.push((key, value));
+            } else if let Some(_) = self.map.get(&key) {
+								println!("Reject {:?} because already stored.", key);
+                out.push((key, value))
+            } else {
+								println!("Insert {:?}.", key);
+                self.references.push((key, value));
+                assert!(self.map.insert(key, n).is_none());
+                assert!(self
+                    .set
+												.insert((OrdPtr::new(&self.references[n].1), key)));
+								n += 1;
             }
         }
         out
     }
 
+    /// Remove up to `n` values from the container.
+    /// If less than `n` values are stored in the container,
+    /// the returned vector contains all the container values and
+    /// the container is left empty.
+    /// This building block implements the trait
+    /// [`Ordered`](../policy/trait.Ordered.html), which means that
+    /// the highest values are popped out. This is implemented by
+    /// retrieving the last values stored in a binary tree.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let mut ret = Vec::new();
 

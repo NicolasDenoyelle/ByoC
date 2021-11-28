@@ -271,12 +271,12 @@ where
     H: Hasher + Clone,
     C: Get<K, V, U, W>,
 {
-    fn get<'a>(&'a self, key: &K) -> Option<LockedItem<U>> {
+    unsafe fn get(&self, key: &K) -> Option<LockedItem<U>> {
         let i = self.set(key.clone());
         self.containers[i].get(key)
     }
 
-    fn get_mut<'a>(&'a mut self, key: &K) -> Option<LockedItem<W>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<LockedItem<W>> {
         let i = self.set(key.clone());
         self.containers[i].get_mut(key)
     }

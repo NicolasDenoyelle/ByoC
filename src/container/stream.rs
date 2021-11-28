@@ -260,7 +260,7 @@ where
     S: Streamable,
     F: StreamFactory<S> + Clone,
 {
-    fn get<'a>(&'a self, key: &K) -> Option<StreamCell<K, V>> {
+    unsafe fn get(&self, key: &K) -> Option<StreamCell<K, V>> {
         self.streams
             .iter()
             .filter_map(|s| s.as_ref())
@@ -276,8 +276,8 @@ where
             })
     }
 
-    fn get_mut<'a>(
-        &'a mut self,
+    unsafe fn get_mut(
+        &mut self,
         key: &K,
     ) -> Option<StreamCellMut<K, V, S>> {
         self.streams

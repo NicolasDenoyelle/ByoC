@@ -200,7 +200,7 @@ where
     C1: Get<K, V, U1, W1> + BuildingBlock<'b, K, V>,
     C2: Get<K, V, U2, W2> + BuildingBlock<'b, K, V>,
 {
-    fn get<'a>(&'a self, key: &K) -> Option<DualCell<V, U1, U2>> {
+    unsafe fn get(&self, key: &K) -> Option<DualCell<V, U1, U2>> {
         match self.l1.get(key) {
             Some(x) => Some(DualCell::Atype(x)),
             None => match self.l2.get(key) {
@@ -210,7 +210,7 @@ where
         }
     }
 
-    fn get_mut<'a>(&'a mut self, key: &K) -> Option<DualCell<V, W1, W2>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<DualCell<V, W1, W2>> {
         // If key is in l1, we can return it.
         if let Some(x) = self.l1.get_mut(key) {
             return Some(DualCell::Atype(x));

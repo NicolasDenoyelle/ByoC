@@ -433,7 +433,7 @@ where
     W: DerefMut<Target = V>,
     C: Get<K, V, U, W>,
 {
-    fn get<'a>(&'a self, key: &K) -> Option<U> {
+    unsafe fn get(&self, key: &K) -> Option<U> {
         let t0 = Instant::now();
         let item = self.cache.get(key);
         let tf = t0.elapsed().as_millis();
@@ -448,7 +448,7 @@ where
         item
     }
 
-    fn get_mut<'a>(&'a mut self, key: &K) -> Option<W> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
         let t0 = Instant::now();
         let item = self.cache.get_mut(key);
         let tf = t0.elapsed().as_millis();

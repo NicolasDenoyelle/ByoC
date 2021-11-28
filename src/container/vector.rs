@@ -8,14 +8,13 @@ use std::vec::Vec;
 //  Vector struct
 //-------------------------------------------------------------------------
 
-/// Unordered [`BuildingBlock`](../trait.BuildingBlock.html).
+/// [`BuildingBlock`](../trait.BuildingBlock.html) implementation in a
+/// vector.
 ///
-/// Vector holds values in a `Vec<(index, value)>`.
-/// It is an unordered container.
-/// Any operation on vector (
-/// [`push()`](../trait.BuildingBlock.html#tymethod.push),
-/// [`take()`](../trait.BuildingBlock.html#tymethod.take),
-/// [`pop()`](../trait.BuildingBlock.html#tymethod.pop)
+/// Vector holds values in a `Vec<(key, value)>`.   
+/// See
+/// [`BuildingBlock methods implementation`](struct.Vector.html#impl-BuildingBlock%3C%27a%2C%20K%2C%20V%3E)
+/// for behavior on `push()` and `pop()`.
 ///
 /// ## Examples
 ///
@@ -23,16 +22,24 @@ use std::vec::Vec;
 /// use cache::BuildingBlock;
 /// use cache::container::Vector;
 ///
-/// // container with only 1 element.
-/// let mut c = Vector::new(1);
+/// // Vector with 3 elements capacity.
+/// let mut c = Vector::new(3);
 ///
-/// // BuildingBlock as room for first element and returns None.
-/// assert!(c.push(vec![("first", 4)]).pop().is_none());
+/// // BuildingBlock as room for 3 elements and returns an empty vector.
+/// // No element is rejected.
+/// assert!(c.push(vec![("first", 4), ("second", 2), ("third", 3)]).pop().is_none());
 ///
-/// // BuildingBlock is full and pops inserted value.
-/// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
-/// assert!(key == "second");
-/// assert!(value == 12);
+/// // Vector is full and pops extra inserted value (all values here).
+/// let (key, _) = c.push(vec![("fourth", 12)]).pop().unwrap();
+/// assert_eq!(key, "fourth");
+///
+/// // Vector pops elements in order of the highest values.
+/// let (key, value) = c.pop(1).pop().unwrap();
+/// assert_eq!(key, "first");
+/// let (key, value) = c.pop(1).pop().unwrap();
+/// assert_eq!(key, "third");
+/// let (key, value) = c.pop(1).pop().unwrap();
+/// assert_eq!(key, "second");
 /// ```
 pub struct Vector<T> {
     capacity: usize,
@@ -43,7 +50,7 @@ impl<T> Vector<T> {
     pub fn new(n: usize) -> Self {
         Vector {
             capacity: n,
-            values: Vec::with_capacity(n + 1),
+            values: Vec::with_capacity(n),
         }
     }
 }
@@ -73,12 +80,23 @@ where
         return self.values.len();
     }
 
+    /// Remove up to `n` values from the container.
+    /// If less than `n` values are stored in the container,
+    /// the returned vector contains all the container values and
+    /// the container is left empty.
+		/// This building block implements the trait
+		/// [`Ordered`](../policy/trait.Ordered.html), which means that
+		/// the highest values are popped out. This is implemented by
+		/// sorting the vector on values and spitting it where appropriate.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         self.values.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
         let i = self.values.len();
         self.values.split_off(i - std::cmp::min(i, n))
     }
 
+    /// Insert key/value pairs in the container. If the container cannot
+    /// store all the values, the last input values not fitting in are
+		/// returned.
     fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = std::cmp::min(
             self.capacity - self.values.len(),
@@ -113,6 +131,8 @@ impl<K, V: Ord> Ordered<V> for Vector<(K, V)> {}
 // Get trait implementation
 //------------------------------------------------------------------------//
 
+/// Read-only cell representing a reference to a value inside a
+/// [`Vector`](struct.Vector.html) container.
 pub struct VecCell<T> {
     t: *const T,
 }
@@ -124,6 +144,8 @@ impl<T> Deref for VecCell<T> {
     }
 }
 
+/// Read-write cell holding a reference to a value inside a
+/// [`Vector`](struct.Vector.html) container.
 pub struct VecMutCell<T> {
     t: *mut T,
 }
@@ -142,7 +164,7 @@ impl<T> DerefMut for VecMutCell<T> {
 }
 
 impl<K: Eq, V> Get<K, V, VecCell<V>, VecMutCell<V>> for Vector<(K, V)> {
-    fn get<'a>(&'a self, key: &K) -> Option<VecCell<V>> {
+    unsafe fn get(&self, key: &K) -> Option<VecCell<V>> {
         self.values.iter().find_map(move |(k, v)| {
             if k == key {
                 Some(VecCell { t: v })
@@ -152,7 +174,7 @@ impl<K: Eq, V> Get<K, V, VecCell<V>, VecMutCell<V>> for Vector<(K, V)> {
         })
     }
 
-    fn get_mut<'a>(&'a mut self, key: &K) -> Option<VecMutCell<V>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<VecMutCell<V>> {
         self.values.iter_mut().find_map(move |(k, v)| {
             if k == key {
                 Some(VecMutCell { t: v })
