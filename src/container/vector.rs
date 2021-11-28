@@ -16,6 +16,11 @@ use std::vec::Vec;
 /// [`BuildingBlock methods implementation`](struct.Vector.html#impl-BuildingBlock%3C%27a%2C%20K%2C%20V%3E)
 /// for behavior on `push()` and `pop()`.
 ///
+/// ## Safety
+///
+/// See
+/// [`Get methods implementation`](struct.Vector.html#impl-Get%3CK%2C%20V%2C%20VectorCell%3CV%3E%2C%20VectorMutCell%3CV%3E%3E).
+///
 /// ## Examples
 ///
 /// ```
@@ -56,7 +61,7 @@ impl<T> Vector<T> {
 }
 
 //------------------------------------------------------------------------//
-//  BuildingBlock implementation.                                             //
+// BuildingBlock implementation
 //------------------------------------------------------------------------//
 
 impl<'a, K, V> BuildingBlock<'a, K, V> for Vector<(K, V)>
@@ -84,10 +89,10 @@ where
     /// If less than `n` values are stored in the container,
     /// the returned vector contains all the container values and
     /// the container is left empty.
-		/// This building block implements the trait
-		/// [`Ordered`](../policy/trait.Ordered.html), which means that
-		/// the highest values are popped out. This is implemented by
-		/// sorting the vector on values and spitting it where appropriate.
+    /// This building block implements the trait
+    /// [`Ordered`](../policy/trait.Ordered.html), which means that
+    /// the highest values are popped out. This is implemented by
+    /// sorting the vector on values and spitting it where appropriate.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         self.values.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
         let i = self.values.len();
@@ -96,7 +101,7 @@ where
 
     /// Insert key/value pairs in the container. If the container cannot
     /// store all the values, the last input values not fitting in are
-		/// returned.
+    /// returned.
     fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = std::cmp::min(
             self.capacity - self.values.len(),
@@ -133,11 +138,11 @@ impl<K, V: Ord> Ordered<V> for Vector<(K, V)> {}
 
 /// Read-only cell representing a reference to a value inside a
 /// [`Vector`](struct.Vector.html) container.
-pub struct VecCell<T> {
+pub struct VectorCell<T> {
     t: *const T,
 }
 
-impl<T> Deref for VecCell<T> {
+impl<T> Deref for VectorCell<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         unsafe { self.t.as_ref().unwrap() }
@@ -146,38 +151,102 @@ impl<T> Deref for VecCell<T> {
 
 /// Read-write cell holding a reference to a value inside a
 /// [`Vector`](struct.Vector.html) container.
-pub struct VecMutCell<T> {
+pub struct VectorMutCell<T> {
     t: *mut T,
 }
 
-impl<T> Deref for VecMutCell<T> {
+impl<T> Deref for VectorMutCell<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         unsafe { self.t.as_ref().unwrap() }
     }
 }
 
-impl<T> DerefMut for VecMutCell<T> {
+impl<T> DerefMut for VectorMutCell<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.t.as_mut().unwrap() }
     }
 }
 
-impl<K: Eq, V> Get<K, V, VecCell<V>, VecMutCell<V>> for Vector<(K, V)> {
-    unsafe fn get(&self, key: &K) -> Option<VecCell<V>> {
+impl<K: Eq, V> Get<K, V, VectorCell<V>, VectorMutCell<V>> for Vector<(K, V)> {
+		/// Get value inside a `Vector`. The value is wrapped inside a
+		/// [`VectorCell`](struct.VectorCell.html). The `VectorCell` can
+		/// further be dereferenced into a value reference.
+		///
+		/// ## Safety:
+		///
+		/// Using the return value inside the `VectorCell` is unsafe and can
+		/// lead to undefined behavior. The user of this method must ensure that
+		/// the Vector container is not modified until the `VectorCell` is
+		/// droped. Otherwise, the content of the `VectorCell` might be
+		/// corrupted.
+		///
+		/// ## Example:
+		///
+		/// ```
+		/// use cache::{BuildingBlock, Get};
+		/// use cache::container::Vector;
+		///
+		/// // Make a vector and populate it.
+		/// let mut v = Vector::new(1);
+		/// v.push(vec![(1,1)]);
+		///
+		/// // Get the value inside the vector.
+		/// let val = unsafe { v.get(&1).unwrap() };
+		///
+		/// // Replace with another value.
+		/// v.flush();
+		/// v.push(vec![(2,2)]);
+		///
+		/// // Val is corrupted and should not be accessible.
+		/// assert!(*val != 1);
+		/// ```
+    unsafe fn get(&self, key: &K) -> Option<VectorCell<V>> {
         self.values.iter().find_map(move |(k, v)| {
             if k == key {
-                Some(VecCell { t: v })
+                Some(VectorCell { t: v })
             } else {
                 None
             }
         })
     }
 
-    unsafe fn get_mut(&mut self, key: &K) -> Option<VecMutCell<V>> {
+		/// Get value inside a `Vector`. The value is wrapped inside a
+		/// [`VectorMutCell`](struct.VectorMutCell.html). The `VectorMutCell`
+		/// can further be dereferenced into a value reference.
+		///
+		/// ## Safety:
+		///
+		/// Using the return value inside the `VectorMutCell` is unsafe and can
+		/// lead to undefined behavior. The user of this method must ensure that
+		/// the Vector container is not modified until the `VectorMutCell` is
+		/// droped. Otherwise, the content of the `VectorMutCell` might be
+		/// corrupted.
+		///
+		/// ## Example:
+		///
+		/// ```
+		/// use cache::{BuildingBlock, Get};
+		/// use cache::container::Vector;
+		///
+		/// // Make a vector and populate it.
+		/// let mut v = Vector::new(1);
+		/// v.push(vec![(1,1)]);
+		///
+		/// // Get the value inside the vector.
+		/// let mut val = unsafe { v.get_mut(&1).unwrap() };
+		///
+		/// // Replace with another value.
+		/// v.flush();
+		/// v.push(vec![(2,2)]);
+		///
+		/// // Val is corrupted and should not be accessible.
+		/// assert!(*val != 1);
+		/// ```
+    unsafe fn get_mut(&mut self, key: &K) -> Option<VectorMutCell<V>> {
         self.values.iter_mut().find_map(move |(k, v)| {
             if k == key {
-                Some(VecMutCell { t: v })
+                Some(VectorMutCell { t: v })
             } else {
                 None
             }

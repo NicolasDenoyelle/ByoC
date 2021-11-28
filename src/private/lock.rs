@@ -30,7 +30,8 @@ pub enum LockError<T> {
 /// that allows creation of objects that call `unlock()` on a RWLock when
 /// they go out of scope.
 ///
-/// # Examples
+/// ## Examples
+///
 /// ```ignore
 /// use cache::lock::RWLock;
 /// let lock = RWLock::new();

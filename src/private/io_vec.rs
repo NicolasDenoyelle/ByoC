@@ -17,9 +17,7 @@ pub struct IOChunk {
 impl IOChunk {
     /// `IOChunk` constructor.
     /// Creates a new chunk filled with 0s.
-    /// # Arguments
-    ///
-    /// * size: The size of the chunk in bytes.
+    /// `size` is the size of the chunk in bytes.
     pub fn new(size: usize) -> Self {
         IOChunk {
             buf: vec![0u8; size],
@@ -151,11 +149,9 @@ where
 {
     /// `IOStructMut` constructor.
     ///
-    /// # Arguments
-    ///
-    /// * stream: The stream where to write `item` back if
+    /// * `stream`: The stream where to write `item` back if
     /// item has written at destruction time.
-    /// * item: The item to wrap.
+    /// * `item`: The item to wrap.
     pub fn new(mut stream: S, item: T) -> IOResult<Self> {
         let pos = match stream.seek(SeekFrom::Current(0)) {
             Err(e) => return Err(IOError::SeekError(e)),

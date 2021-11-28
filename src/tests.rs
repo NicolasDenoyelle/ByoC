@@ -66,7 +66,7 @@ where
     }
 
     for (k, v) in elements.iter() {
-        assert_eq!(* unsafe { c.get(k).unwrap() } as u32, *v + 1u32);
+        assert_eq!(*unsafe { c.get(k).unwrap() } as u32, *v + 1u32);
     }
 }
 

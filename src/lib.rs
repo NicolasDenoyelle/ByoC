@@ -19,7 +19,7 @@ use std::ops::{Deref, DerefMut};
 /// for more details on structuring building blocks together.
 pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     /// Get the maximum number of elements fitting in the container.
-		/// The actual number may be smaller depending on the implementation.
+    /// The actual number may be smaller depending on the implementation.
     fn capacity(&self) -> usize;
 
     /// Get the number of elements in the container.    
@@ -36,12 +36,12 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     /// the returned vector contains all the container values and
     /// the container is left empty.
     /// The eviction policy deciding which elements are popped out is
-		/// implementation defined.
-		/// Implementations also implementing the marker trait
-		/// [`Ordered`](policy/trait.Ordered.html) will guarantee the eviction
-		/// of elements with the largest value. Usually, such building block
-		/// are meant to be wrapped into a [`Policy`](policy/struct.Policy.html)
-		/// `BuildingBlock` to define the eviction policy.
+    /// implementation defined.
+    /// Implementations also implementing the marker trait
+    /// [`Ordered`](policy/trait.Ordered.html) will guarantee the eviction
+    /// of elements with the largest value. Usually, such building block
+    /// are meant to be wrapped into a [`Policy`](policy/struct.Policy.html)
+    /// `BuildingBlock` to define the eviction policy.
     fn pop(&mut self, n: usize) -> Vec<(K, V)>;
 
     /// Insert key/value pairs in the container. If the container cannot
@@ -71,7 +71,8 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
 /// Values can be accessed by dereferencing the guard into the value inside
 /// the building block.
 ///
-/// Safety:   
+/// ## Safety:
+/// 
 /// At this time, it does not seam feasible to return a trait object with
 /// the same lifetime as the function call. Therefore, any lifetime
 /// inference on the returned structure would require it to have the same
@@ -85,9 +86,9 @@ where
     U: Deref<Target = V>,
     W: Deref<Target = V> + DerefMut,
 {
-		/// Get a read-only smart pointer to a value inside the container.
+    /// Get a read-only smart pointer to a value inside the container.
     unsafe fn get(&self, key: &K) -> Option<U>;
-		/// Get a smart pointer to a mutable value inside the container.
+    /// Get a smart pointer to a mutable value inside the container.
     unsafe fn get_mut(&mut self, key: &K) -> Option<W>;
 }
 

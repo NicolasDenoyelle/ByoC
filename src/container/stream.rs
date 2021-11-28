@@ -11,6 +11,9 @@ use std::ops::{Deref, DerefMut};
 // Stream for any chunk size
 //------------------------------------------------------------------------//
 
+/// Key/value storage on a byte stream.
+///
+/// 
 pub struct Stream<T, S, F>
 where
     T: DeserializeOwned + Serialize,
@@ -220,7 +223,7 @@ impl<K, V> Deref for StreamCell<K, V> {
     }
 }
 
-pub struct StreamCellMut<K, V, S>
+pub struct StreamMutCell<K, V, S>
 where
     K: Serialize,
     V: Serialize,
@@ -229,7 +232,7 @@ where
     item: IOStructMut<(K, V), S>,
 }
 
-impl<K, V, S> Deref for StreamCellMut<K, V, S>
+impl<K, V, S> Deref for StreamMutCell<K, V, S>
 where
     K: Serialize,
     V: Serialize,
@@ -241,7 +244,7 @@ where
     }
 }
 
-impl<K, V, S> DerefMut for StreamCellMut<K, V, S>
+impl<K, V, S> DerefMut for StreamMutCell<K, V, S>
 where
     K: Serialize,
     V: Serialize,
@@ -252,7 +255,7 @@ where
     }
 }
 
-impl<K, V, F, S> Get<K, V, StreamCell<K, V>, StreamCellMut<K, V, S>>
+impl<K, V, F, S> Get<K, V, StreamCell<K, V>, StreamMutCell<K, V, S>>
     for Stream<(K, V), S, F>
 where
     K: DeserializeOwned + Serialize + Eq,
@@ -279,7 +282,7 @@ where
     unsafe fn get_mut(
         &mut self,
         key: &K,
-    ) -> Option<StreamCellMut<K, V, S>> {
+    ) -> Option<StreamMutCell<K, V, S>> {
         self.streams
             .iter_mut()
             .filter_map(|s| s.as_mut())
@@ -287,7 +290,7 @@ where
                 s.iter_mut().find_map(|item| {
                     let (k, _) = &*item;
                     if k == key {
-                        Some(StreamCellMut { item: item })
+                        Some(StreamMutCell { item: item })
                     } else {
                         None
                     }

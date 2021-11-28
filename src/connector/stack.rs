@@ -124,14 +124,14 @@ where
         } else {
             self.l1.flush().collect()
         };
-				let mut elements = self.l1.push(elements);
-				elements.append(&mut l1_pop);
+        let mut elements = self.l1.push(elements);
+        elements.append(&mut l1_pop);
 
-				if elements.len() == 0 {
-						return elements;
-				}
+        if elements.len() == 0 {
+            return elements;
+        }
 
-				let l2_capacity = self.l2.capacity();
+        let l2_capacity = self.l2.capacity();
         let l2_count = self.l2.count();
         let mut l2_pop = if elements.len() <= (l2_capacity - l2_count) {
             Vec::new()
@@ -141,10 +141,10 @@ where
         } else {
             self.l2.flush().collect()
         };
-				let mut elements = self.l2.push(elements);
-				elements.append(&mut l2_pop);
+        let mut elements = self.l2.push(elements);
+        elements.append(&mut l2_pop);
 
-				elements
+        elements
     }
 }
 
@@ -152,7 +152,7 @@ where
 // Get trait implementation
 //------------------------------------------------------------------------//
 
-enum DualCell<V, A, B>
+pub enum StackCell<V, A, B>
 where
     A: Deref<Target = V>,
     B: Deref<Target = V>,
@@ -161,7 +161,7 @@ where
     Btype(B),
 }
 
-impl<V, A, B> Deref for DualCell<V, A, B>
+impl<V, A, B> Deref for StackCell<V, A, B>
 where
     A: Deref<Target = V>,
     B: Deref<Target = V>,
@@ -175,7 +175,7 @@ where
     }
 }
 
-impl<V, A, B> DerefMut for DualCell<V, A, B>
+impl<V, A, B> DerefMut for StackCell<V, A, B>
 where
     A: Deref<Target = V> + DerefMut,
     B: Deref<Target = V> + DerefMut,
@@ -189,7 +189,7 @@ where
 }
 
 impl<'b, K, V, C1, C2, U1, U2, W1, W2>
-    Get<K, V, DualCell<V, U1, U2>, DualCell<V, W1, W2>> for Stack<C1, C2>
+    Get<K, V, StackCell<V, U1, U2>, StackCell<V, W1, W2>> for Stack<C1, C2>
 where
     K: 'b,
     V: 'b,
@@ -200,20 +200,20 @@ where
     C1: Get<K, V, U1, W1> + BuildingBlock<'b, K, V>,
     C2: Get<K, V, U2, W2> + BuildingBlock<'b, K, V>,
 {
-    unsafe fn get(&self, key: &K) -> Option<DualCell<V, U1, U2>> {
+    unsafe fn get(&self, key: &K) -> Option<StackCell<V, U1, U2>> {
         match self.l1.get(key) {
-            Some(x) => Some(DualCell::Atype(x)),
+            Some(x) => Some(StackCell::Atype(x)),
             None => match self.l2.get(key) {
                 None => None,
-                Some(x) => Some(DualCell::Btype(x)),
+                Some(x) => Some(StackCell::Btype(x)),
             },
         }
     }
 
-    unsafe fn get_mut(&mut self, key: &K) -> Option<DualCell<V, W1, W2>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<StackCell<V, W1, W2>> {
         // If key is in l1, we can return it.
         if let Some(x) = self.l1.get_mut(key) {
-            return Some(DualCell::Atype(x));
+            return Some(StackCell::Atype(x));
         }
 
         // If value is not in l2, then we return None.
@@ -226,7 +226,7 @@ where
         // We push the value in l1. If it does not pop, we return it.
         let (k, v) = match self.l1.push(vec![(k, v)]).pop() {
             None => {
-                return Some(DualCell::Atype(self.l1.get_mut(key).expect(
+                return Some(StackCell::Atype(self.l1.get_mut(key).expect(
                     "Element inserted in l1 cannot be retrieved",
                 )))
             }
@@ -243,7 +243,7 @@ where
                 // Fails if cannot reinsert an element in l2 that used to be
                 // in l2.
                 assert!(self.l2.push(vec![(k, v)]).pop().is_none());
-                return Some(DualCell::Btype(
+                return Some(StackCell::Btype(
                     self.l2
                         .get_mut(key)
                         .expect("Key inside container not found"),
@@ -258,7 +258,7 @@ where
             None => {
                 match self.l2.push(vec![(k1, v1)]).pop() {
                     None => {
-                        return Some(DualCell::Atype(
+                        return Some(StackCell::Atype(
                             self.l1
                                 .get_mut(key)
                                 .expect("Key inside container not found"),
@@ -284,7 +284,7 @@ where
         // and we have to use l2.
         assert!(self.l1.push(vec![(k1, v1)]).pop().is_none());
         assert!(self.l2.push(vec![(k, v)]).pop().is_none());
-        return Some(DualCell::Btype(
+        return Some(StackCell::Btype(
             self.l2
                 .get_mut(key)
                 .expect("Key inside container not found"),

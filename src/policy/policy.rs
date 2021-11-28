@@ -12,7 +12,8 @@ use std::ops::{Deref, DerefMut};
 ///
 /// This structure implements a wrapper around a building blocks that
 /// wraps values (from key/value pairs) into an orderable cell.
-/// As a result, when popping elements out a building blocks,
+/// As a result, when popping elements out of a building blocks
+/// implementing [`Ordered`](trait.Ordered.html) trait,
 /// this wrapper decides which element is going to be evicted.
 ///
 /// ## Examples

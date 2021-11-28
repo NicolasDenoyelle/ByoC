@@ -119,23 +119,23 @@ where
     /// key/value pairs.
     fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
         let mut out = Vec::new();
-				let mut n = self.references.len();
+        let mut n = self.references.len();
 
         for (key, value) in values.into_iter() {
             if n >= self.capacity {
-								println!("Reject {:?} because capacity exceeded.", key);
+                println!("Reject {:?} because capacity exceeded.", key);
                 out.push((key, value));
             } else if let Some(_) = self.map.get(&key) {
-								println!("Reject {:?} because already stored.", key);
+                println!("Reject {:?} because already stored.", key);
                 out.push((key, value))
             } else {
-								println!("Insert {:?}.", key);
+                println!("Insert {:?}.", key);
                 self.references.push((key, value));
                 assert!(self.map.insert(key, n).is_none());
                 assert!(self
                     .set
-												.insert((OrdPtr::new(&self.references[n].1), key)));
-								n += 1;
+                    .insert((OrdPtr::new(&self.references[n].1), key)));
+                n += 1;
             }
         }
         out

@@ -13,13 +13,7 @@ use std::time::Instant;
 /// If the wrapped container implements the concurrent trait, then
 /// the profiler does to.
 ///
-/// # Generics
-///
-/// * K: The keys type used for the cache.
-/// * V: The type of values stored in cache.
-/// * C: The type of the cache to profile.
-///
-/// # Examples
+/// ## Examples
 ///
 /// ```
 /// use cache::{BuildingBlock};

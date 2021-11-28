@@ -1,4 +1,5 @@
 use crate::concurrent::Concurrent;
+use crate::policy::Ordered;
 use crate::private::clone::CloneCell;
 use crate::private::lock::{LockError, RWLock};
 use crate::{BuildingBlock, Get};
@@ -113,6 +114,9 @@ where
         }
     }
 }
+
+impl<V: Ord, C> Ordered<V> for Sequential<C>
+where C: Ordered<V> {}
 
 //------------------------------------------------------------------------//
 // Concurrent trait implementation                                        //

@@ -1,2 +1,2 @@
 mod stack;
-pub use crate::connector::stack::Stack;
+pub use crate::connector::stack::{Stack, StackCell};

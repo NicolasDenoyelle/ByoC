@@ -68,7 +68,8 @@ impl<V> InnerClone<V> {
 /// Content inside a CloneCell struct can be accessed via `Deref`
 /// and `DerefMut` traits.
 ///
-/// # Example
+/// ## Example
+///
 /// ```ignore
 /// use cache::utils::clone::CloneCell;
 ///
