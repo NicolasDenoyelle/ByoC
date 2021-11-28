@@ -72,7 +72,7 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
 /// the building block.
 ///
 /// ## Safety:
-/// 
+///
 /// At this time, it does not seam feasible to return a trait object with
 /// the same lifetime as the function call. Therefore, any lifetime
 /// inference on the returned structure would require it to have the same

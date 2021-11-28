@@ -226,9 +226,11 @@ where
         // We push the value in l1. If it does not pop, we return it.
         let (k, v) = match self.l1.push(vec![(k, v)]).pop() {
             None => {
-                return Some(StackCell::Atype(self.l1.get_mut(key).expect(
-                    "Element inserted in l1 cannot be retrieved",
-                )))
+                return Some(StackCell::Atype(
+                    self.l1.get_mut(key).expect(
+                        "Element inserted in l1 cannot be retrieved",
+                    ),
+                ))
             }
             Some(x) => x,
         };

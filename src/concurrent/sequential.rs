@@ -115,8 +115,7 @@ where
     }
 }
 
-impl<V: Ord, C> Ordered<V> for Sequential<C>
-where C: Ordered<V> {}
+impl<V: Ord, C> Ordered<V> for Sequential<C> where C: Ordered<V> {}
 
 //------------------------------------------------------------------------//
 // Concurrent trait implementation                                        //

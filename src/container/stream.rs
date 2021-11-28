@@ -13,7 +13,7 @@ use std::ops::{Deref, DerefMut};
 
 /// Key/value storage on a byte stream.
 ///
-/// 
+///
 pub struct Stream<T, S, F>
 where
     T: DeserializeOwned + Serialize,

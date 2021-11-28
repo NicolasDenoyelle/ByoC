@@ -168,39 +168,41 @@ impl<T> DerefMut for VectorMutCell<T> {
     }
 }
 
-impl<K: Eq, V> Get<K, V, VectorCell<V>, VectorMutCell<V>> for Vector<(K, V)> {
-		/// Get value inside a `Vector`. The value is wrapped inside a
-		/// [`VectorCell`](struct.VectorCell.html). The `VectorCell` can
-		/// further be dereferenced into a value reference.
-		///
-		/// ## Safety:
-		///
-		/// Using the return value inside the `VectorCell` is unsafe and can
-		/// lead to undefined behavior. The user of this method must ensure that
-		/// the Vector container is not modified until the `VectorCell` is
-		/// droped. Otherwise, the content of the `VectorCell` might be
-		/// corrupted.
-		///
-		/// ## Example:
-		///
-		/// ```
-		/// use cache::{BuildingBlock, Get};
-		/// use cache::container::Vector;
-		///
-		/// // Make a vector and populate it.
-		/// let mut v = Vector::new(1);
-		/// v.push(vec![(1,1)]);
-		///
-		/// // Get the value inside the vector.
-		/// let val = unsafe { v.get(&1).unwrap() };
-		///
-		/// // Replace with another value.
-		/// v.flush();
-		/// v.push(vec![(2,2)]);
-		///
-		/// // Val is corrupted and should not be accessible.
-		/// assert!(*val != 1);
-		/// ```
+impl<K: Eq, V> Get<K, V, VectorCell<V>, VectorMutCell<V>>
+    for Vector<(K, V)>
+{
+    /// Get value inside a `Vector`. The value is wrapped inside a
+    /// [`VectorCell`](struct.VectorCell.html). The `VectorCell` can
+    /// further be dereferenced into a value reference.
+    ///
+    /// ## Safety:
+    ///
+    /// Using the return value inside the `VectorCell` is unsafe and can
+    /// lead to undefined behavior. The user of this method must ensure that
+    /// the Vector container is not modified until the `VectorCell` is
+    /// droped. Otherwise, the content of the `VectorCell` might be
+    /// corrupted.
+    ///
+    /// ## Example:
+    ///
+    /// ```
+    /// use cache::{BuildingBlock, Get};
+    /// use cache::container::Vector;
+    ///
+    /// // Make a vector and populate it.
+    /// let mut v = Vector::new(1);
+    /// v.push(vec![(1,1)]);
+    ///
+    /// // Get the value inside the vector.
+    /// let val = unsafe { v.get(&1).unwrap() };
+    ///
+    /// // Replace with another value.
+    /// v.flush();
+    /// v.push(vec![(2,2)]);
+    ///
+    /// // Val is corrupted and should not be accessible.
+    /// assert!(*val != 1);
+    /// ```
     unsafe fn get(&self, key: &K) -> Option<VectorCell<V>> {
         self.values.iter().find_map(move |(k, v)| {
             if k == key {
@@ -211,38 +213,38 @@ impl<K: Eq, V> Get<K, V, VectorCell<V>, VectorMutCell<V>> for Vector<(K, V)> {
         })
     }
 
-		/// Get value inside a `Vector`. The value is wrapped inside a
-		/// [`VectorMutCell`](struct.VectorMutCell.html). The `VectorMutCell`
-		/// can further be dereferenced into a value reference.
-		///
-		/// ## Safety:
-		///
-		/// Using the return value inside the `VectorMutCell` is unsafe and can
-		/// lead to undefined behavior. The user of this method must ensure that
-		/// the Vector container is not modified until the `VectorMutCell` is
-		/// droped. Otherwise, the content of the `VectorMutCell` might be
-		/// corrupted.
-		///
-		/// ## Example:
-		///
-		/// ```
-		/// use cache::{BuildingBlock, Get};
-		/// use cache::container::Vector;
-		///
-		/// // Make a vector and populate it.
-		/// let mut v = Vector::new(1);
-		/// v.push(vec![(1,1)]);
-		///
-		/// // Get the value inside the vector.
-		/// let mut val = unsafe { v.get_mut(&1).unwrap() };
-		///
-		/// // Replace with another value.
-		/// v.flush();
-		/// v.push(vec![(2,2)]);
-		///
-		/// // Val is corrupted and should not be accessible.
-		/// assert!(*val != 1);
-		/// ```
+    /// Get value inside a `Vector`. The value is wrapped inside a
+    /// [`VectorMutCell`](struct.VectorMutCell.html). The `VectorMutCell`
+    /// can further be dereferenced into a value reference.
+    ///
+    /// ## Safety:
+    ///
+    /// Using the return value inside the `VectorMutCell` is unsafe and can
+    /// lead to undefined behavior. The user of this method must ensure that
+    /// the Vector container is not modified until the `VectorMutCell` is
+    /// droped. Otherwise, the content of the `VectorMutCell` might be
+    /// corrupted.
+    ///
+    /// ## Example:
+    ///
+    /// ```
+    /// use cache::{BuildingBlock, Get};
+    /// use cache::container::Vector;
+    ///
+    /// // Make a vector and populate it.
+    /// let mut v = Vector::new(1);
+    /// v.push(vec![(1,1)]);
+    ///
+    /// // Get the value inside the vector.
+    /// let mut val = unsafe { v.get_mut(&1).unwrap() };
+    ///
+    /// // Replace with another value.
+    /// v.flush();
+    /// v.push(vec![(2,2)]);
+    ///
+    /// // Val is corrupted and should not be accessible.
+    /// assert!(*val != 1);
+    /// ```
     unsafe fn get_mut(&mut self, key: &K) -> Option<VectorMutCell<V>> {
         self.values.iter_mut().find_map(move |(k, v)| {
             if k == key {
