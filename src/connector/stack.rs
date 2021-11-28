@@ -39,9 +39,20 @@ use std::ops::{Deref, DerefMut};
 /// // while "second" lives in the first one.
 /// assert!(cache.push(vec![("second", 3)]).pop().is_none());
 ///
-/// // Cache overflow. What does not fit is returned.
+/// // Cache overflow.
+/// // This building block tries to make room in the first layer
+/// // to push new elements, which means that "third" will be in the first
+/// // layer. "second" is moved up to the second layer and "first" is
+/// // popped.
 /// let victim = cache.push(vec![("third", 2)]).pop().unwrap();
-/// assert_eq!(victim.0, "third");
+/// assert_eq!(victim.0, "first");
+///
+/// // Pop takes elements from the second layer and then from the first
+/// // layer.
+/// let (k, v) = cache.pop(1).pop().unwrap();
+/// assert_eq!(k, "second");
+/// let (k, v) = cache.pop(1).pop().unwrap();
+/// assert_eq!(k, "third");
 /// ```
 pub struct Stack<C1, C2> {
     l1: C1,
@@ -101,23 +112,9 @@ where
         v
     }
 
-    fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
+    fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let l1_capacity = self.l1.capacity();
         let l1_count = self.l1.count();
-        let l2_capacity = self.l2.capacity();
-        let l2_count = self.l2.count();
-        let n = l1_capacity + l2_capacity - l1_count - l2_count;
-
-        // This part won't fit no matter what because there is note
-        // enough combined room in l1 and l2 to fit all elements.
-        let mut out = if elements.len() > n {
-            elements.split_off(n)
-        } else {
-            Vec::new()
-        };
-        if elements.len() == 0 {
-            return out;
-        }
 
         let mut l1_pop = if elements.len() <= (l1_capacity - l1_count) {
             Vec::new()
@@ -127,12 +124,27 @@ where
         } else {
             self.l1.flush().collect()
         };
+				let mut elements = self.l1.push(elements);
+				elements.append(&mut l1_pop);
 
-        l1_pop.append(&mut self.l1.push(elements));
-        if l1_pop.len() > 0 {
-            out.append(&mut self.l2.push(l1_pop));
-        }
-        out
+				if elements.len() == 0 {
+						return elements;
+				}
+
+				let l2_capacity = self.l2.capacity();
+        let l2_count = self.l2.count();
+        let mut l2_pop = if elements.len() <= (l2_capacity - l2_count) {
+            Vec::new()
+        } else if elements.len() <= l2_capacity {
+            let pop_count = elements.len() + l2_count - l2_capacity;
+            self.l2.pop(pop_count)
+        } else {
+            self.l2.flush().collect()
+        };
+				let mut elements = self.l2.push(elements);
+				elements.append(&mut l2_pop);
+
+				elements
     }
 }
 

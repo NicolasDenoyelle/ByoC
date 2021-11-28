@@ -32,11 +32,6 @@ where
             assert!(c.contains(&k));
         }
     }
-
-    // All elements not inserted are elements from kv
-    for e in extra.iter() {
-        assert!(kv.iter().any(|_e| e == e));
-    }
 }
 
 pub fn insert<'a, C>(

@@ -46,7 +46,11 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     fn pop(&mut self, n: usize) -> Vec<(K, V)>;
 
     /// Insert key/value pairs in the container. If the container cannot
-    /// store all the values, overflowing values are returned.
+    /// store all the values, some values are returned.
+		/// The trait does not make a contract on what is returned.
+		/// It could be for instance the values not fitting in the container or
+		/// some values from the container depending for performance reasong
+		/// or desired implementation behavior.
     fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)>;
 
     /// Empty the container and retrieve all of its elements.
