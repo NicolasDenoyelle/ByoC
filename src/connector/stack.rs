@@ -102,7 +102,24 @@ where
     }
 
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        self.l2.push(self.l1.push(elements))
+        let l1_capacity = self.l1.capacity();
+        let l1_count = self.l1.count();
+        let mut l1_pop = if elements.len() <= (l1_capacity - l1_count) {
+            Vec::new()
+        } else if elements.len() <= l1_capacity {
+            let pop_count = elements.len() + l1_count - l1_capacity;
+            self.l1.pop(pop_count)
+        } else {
+            self.l1.flush().collect()
+        };
+
+        let mut elements = self.l1.push(elements);
+        elements.append(&mut l1_pop);
+        if elements.len() > 0 {
+            self.l2.push(elements)
+        } else {
+            Vec::new()
+        }
     }
 }
 
@@ -146,15 +163,17 @@ where
     }
 }
 
-impl<K, V, C1, C2, U1, U2, W1, W2>
+impl<'b, K, V, C1, C2, U1, U2, W1, W2>
     Get<K, V, DualCell<V, U1, U2>, DualCell<V, W1, W2>> for Stack<C1, C2>
 where
+    K: 'b,
+    V: 'b,
     U1: Deref<Target = V>,
     U2: Deref<Target = V>,
     W1: Deref<Target = V> + DerefMut,
     W2: Deref<Target = V> + DerefMut,
-    C1: Get<K, V, U1, W1>,
-    C2: Get<K, V, U2, W2>,
+    C1: Get<K, V, U1, W1> + BuildingBlock<'b, K, V>,
+    C2: Get<K, V, U2, W2> + BuildingBlock<'b, K, V>,
 {
     fn get<'a>(&'a self, key: &K) -> Option<DualCell<V, U1, U2>> {
         match self.l1.get(key) {
@@ -167,13 +186,84 @@ where
     }
 
     fn get_mut<'a>(&'a mut self, key: &K) -> Option<DualCell<V, W1, W2>> {
-        match self.l1.get_mut(key) {
-            Some(x) => Some(DualCell::Atype(x)),
-            None => match self.l2.get_mut(key) {
-                None => None,
-                Some(x) => Some(DualCell::Btype(x)),
-            },
+        // If key is in l1, we can return it.
+        if let Some(x) = self.l1.get_mut(key) {
+            return Some(DualCell::Atype(x));
         }
+
+        // If value is not in l2, then we return None.
+        // Else we will try to promote it in l1.
+        let (k, v) = match self.l2.take(key) {
+            None => return None,
+            Some(x) => x,
+        };
+
+        // We push the value in l1. If it does not pop, we return it.
+        let (k, v) = match self.l1.push(vec![(k, v)]).pop() {
+            None => {
+                return Some(DualCell::Atype(self.l1.get_mut(key).expect(
+                    "Element inserted in l1 cannot be retrieved",
+                )))
+            }
+            Some(x) => x,
+        };
+
+        // The value popped...
+        // We try to make room in l1 by popping something..
+        let (k1, v1) = match self.l1.pop(1).pop() {
+            // L1 popped an item.
+            Some(item) => item,
+            // L1 can't pop, we have no choice but to use l2.
+            None => {
+                // Fails if cannot reinsert an element in l2 that used to be
+                // in l2.
+                assert!(self.l2.push(vec![(k, v)]).pop().is_none());
+                return Some(DualCell::Btype(
+                    self.l2
+                        .get_mut(key)
+                        .expect("Key inside container not found"),
+                ));
+            }
+        };
+
+        // Now there should be room in l1 and l2.
+        // Let's try to put the desired key in l1
+        let ((k, v), (k1, v1)) = match self.l1.push(vec![(k, v)]).pop() {
+            // push worked, now we push in l2 and return the key in l1.
+            None => {
+                match self.l2.push(vec![(k1, v1)]).pop() {
+                    None => {
+                        return Some(DualCell::Atype(
+                            self.l1
+                                .get_mut(key)
+                                .expect("Key inside container not found"),
+                        ))
+                    }
+                    // Push in l2 did not work. We have to back track to the
+                    // initial situation and return the key/value from L2.
+                    Some((k1, v1)) => (
+                        self.l1
+                            .take(key)
+                            .expect("Key inside container not found"),
+                        (k1, v1),
+                    ),
+                }
+            }
+
+            // Push in l1 did not work. We reinsert element where they were
+            // and we have to use l2.
+            Some((k, v)) => ((k, v), (k1, v1)),
+        };
+
+        // Push did not work. We reinsert element where they were
+        // and we have to use l2.
+        assert!(self.l1.push(vec![(k1, v1)]).pop().is_none());
+        assert!(self.l2.push(vec![(k, v)]).pop().is_none());
+        return Some(DualCell::Btype(
+            self.l2
+                .get_mut(key)
+                .expect("Key inside container not found"),
+        ));
     }
 }
 
