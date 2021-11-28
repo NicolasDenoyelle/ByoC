@@ -39,7 +39,7 @@ use std::ops::{Deref, DerefMut};
 /// // while "second" lives in the first one.
 /// assert!(cache.push(vec![("second", 3)]).pop().is_none());
 ///
-/// // Cache overflow.
+/// // Cache overflow. What does not fit is returned.
 /// let victim = cache.push(vec![("third", 2)]).pop().unwrap();
 /// assert_eq!(victim.0, "third");
 /// ```
@@ -62,6 +62,8 @@ impl<C1, C2> Stack<C1, C2> {
 
 impl<'a, K: 'a, V: 'a, C1, C2> BuildingBlock<'a, K, V> for Stack<C1, C2>
 where
+    K: std::fmt::Debug,
+    V: std::fmt::Debug,
     C1: BuildingBlock<'a, K, V>,
     C2: BuildingBlock<'a, K, V>,
 {
