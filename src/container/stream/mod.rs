@@ -26,12 +26,15 @@ pub trait Stream:
 {
 }
 
-#[cfg(test)]
-mod vstream;
-#[cfg(test)]
-pub use crate::utils::stream::vstream::{VecStream, VecStreamFactory};
-
-mod file;
-pub use crate::utils::stream::file::FileStream;
+/// Vector implementation above a
+/// [stream](../utils/stream/trait.Stream.html) and
+/// utils for reading and writing a stream in fixed sized chunks.
+mod io_vec;
+mod stream;
+pub use crate::container::stream::stream::{ByteStream, StreamCell, StreamMutCell};
+mod vec_stream;
+pub use crate::container::stream::vec_stream::{VecStream, VecStreamFactory};
+mod file_stream;
+pub use crate::container::stream::file_stream::FileStream;
 #[cfg(feature = "tempfile")]
-pub use crate::utils::stream::file::TempFileStreamFactory;
+pub use crate::container::stream::file_stream::TempFileStreamFactory;

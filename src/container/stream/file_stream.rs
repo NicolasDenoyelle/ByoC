@@ -1,7 +1,7 @@
 use crate::private::lock::RWLock;
-use crate::utils::stream::Stream;
+use crate::container::stream::Stream;
 #[cfg(feature = "tempfile")]
-use crate::utils::stream::StreamFactory;
+use crate::container::stream::StreamFactory;
 use std::fs::File;
 use std::path::PathBuf;
 #[cfg(feature = "tempfile")]
@@ -37,7 +37,7 @@ impl Drop for FileStream {
     }
 }
 
-impl crate::utils::stream::Resize for FileStream {
+impl crate::container::stream::Resize for FileStream {
     fn resize(&mut self, size: u64) -> std::io::Result<()> {
         match self.file.set_len(size) {
             Ok(_) => Ok(()),

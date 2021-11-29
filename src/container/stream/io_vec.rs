@@ -1,4 +1,4 @@
-use crate::utils::stream::Resize;
+use crate::container::stream::Resize;
 use serde::{de::DeserializeOwned, Serialize};
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
@@ -650,7 +650,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::IOVec;
-    use crate::utils::stream::VecStream;
+    use crate::container::stream::VecStream;
 
     #[test]
     fn test_iovec() {

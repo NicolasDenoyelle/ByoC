@@ -2,7 +2,7 @@ use crate::{BuildingBlock, Get};
 use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
-// BuildingBlock Stack                                                        //
+// BuildingBlock Stack
 //------------------------------------------------------------------------//
 
 /// [`BuildingBlock`](../trait.BuildingBlock.html) wrapper to build

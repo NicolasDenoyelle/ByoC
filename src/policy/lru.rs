@@ -1,5 +1,5 @@
 use crate::policy::{Reference, ReferenceFactory};
-use crate::utils::timestamp::Timestamp;
+use crate::policy::timestamp::Timestamp;
 use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 
@@ -30,7 +30,7 @@ pub struct LRUCell<V, T: Timestamp> {
 /// ```
 /// use cache::container::Vector;
 /// use cache::policy::{Policy, LRU};
-/// use cache::utils::timestamp::Clock;
+/// use cache::policy::timestamp::Clock;
 ///
 /// // let c = Policy::new(Vector::new(3), LRU::<Clock>::new());
 /// ```
@@ -109,7 +109,7 @@ impl<V, T: Timestamp> Reference<V> for LRUCell<V, T> {
 mod tests {
     use super::LRUCell;
     use crate::policy::Reference;
-    use crate::utils::timestamp::Counter;
+    use crate::policy::timestamp::Counter;
 
     #[test]
     fn test_lru_ref() {

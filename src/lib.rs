@@ -145,9 +145,6 @@ pub mod profiler;
 /// alltogether to avoid this problem.
 pub mod policy;
 
-/// Utils
-pub mod utils;
-
 /// Library boilerplate code.
 /// This code is not available to user but used throughout the
 /// library.

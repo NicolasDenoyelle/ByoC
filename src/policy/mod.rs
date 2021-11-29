@@ -32,6 +32,8 @@ mod lru;
 pub use crate::policy::lru::LRU;
 mod fifo;
 pub use crate::policy::fifo::FIFO;
+/// Fixed point in time used with some cache [policies](../policy/struct.LRFU.html).
+pub mod timestamp;
 #[cfg(test)]
 mod default;
 #[cfg(test)]
