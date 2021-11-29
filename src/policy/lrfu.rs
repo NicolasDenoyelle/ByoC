@@ -1,5 +1,5 @@
-use crate::policy::{Reference, ReferenceFactory};
 use crate::policy::timestamp::Timestamp;
+use crate::policy::{Reference, ReferenceFactory};
 use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 
@@ -200,8 +200,8 @@ impl<V, T: Timestamp + Copy> Reference<V> for LRFUCell<V, T> {
 #[cfg(test)]
 mod tests {
     use super::LRFUCell;
-    use crate::policy::Reference;
     use crate::policy::timestamp::Counter;
+    use crate::policy::Reference;
 
     #[test]
     fn test_lrfu_ref() {

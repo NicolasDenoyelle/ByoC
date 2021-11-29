@@ -31,9 +31,13 @@ pub trait Stream:
 /// utils for reading and writing a stream in fixed sized chunks.
 mod io_vec;
 mod stream;
-pub use crate::container::stream::stream::{ByteStream, StreamCell, StreamMutCell};
+pub use crate::container::stream::stream::{
+    ByteStream, StreamCell, StreamMutCell,
+};
 mod vec_stream;
-pub use crate::container::stream::vec_stream::{VecStream, VecStreamFactory};
+pub use crate::container::stream::vec_stream::{
+    VecStream, VecStreamFactory,
+};
 mod file_stream;
 pub use crate::container::stream::file_stream::FileStream;
 #[cfg(feature = "tempfile")]

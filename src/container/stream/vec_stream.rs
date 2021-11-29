@@ -1,5 +1,5 @@
-use crate::private::clone::CloneCell;
 use crate::container::stream::{Resize, Stream, StreamFactory};
+use crate::private::clone::CloneCell;
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 
 pub struct VecStream {
