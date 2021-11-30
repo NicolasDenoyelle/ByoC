@@ -4,5 +4,6 @@ pub mod clone;
 pub mod lock;
 /// Utils for ordering pointers of orderable elements.
 pub mod ptr;
+#[cfg(feature = "stream")]
 /// Utils for extracting n min elements.
 pub mod set;
