@@ -104,15 +104,10 @@ pub mod container;
 ///
 /// Connectors implement the [`BuildingBlock`](trait.BuildingBlock.html)s
 /// interface to connect two other building blocks.
-///
 /// Connectors typically implement the way data transitions from
-/// one stage of the cache to another when calling
-/// [`BuildinlBlock`](../trait.BuildingBlock.html) methods on a mutable
+/// one stage of the data pipeline to another when calling
+/// [`BuildingBlock`](../trait.BuildingBlock.html) methods on a mutable
 /// instance.
-///
-/// Unlike containers, connectors do not ensure that insertion are
-/// possible even when one of the connected buiding blocks still
-/// has room to fit more elements.
 pub mod connector;
 
 /// [`BuildingBlock`](../trait.BuildingBlock.html) that can be accessed
