@@ -2,6 +2,7 @@ use crate::container::stream::{Resize, Stream, StreamFactory};
 use crate::private::clone::CloneCell;
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 
+/// An implementation of a [`Stream`](trait.Stream.html) in a `Vec<u8>`.
 pub struct VecStream {
     vec: CloneCell<Vec<u8>>,
     pos: usize,
@@ -104,6 +105,7 @@ impl Resize for VecStream {
 
 impl Stream for VecStream {}
 
+/// A Factory yielding [`VecStream`](struct.VecStream.html) streams.
 #[derive(Clone)]
 pub struct VecStreamFactory {}
 

@@ -1,179 +1,233 @@
-use crate::concurrent::Concurrent;
 use crate::private::clone::CloneCell;
-use crate::{BuildingBlock, Get};
-use std::marker::PhantomData;
+use crate::{BuildingBlock, Concurrent, Get, Ordered};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-/// [`BuildingBlock`](../trait.BuildingBlock.html) wrapper to collect access,
-/// misses, hits and statistics about methods access time.
+/// Accumulator of call count and elapsed time.
+struct MethodStats {
+    count: AtomicU64,
+    elapsed: AtomicU64,
+}
+
+impl MethodStats {
+    /// Create zeroed MethodStats.
+    pub fn new() -> Self {
+        MethodStats {
+            count: AtomicU64::new(0),
+            elapsed: AtomicU64::new(0),
+        }
+    }
+
+    /// Accumulate count and elapsed time.
+    pub fn add(&mut self, count: usize, elapsed: u128) {
+        self.count.fetch_add(count as u64, Ordering::SeqCst);
+        self.elapsed.fetch_add(elapsed as u64, Ordering::SeqCst);
+    }
+
+    /// Get (count, time) stats.
+    pub fn read(&self) -> (u64, u64) {
+        let count = self.count.load(Ordering::Relaxed);
+        let elapsed = self.elapsed.load(Ordering::Relaxed);
+        (count, elapsed)
+    }
+}
+
+/// Accumulator of building block method stats.
+struct Stats {
+    pub count: MethodStats,
+    pub contains: MethodStats,
+    pub take: MethodStats,
+    pub pop: MethodStats,
+    pub push: MethodStats,
+    pub flush: MethodStats,
+    pub flush_iter: MethodStats,
+    pub get: MethodStats,
+    pub get_mut: MethodStats,
+    pub hit: AtomicU64,
+    pub miss: AtomicU64,
+}
+
+impl Stats {
+    /// Initialize zeroed method stats.
+    pub fn new() -> Self {
+        Stats {
+            count: MethodStats::new(),
+            contains: MethodStats::new(),
+            take: MethodStats::new(),
+            pop: MethodStats::new(),
+            push: MethodStats::new(),
+            flush: MethodStats::new(),
+            flush_iter: MethodStats::new(),
+            get: MethodStats::new(),
+            get_mut: MethodStats::new(),
+            hit: AtomicU64::new(0),
+            miss: AtomicU64::new(0),
+        }
+    }
+}
+
+/// Time a function call and return `(time, output)`
+/// where `time` is elapsed time in milliseconds and
+/// `output` is the function call output.
+macro_rules! time_it {
+    ($call:expr) => {{
+        let t0 = Instant::now();
+        let out = $call;
+        (t0.elapsed().as_millis(), out)
+    }};
+}
+
+/// [`BuildingBlock`](../trait.BuildingBlock.html) wrapper to collect
+/// access, misses, hits and statistics about methods access time.
+///
+/// See Profiler `_stats()` methods to learn about what is counted/measured.
 ///
 /// Recording statistics is thread safe.
 /// If the wrapped container implements the concurrent trait, then
-/// the profiler does to.
+/// so does the profiler.
 ///
 /// ## Examples
 ///
 /// ```
-/// use cache::{BuildingBlock};
-/// use cache::container::Vector;
+/// use cache::{BuildingBlock, Get};
+/// use cache::container::Array;
 /// use cache::profiler::Profiler;
 ///
 /// // Build a cache:
-/// let c = Vector::new(3);
+/// let c = Array::new(3);
 ///
 /// // Wrap it into a profiler.
 /// let mut c = Profiler::new(c);
 ///
 /// // Populate BuildingBlock
 /// c.push(vec![("first", 0), ("second", 1)]);
+/// assert_eq!(c.push_stats().0, (2));
 ///
-/// // look at statistics
-/// assert_eq!(c.write(), 2);
-/// assert_eq!(c.read(), 2);
-/// assert_eq!(c.hit(), 0);
-/// assert_eq!(c.miss(), 0);
-///
-/// // Counting elements updates reads.
-/// let reads = c.read();
-/// let count = c.count() as u64;
-/// assert_eq!(c.read(), reads + count);
-/// assert_eq!(c.read(), 4);
-///
-/// // Make a request to a non contained key.
-/// // Reads are compulsory, writes hits and misses
-/// // depends on whether the key was found.
-/// assert!(c.take(&"third").is_none());
-/// assert_eq!(c.write(), 2);
-/// assert_eq!(c.read(), 5);
-/// assert_eq!(c.hit(), 0);
-/// assert_eq!(c.miss(), 1);
-///
-/// // Make a request to a contained key:
-/// assert!(c.take(&"second").is_some());
-/// assert_eq!(c.write(), 3);
-/// assert_eq!(c.read(), 6);
-/// assert_eq!(c.hit(), 1);
-/// assert_eq!(c.miss(), 1);
-///
-/// // `Get` methods update the same way as `take()` method:
-/// // assert!(c.get(&"first").next().is_some());
-/// // assert_eq!(c.write(), 4);
-/// // assert_eq!(c.read(), 7);
-/// // assert_eq!(c.hit(), 2);
-/// // assert_eq!(c.miss(), 1);
-///
-/// // `flush()` updates reads and writes only if the result is iterated.
-/// // Reads and writes are incremented at each iteration.
-/// c.flush();
-/// assert_eq!(c.write(), 3);
-///
-/// // `contains()` is consider as one read and will update hits and misses.
+/// // Check if a key is in the container.
 /// c.contains(&"first");
-/// assert_eq!(c.read(), 7);
-/// assert_eq!(c.hit(), 1);
-/// assert_eq!(c.miss(), 2);
+/// assert_eq!(c.hit_stats(), 1);
+/// assert_eq!(c.miss_stats(), 0);
 ///
-/// // pretty print statistics.
-/// println!("{}", c);
+/// // Try to take a non existing key out of the container.
+/// c.take(&"third");
+/// assert_eq!(c.hit_stats(), 1);
+/// assert_eq!(c.miss_stats(), 1);
+///
+/// // Access a value in the container.
+/// unsafe { c.get(&"second"); }
+/// assert_eq!(c.hit_stats(), 2);
+/// assert_eq!(c.miss_stats(), 1);
 /// ```
-
-struct Stats {
-    read: AtomicU64,
-    write: AtomicU64,
-    read_ms: AtomicU64,
-    write_ms: AtomicU64,
-    hit: AtomicU64,
-    miss: AtomicU64,
-}
-
-impl Stats {
-    pub fn new() -> Self {
-        Stats {
-            read: AtomicU64::new(0u64),
-            write: AtomicU64::new(0u64),
-            read_ms: AtomicU64::new(0u64),
-            write_ms: AtomicU64::new(0u64),
-            hit: AtomicU64::new(0u64),
-            miss: AtomicU64::new(0u64),
-        }
-    }
-}
-
-pub struct Profiler<K, V, C> {
-    cache: CloneCell<C>,
+pub struct Profiler<C> {
+    cache: C,
     stats: CloneCell<Stats>,
-    unused_k: PhantomData<K>,
-    unused_v: PhantomData<V>,
 }
 
-impl<K, V, C> Profiler<K, V, C> {
-    /// Wrap a `cache` into a "cache profiler" cache.
+impl<C> Profiler<C> {
+    /// Wrap a [building block](../trait.BuildingBlock.html) into a
+    /// Profiler.
     pub fn new(cache: C) -> Self {
         Profiler {
-            cache: CloneCell::new(cache),
+            cache: cache,
             stats: CloneCell::new(Stats::new()),
-            unused_k: PhantomData,
-            unused_v: PhantomData,
         }
     }
 
-    /// Amount of requests that found a matching key.
-    pub fn hit(&self) -> u64 {
+    /// Get a summary of (0) the number of
+    /// [`count()`](../trait.BuildingBlock.html#tymethod.count) method call
+    /// and (1) the total time spent in milliseconds in these calls.
+    pub fn count_stats(&self) -> (u64, u64) {
+        self.stats.count.read()
+    }
+    /// Get a summary of (0) the number of
+    /// [`contain()`](../trait.BuildingBlock.html#tymethod.contain) method
+    /// call and (1) the total time spent in milliseconds in these calls.
+    pub fn contains_stats(&self) -> (u64, u64) {
+        self.stats.contains.read()
+    }
+    /// Get a summary of (0) the number of
+    /// [`take()`](../trait.BuildingBlock.html#tymethod.take) method
+    /// call and (1) the total time spent in milliseconds in these calls.
+    pub fn take_stats(&self) -> (u64, u64) {
+        self.stats.take.read()
+    }
+    /// Get a summary of (0) the number of
+    /// [`pop()`](../trait.BuildingBlock.html#tymethod.pop) method
+    /// call and (1) the total time spent in milliseconds in these calls.
+    pub fn pop_stats(&self) -> (u64, u64) {
+        self.stats.pop.read()
+    }
+    /// Get a summary of (0) the number of
+    /// [`push()`](../trait.BuildingBlock.html#tymethod.push) method
+    /// call and (1) the total time spent in milliseconds in these calls.
+    pub fn push_stats(&self) -> (u64, u64) {
+        self.stats.push.read()
+    }
+    /// Get a summary of (0) the number of
+    /// [`flush()`](../trait.BuildingBlock.html#tymethod.flush) method
+    /// call and (1) the total time spent in milliseconds in these calls.
+    pub fn flush_stats(&self) -> (u64, u64) {
+        self.stats.flush.read()
+    }
+    /// Get a summary of (0) the number of iterations performed on an
+    /// iterator obtained through
+    /// [`flush()`](../trait.BuildingBlock.html#tymethod.flush) method
+    /// and (1) the total time spent in milliseconds on iterations.
+    pub fn flush_iter_stats(&self) -> (u64, u64) {
+        self.stats.flush_iter.read()
+    }
+    /// Get a summary of (0) the number of
+    /// [`get()`](../trait.Get.html#tymethod.get) method
+    /// call and (1) the total time spent in milliseconds in these calls.
+    pub fn get_stats(&self) -> (u64, u64) {
+        self.stats.get.read()
+    }
+    /// Get a summary of (0) the number of
+    /// [`get_mut()`](../trait.Get.html#tymethod.get_mut) method
+    /// call and (1) the total time spent in milliseconds in these calls.
+    pub fn get_mut_stats(&self) -> (u64, u64) {
+        self.stats.get_mut.read()
+    }
+    /// Get the total amount of time user key query was matched with a key
+    /// in the container when calling
+    /// [`contains()`](../trait.BuildingBlock.html#tymethod.contains),
+    /// [`take()`](../trait.BuildingBlock.html#tymethod.take),
+    /// [`get()`](../trait.Get.html#tymethod.get) or
+    /// [`get_mut()`](../trait.Get.html#tymethod.get_mut) methods.
+    pub fn hit_stats(&self) -> u64 {
         self.stats.hit.load(Ordering::Relaxed)
     }
-
-    /// Amount of requests that did not found a matching key.
-    pub fn miss(&self) -> u64 {
+    /// Get the total amount of time user key query was not matched with a
+    /// key in the container when calling
+    /// [`contains()`](../trait.BuildingBlock.html#tymethod.contains),
+    /// [`take()`](../trait.BuildingBlock.html#tymethod.take),
+    /// [`get()`](../trait.Get.html#tymethod.get) or
+    /// [`get_mut()`](../trait.Get.html#tymethod.get_mut) methods.
+    pub fn miss_stats(&self) -> u64 {
         self.stats.miss.load(Ordering::Relaxed)
     }
 
-    /// Ratio of requests that did not find a matching key.
-    pub fn miss_ratio(&self) -> f32 {
-        let hit = self.hit();
-        let miss = self.miss();
-        miss as f32 / (hit + miss) as f32
-    }
-
-    /// Amount of read cache access
-    pub fn read(&self) -> u64 {
-        self.stats.read.load(Ordering::Relaxed)
-    }
-
-    /// Time spent in read cache access in milliseconds.
-    pub fn read_ms(&self) -> u64 {
-        self.stats.read_ms.load(Ordering::Relaxed)
-    }
-
-    /// Amount of write cache access
-    pub fn write(&self) -> u64 {
-        self.stats.write.load(Ordering::Relaxed)
-    }
-
-    /// Time spent in write cache access in milliseconds.
-    pub fn write_ms(&self) -> u64 {
-        self.stats.write_ms.load(Ordering::Relaxed)
-    }
-
-    /// Write profiler header.
-    pub fn print_header() {
-        println!("read read_ms write write_ms hit miss")
-    }
-
-    /// Print the profiler statistic to file.
-    /// If file is empty then header is printed.
-    /// Profiler statistic are appended at the end of file.
-    pub fn print(&self) {
-        println!(
-            "{read} {read_ms} {write} {write_ms} {hit} {miss}",
-            read = self.stats.read.load(Ordering::Relaxed),
-            read_ms = self.stats.read_ms.load(Ordering::Relaxed),
-            write = self.stats.write.load(Ordering::Relaxed),
-            write_ms = self.stats.write_ms.load(Ordering::Relaxed),
-            hit = self.stats.hit.load(Ordering::Relaxed),
-            miss = self.stats.miss.load(Ordering::Relaxed),
-        )
+		/// Get the total time spent in methods call so far.
+    pub fn time_stats(&self) -> u64 {
+        let count_time = self.stats.count.read().1;
+        let contains_time = self.stats.contains.read().1;
+        let take_time = self.stats.take.read().1;
+        let pop_time = self.stats.pop.read().1;
+        let push_time = self.stats.push.read().1;
+        let flush_time = self.stats.flush.read().1;
+        let flush_iter_time = self.stats.flush_iter.read().1;
+        let get_time = self.stats.get.read().1;
+        let get_mut_time = self.stats.get_mut.read().1;
+        count_time
+            + contains_time
+            + take_time
+            + pop_time
+            + push_time
+            + flush_time
+            + flush_iter_time
+            + get_time
+            + get_mut_time
     }
 }
 
@@ -181,6 +235,8 @@ impl<K, V, C> Profiler<K, V, C> {
 // Flush iterator
 //------------------------------------------------------------------------//
 
+/// Iterator of flushed elements counting time iterating and number
+/// of iterations.
 struct ProfilerFlushIter<'a, T> {
     elements: Box<dyn Iterator<Item = T> + 'a>,
     stats: CloneCell<Stats>,
@@ -189,123 +245,17 @@ struct ProfilerFlushIter<'a, T> {
 impl<'a, T> Iterator for ProfilerFlushIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
-        let t0 = Instant::now();
-        let item = self.elements.next();
-        let tf = t0.elapsed().as_millis();
-        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
-        self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
-        item
-    }
-}
-
-struct ProfilerReqIter<'a, T> {
-    elements: Box<dyn Iterator<Item = T> + 'a>,
-    stats: CloneCell<Stats>,
-}
-
-impl<'a, T> Iterator for ProfilerReqIter<'a, T> {
-    type Item = T;
-    fn next(&mut self) -> Option<Self::Item> {
-        let t0 = Instant::now();
-        let item = self.elements.next();
-        let tf = t0.elapsed().as_millis();
-
-        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
-        if item.is_some() {
-            self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
-            self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
-            self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
-        } else {
-            self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst);
-        }
+        let (time, item) = time_it!(self.elements.next());
+        self.stats.clone().flush_iter.add(1, time);
         item
     }
 }
 
 //------------------------------------------------------------------------//
-// Display Implementation                                                 //
+// BuildingBlock implementation
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, C> std::fmt::Debug for Profiler<K, V, C>
-where
-    K: 'a,
-    V: 'a,
-    C: BuildingBlock<'a, K, V>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Profiler ({}/{}) reads: {} in {}(ms), writes: {} in {}(ms), miss ratio: {}",
-            self.count(),
-            self.capacity(),
-            self.read(),
-            self.read_ms(),
-            self.write(),
-            self.write_ms(),
-						self.miss_ratio(),
-        )
-    }
-}
-
-impl<'a, K, V, C> std::fmt::Display for Profiler<K, V, C>
-where
-    K: 'a,
-    V: 'a,
-    C: BuildingBlock<'a, K, V>,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let read_ms = self.read_ms();
-        let read = self.read();
-        let write_ms = self.write_ms();
-        let write = self.write();
-        let hit = self.hit();
-        let miss = self.miss();
-        let miss_ratio = miss as f32 / (hit + miss) as f32;
-
-        write!(f, "---------------------------------------------------")?;
-        write!(f, " Cache profile summary")?;
-        write!(f, "---------------------------------------------------")?;
-        write!(
-            f,
-            "Cache capacity usage: {}/{}",
-            self.count(),
-            self.capacity()
-        )?;
-        write!(
-            f,
-            "Total profiled time: {:.2} seconds",
-            (read_ms + write_ms) as f32 * 1e6
-        )?;
-        write!(
-            f,
-            "Reads: {} in {:.2} seconds",
-            read,
-            read_ms as f32 * 1e6
-        )?;
-        write!(
-            f,
-            "Writes: {} in {:.2} seconds",
-            write,
-            write_ms as f32 * 1e6
-        )?;
-        write!(
-            f,
-            "Requests: hits {}, misses {}, ratio: {}%",
-            hit,
-            miss,
-            100f32 * miss_ratio
-        )
-    }
-}
-
-//------------------------------------------------------------------------//
-// BuildingBlock implementation                                               //
-//------------------------------------------------------------------------//
-
-impl<'a, K, V, C> BuildingBlock<'a, K, V> for Profiler<K, V, C>
+impl<'a, K, V, C> BuildingBlock<'a, K, V> for Profiler<C>
 where
     K: 'a,
     V: 'a,
@@ -314,105 +264,81 @@ where
     fn capacity(&self) -> usize {
         self.cache.capacity()
     }
-    fn count(&self) -> usize {
-        let t0 = Instant::now();
-        let out = self.cache.count();
-        let tf = t0.elapsed().as_millis();
 
-        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(out as u64, Ordering::SeqCst);
-        out
+    fn count(&self) -> usize {
+        let (time, count) = time_it!(self.count());
+        self.stats.clone().count.add(1, time);
+        count
     }
 
     fn contains(&self, key: &K) -> bool {
-        let t0 = Instant::now();
-        let out = self.cache.contains(key);
-        let tf = t0.elapsed().as_millis();
-
-        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
-        if out {
-            self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
-        } else {
-            self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst);
-        }
+        let (time, out) = time_it!(self.cache.contains(key));
+        self.stats.clone().contains.add(1, time);
+        match out {
+            true => self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst),
+            false => self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst),
+        };
         out
     }
 
-    /// Counts for one cache access.
-    /// If key is found, count a hit else count a miss.
-    /// See [`take` function](../trait.BuildingBlock.html#tymethod.take)
     fn take(&mut self, key: &K) -> Option<(K, V)> {
-        let t0 = Instant::now();
-        let item = self.cache.take(key);
-        let tf = t0.elapsed().as_millis();
-
-        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
-        if item.is_some() {
-            self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
-            self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
-            self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
-        } else {
-            self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst);
-        }
-        item
+        let (time, out) = time_it!(self.cache.take(key));
+        self.stats.take.add(1, time);
+        match out {
+            Some(_) => {
+                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst)
+            }
+            None => self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst),
+        };
+        out
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        let (time, out) = time_it!(self.cache.flush());
+        self.stats.flush.add(1, time);
         Box::new(ProfilerFlushIter {
-            elements: self.cache.flush(),
+            elements: out,
             stats: self.stats.clone(),
         })
     }
 
-    /// Counts for one cache access and one hit.
-    /// See [`pop` function](../trait.BuildingBlock.html#tymethod.pop)
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
-        let t0 = Instant::now();
-        let out = self.cache.pop(n);
-        let tf = t0.elapsed().as_millis();
-        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(n as u64, Ordering::SeqCst);
-        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.write.fetch_add(n as u64, Ordering::SeqCst);
+        let (time, out) = time_it!(self.cache.pop(n));
+        self.stats.pop.add(n, time);
         out
     }
 
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = elements.len();
-        let t0 = Instant::now();
-        let out = self.cache.push(elements);
-        let tf = t0.elapsed().as_millis();
-
-        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(n as u64, Ordering::SeqCst);
-        self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.write.fetch_add(n as u64, Ordering::SeqCst);
+        let (time, out) = time_it!(self.cache.push(elements));
+        self.stats.push.add(n, time);
         out
     }
+}
+
+impl<V, C> Ordered<V> for Profiler<C>
+where
+    V: Ord,
+    C: Ordered<V>,
+{
 }
 
 //------------------------------------------------------------------------//
 // Concurrent trait                                                       //
 //------------------------------------------------------------------------//
 
-unsafe impl<K, V, C: Send> Send for Profiler<K, V, C> {}
+unsafe impl<C: Send> Send for Profiler<C> {}
 
-unsafe impl<K, V, C: Sync> Sync for Profiler<K, V, C> {}
+unsafe impl<C: Sync> Sync for Profiler<C> {}
 
-impl<'a, K, V, C> Concurrent<'a, K, V> for Profiler<K, V, C>
+impl<C> Concurrent for Profiler<C>
 where
-    K: 'a,
-    V: 'a,
-    C: BuildingBlock<'a, K, V> + Concurrent<'a, K, V>,
+    C: Concurrent,
 {
     fn clone(&self) -> Self {
         Profiler {
             cache: Concurrent::clone(&self.cache),
             stats: self.stats.clone(),
-            unused_k: PhantomData,
-            unused_v: PhantomData,
         }
     }
 }
@@ -421,41 +347,33 @@ where
 // Get trait implementation
 //------------------------------------------------------------------------//
 
-impl<K, V, U, W, C> Get<K, V, U, W> for Profiler<K, V, C>
+impl<K, V, U, W, C> Get<K, V, U, W> for Profiler<C>
 where
     U: Deref<Target = V>,
     W: DerefMut<Target = V>,
     C: Get<K, V, U, W>,
 {
     unsafe fn get(&self, key: &K) -> Option<U> {
-        let t0 = Instant::now();
-        let item = self.cache.get(key);
-        let tf = t0.elapsed().as_millis();
-
-        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
-        if item.is_some() {
-            self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
-        } else {
-            self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst);
-        }
-        item
+        let (time, out) = time_it!(self.cache.get(key));
+        self.stats.clone().get.add(1, time);
+        match out {
+            Some(_) => {
+                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst)
+            }
+            None => self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst),
+        };
+        out
     }
 
     unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
-        let t0 = Instant::now();
-        let item = self.cache.get_mut(key);
-        let tf = t0.elapsed().as_millis();
-
-        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
-        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
-        if item.is_some() {
-            self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
-            self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
-            self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
-        } else {
-            self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst);
-        }
-        item
+        let (time, out) = time_it!(self.cache.get_mut(key));
+        self.stats.get_mut.add(1, time);
+        match out {
+            Some(_) => {
+                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst)
+            }
+            None => self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst),
+        };
+        out
     }
 }

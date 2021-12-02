@@ -1,5 +1,4 @@
-use crate::concurrent::Concurrent;
-use crate::BuildingBlock;
+use crate::{BuildingBlock, Concurrent};
 use std::{sync::mpsc::channel, thread};
 
 fn test_after_push<C>(
@@ -10,7 +9,7 @@ fn test_after_push<C>(
 ) where
     C: 'static
         + BuildingBlock<'static, u16, u32>
-        + Concurrent<'static, u16, u32>,
+        + Concurrent,
 {
     // Test container count is the incremented count.
     assert!(c.count() == count);
@@ -35,7 +34,7 @@ fn push_concurrent<C>(c: C, num_thread: u8)
 where
     C: 'static
         + BuildingBlock<'static, u16, u32>
-        + Concurrent<'static, u16, u32>,
+        + Concurrent,
 {
     let capacity = c.capacity();
     let mut set: Vec<(u16, u32)> =
@@ -90,7 +89,7 @@ pub fn test_concurrent<C>(c: C, num_thread: u8)
 where
     C: 'static
         + BuildingBlock<'static, u16, u32>
-        + Concurrent<'static, u16, u32>,
+        + Concurrent,
 {
     push_concurrent(c, num_thread);
 }

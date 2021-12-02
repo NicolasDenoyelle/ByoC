@@ -92,6 +92,25 @@ where
     unsafe fn get_mut(&mut self, key: &K) -> Option<W>;
 }
 
+/// [Building Blocks](trait.BuildingBlock.html)
+/// [popping](../trait.BuildingBlock.html#tymethod.pop)
+/// values in descending order. 
+pub trait Ordered<V: std::cmp::Ord> {}
+
+/// Thread safe [building blocks](trait.BuildingBlock.html).
+///
+/// Mark a [`building block`](trait.BuildingBlock.html) as thread safe.
+/// When this trait is implemented, the implementer guarantees that the
+/// container can be used safely concurrently in between its clones
+/// obtained with the method
+/// [`Concurrent::clone()`](trait.Concurrent.html#tymethod.clone).
+pub trait Concurrent: Send + Sync
+{
+    /// Create a shallow copy of the container pointing to the same
+    /// container that can be later used concurrently.
+    fn clone(&self) -> Self;
+}
+
 /// Storage implementation for key/value pairs.
 ///
 /// As long as a container is not full, it must accept new key/value
@@ -151,4 +170,4 @@ mod private;
 /// [`Get`](../trait.Get.html) traits with
 /// `test_building_block()` and `test_get()`.
 #[cfg(test)]
-pub mod tests;
+mod tests;

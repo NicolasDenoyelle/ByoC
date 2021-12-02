@@ -1,8 +1,7 @@
 use crate::container::stream::io_vec::{IOStruct, IOStructMut, IOVec};
 use crate::container::stream::{Stream, StreamFactory};
-use crate::policy::Ordered;
 use crate::private::set::MinSet;
-use crate::{BuildingBlock, Get};
+use crate::{BuildingBlock, Get, Ordered};
 use serde::{de::DeserializeOwned, Serialize};
 use std::ops::{Deref, DerefMut};
 
@@ -21,7 +20,7 @@ use std::ops::{Deref, DerefMut};
 /// [vector](struct.VecStream.html).
 ///
 /// The `ByteStream` building block behaves similarly as the
-/// [`Vector`](struct.Vector.html) building block implementation.
+/// [`Array`](struct.Array.html) building block implementation.
 /// In fact key/value pairs are stored in a set of vectors abstraction
 /// implemented over a byte stream.
 ///
@@ -39,9 +38,10 @@ use std::ops::{Deref, DerefMut};
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::container::{ByteStream, VecStreamFactory};
+/// use cache::container::ByteStream;
+/// use cache::container::stream::vec_stream::VecStreamFactory;
 ///
-/// // Vector with 3 elements capacity.
+/// // Array with 3 elements capacity.
 /// let mut c = ByteStream::new(VecStreamFactory{}, 3);
 ///
 /// // BuildingBlock as room for 3 elements and returns an empty vector.
@@ -355,10 +355,11 @@ where
     ///
     /// ```
     /// use cache::{BuildingBlock, Get};
-    /// use cache::container::{ByteStream, VecStreamFactory};
+    /// use cache::container::ByteStream;
+		/// use cache::container::stream::vec_stream::VecStreamFactory;
     ///
     /// // Make a stream and populate it.
-    /// // Vector with 3 elements capacity.
+    /// // Array with 3 elements capacity.
     /// let mut c = ByteStream::new(VecStreamFactory{}, 1);
     /// c.push(vec![(1,1)]);
     ///
@@ -406,7 +407,8 @@ where
     ///
     /// ```
     /// use cache::{BuildingBlock, Get};
-    /// use cache::container::{ByteStream, VecStreamFactory};
+    /// use cache::container::ByteStream;
+		/// use cache::container::stream::vec_stream::VecStreamFactory;
     ///
     /// // Make a stream and populate it.
     /// let mut c = ByteStream::new(VecStreamFactory{}, 1);
@@ -448,7 +450,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::ByteStream;
-    use crate::container::stream::VecStreamFactory;
+    use crate::container::stream::vec_stream::VecStreamFactory;
     use crate::policy::tests::test_ordered;
     use crate::tests::{test_building_block, test_get};
 

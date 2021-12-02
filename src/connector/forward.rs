@@ -24,11 +24,11 @@ use std::ops::{Deref, DerefMut};
 /// ```
 /// use cache::{BuildingBlock, Get};
 /// use cache::connector::Forward;
-/// use cache::container::Vector;
+/// use cache::container::Array;
 ///
 /// // Create cache
-/// let mut left = Vector::new(2);
-/// let mut right = Vector::new(4);
+/// let mut left = Array::new(2);
+/// let mut right = Array::new(4);
 /// let mut cache = Forward::new(left, right);
 /// // [[][]]
 ///
@@ -361,25 +361,25 @@ where
 #[cfg(test)]
 mod tests {
     use super::Forward;
-    use crate::container::Vector;
+    use crate::container::Array;
     use crate::tests::{test_building_block, test_get};
 
     #[test]
     fn building_block() {
-        test_building_block(Forward::new(Vector::new(0), Vector::new(0)));
-        test_building_block(Forward::new(Vector::new(0), Vector::new(10)));
-        test_building_block(Forward::new(Vector::new(10), Vector::new(0)));
+        test_building_block(Forward::new(Array::new(0), Array::new(0)));
+        test_building_block(Forward::new(Array::new(0), Array::new(10)));
+        test_building_block(Forward::new(Array::new(10), Array::new(0)));
         test_building_block(Forward::new(
-            Vector::new(10),
-            Vector::new(100),
+            Array::new(10),
+            Array::new(100),
         ));
     }
 
     #[test]
     fn get() {
-        test_get(Forward::new(Vector::new(0), Vector::new(0)));
-        test_get(Forward::new(Vector::new(0), Vector::new(10)));
-        test_get(Forward::new(Vector::new(10), Vector::new(0)));
-        test_get(Forward::new(Vector::new(10), Vector::new(100)));
+        test_get(Forward::new(Array::new(0), Array::new(0)));
+        test_get(Forward::new(Array::new(0), Array::new(10)));
+        test_get(Forward::new(Array::new(10), Array::new(0)));
+        test_get(Forward::new(Array::new(10), Array::new(100)));
     }
 }

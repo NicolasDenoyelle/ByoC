@@ -1,7 +1,7 @@
-use crate::concurrent::Concurrent;
-use crate::concurrent::{LockedItem, Sequential};
+use crate::concurrent::{Sequential, SequentialCell};
 use crate::private::clone::CloneCell;
-use crate::{BuildingBlock, Get};
+use crate::{BuildingBlock, Concurrent, Get};
+use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
@@ -11,28 +11,32 @@ use std::ops::{Deref, DerefMut};
 //------------------------------------------------------------------------//
 
 /// Associative [`BuildingBlock`](../trait.BuildingBlock.html) wrapper with
-/// multiple sets.
+/// multiple sets/buckets.
 ///
-/// Associative container is an array of containers. Whenever an element
-/// is to be inserted/looked up, the key is hashed to choose the set where
-/// container key/value pair will be stored.  
-/// On insertion, if the target set is full, an element is popped from the
-/// same set. Therefore, the container may pop while not being full.
-/// When invoking [`pop()`](../trait.BuildingBlock.html#tymethod.pop) to evict a
-/// container element, the method is called on all sets. A victim is elected
-/// and then all elements that are not elected are reinserted inside the
-/// container.
+/// This building block is implemented as an array of building blocks.
+/// Keys inserted in this container must be hashable to find in which bucket
+/// it should be stored/retrieved.
+///
+/// Since a key can only go in one bucket, the container may refuse
+/// insertions before it is actually full if the target buckets are full.
+///
+/// When [popping](../trait.BuildingBlock.html#tymethod.pop) elements,
+/// the policy is to balance buckets element count rather than strictly
+/// pop values in descending order. The latter might be "loosely" satisfied
+/// if the buckets building block apply such a policy and maximum value are
+/// evenly distributed across the buckets with the largest count of
+/// elements.
 ///
 /// ## Examples
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::container::Vector;
+/// use cache::container::Array;
 /// use cache::concurrent::Associative;
 /// use std::collections::hash_map::DefaultHasher;
 ///
-/// // Build a Vector cache of 2 sets. Each set hold one element.
-/// let mut c = Associative::new(2, 2, |n|{Vector::new(n)}, DefaultHasher::new());
+/// // Build a Array cache of 2 sets. Each set hold one element.
+/// let mut c = Associative::new(2, 2, |n|{Array::new(n)}, DefaultHasher::new());
 ///
 /// // BuildingBlock as room for first and second element and returns None.
 /// assert!(c.push(vec![(0, 4)]).pop().is_none());
@@ -61,15 +65,12 @@ impl<C, H: Hasher + Clone> Associative<C, H> {
     /// each using a closure provided by the user to build a container
     /// given its desired capacity. Neither `n_sets` nor `set_size` can
     /// be zero or else this function will panic.
-    pub fn new<F>(
+    pub fn new<F: Fn(usize) -> C>(
         n_sets: usize,
         set_size: usize,
         new: F,
         set_hasher: H,
-    ) -> Self
-    where
-        F: Fn(usize) -> C,
-    {
+    ) -> Self {
         if n_sets * set_size == 0 {
             panic!("Associative container must contain at least one set with non zero capacity.");
         }
@@ -94,39 +95,6 @@ impl<C, H: Hasher + Clone> Associative<C, H> {
     }
 }
 
-/// `Vec` of flush iterators flushing elements sequentially,
-/// starting from last iterator until empty.
-pub struct VecFlushIterator<'a, K, V>
-where
-    K: 'a,
-    V: 'a,
-{
-    pub it: Vec<Box<dyn Iterator<Item = (K, V)> + 'a>>,
-}
-
-impl<'a, K, V> Iterator for VecFlushIterator<'a, K, V>
-where
-    K: 'a,
-    V: 'a,
-{
-    type Item = (K, V);
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            match self.it.pop() {
-                None => {
-                    return None;
-                }
-                Some(mut it) => {
-                    if let Some(e) = it.next() {
-                        self.it.push(it);
-                        return Some(e);
-                    }
-                }
-            }
-        }
-    }
-}
-
 impl<'a, K, V, C, H> BuildingBlock<'a, K, V> for Associative<C, H>
 where
     K: 'a + Clone + Hash,
@@ -139,9 +107,9 @@ where
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        Box::new(VecFlushIterator {
-            it: self.containers.iter_mut().map(|c| c.flush()).collect(),
-        })
+        let iterators: Vec<Box<dyn Iterator<Item = (K, V)> + 'a>> =
+            self.containers.iter_mut().map(|c| c.flush()).collect();
+        Box::new(iterators.into_iter().flat_map(|c| c))
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -158,66 +126,116 @@ where
         self.containers[i].take(key)
     }
 
+    /// Remove up to `n` values from the container.
+    /// If less than `n` values are stored in the container,
+    /// the returned vector contains all the container values and
+    /// the container is left empty.
+    /// This pop method will pop elements from buckets so as to balance
+    /// the amount of elements in each bucket. The kind of element popping
+    /// out of buckets depends on the implementation of buckets `pop()`
+    /// method.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let mut victims = Vec::<(K, V)>::new();
-        if n == 0 {
+        if n == 0 || self.n_sets == 0 {
             return victims;
         }
         victims.reserve(n);
 
         // Collect all buckets element count.
         // We acquire exclusive lock on buckets in the process.
-        let mut lengths =
+        let mut counts =
             Vec::<(usize, usize)>::with_capacity(self.n_sets + 1);
         for i in 0..self.n_sets {
             let n = match self.containers[i].lock_mut() {
                 Ok(_) => unsafe { self.containers[i].deref_mut().count() },
                 Err(_) => 0usize,
             };
-            lengths.push((n, i));
+            counts.push((n, i));
         }
-        lengths.sort();
-        lengths.insert(0, (0usize, 0usize));
 
-        // Compute the number of elements to pop from each bucket.
-        let mut tot = 0usize;
-        let mut count = vec![0usize; self.n_sets];
-        let n_sets = lengths.len();
-        for i in 1..n_sets {
-            if tot >= n {
-                break;
+        let mut total_count: usize = counts.iter().map(|(n, _)| n).sum();
+
+        // If there is more elements to pop than elements available
+        // Then we pop everything.
+        if total_count <= n {
+            for (_, i) in counts.into_iter() {
+                unsafe {
+                    victims.append(
+                        &mut self.containers[i]
+                            .deref_mut()
+                            .flush()
+                            .collect(),
+                    )
+                }
+                self.containers[i].unlock();
             }
-            for j in (i..n_sets).rev() {
-                let (lj, cj) = lengths[j];
-                let (li, _) = lengths[j - 1];
-                let l = lj - li;
-                if tot + l >= n {
-                    let l = n - tot;
-                    count[cj] += l;
-                    lengths[j].0 -= l;
-                    tot += l;
+            return victims;
+        }
+
+        // Sort counts in descending order.
+        counts.sort_unstable_by(|(a, _), (b, _)| match a.cmp(b) {
+            Ordering::Less => Ordering::Greater,
+            Ordering::Equal => Ordering::Equal,
+            Ordering::Greater => Ordering::Less,
+        });
+
+        // The amount of elements in each popping bucket after pop.
+        let target_count = loop {
+            // This the average number of elements per bucket after pop.
+            let target_count = (total_count - n) / counts.len();
+            // Last popped bucket. If it does not change after below loop,
+            // we return above target_count.
+            let prev_i = counts[counts.len() - 1].1;
+            // Remove smallest bucket if its count is below target.
+            loop {
+                let (bucket_count, bucket_i) = counts.pop().expect("Unexpected error in pop() method of Associative buildinding block.");
+                // If the buckets has more elements than the target
+                // count we keep it as a pop bucket.
+                if bucket_count >= target_count {
+                    counts.push((bucket_count, bucket_i));
                     break;
                 } else {
-                    count[cj] += l;
-                    lengths[j].0 -= l;
-                    tot += l;
+                    self.containers[bucket_i].unlock();
+                    total_count -= bucket_count;
                 }
             }
-        }
+            // If we did not remove any bucket, all the buckets have
+            // more elements than the target count. Therefore, we can
+            // stop and pop.
+            if prev_i == counts[counts.len() - 1].1 {
+                break target_count;
+            }
+        };
 
-        // Append elements to victims vector.
-        // Buckets are unlocked in the process.
-        for (i, n) in count.iter().enumerate() {
-            if n > &0 {
-                victims.append(
-                    &mut unsafe { self.containers[i].deref_mut() }.pop(*n),
-                );
+        // Below is the pop phase.
+        // We remove whats above target_count from each bucket.
+        // Since target_count is a round number, the total to pop
+        // might exceed what was asked. Therefore, we don't keep popping
+        // if we reached the amount requested. We but still have to unlock
+        // the locked buckets.
+        let mut popped = 0;
+        for (count, i) in counts.into_iter() {
+            let pop_count =
+                std::cmp::min(count - target_count, n - popped);
+            if pop_count > 0 {
+                unsafe {
+                    victims.append(
+                        &mut self.containers[i].deref_mut().pop(pop_count),
+                    );
+                }
+                popped += pop_count;
             }
             self.containers[i].unlock();
         }
+
         victims
     }
 
+    /// Insert key/value pairs in the container. If the container cannot
+    /// store all the values, some values are returned.
+    /// If a bucket where a value is assign is full, the associated
+    /// input key/value pair will be returned, even though this
+    /// `Associative` bulding block is not at capacity.
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = elements.len();
         let mut set_elements: Vec<Vec<(K, V)>> =
@@ -241,13 +259,7 @@ unsafe impl<C, H: Hasher + Clone> Send for Associative<C, H> {}
 
 unsafe impl<C, H: Hasher + Clone> Sync for Associative<C, H> {}
 
-impl<'a, K, V, C, H> Concurrent<'a, K, V> for Associative<C, H>
-where
-    K: 'a + Hash + Clone,
-    V: 'a + Ord,
-    C: 'a + BuildingBlock<'a, K, V>,
-    H: Hasher + Clone,
-{
+impl<C, H: Hasher + Clone> Concurrent for Associative<C, H> {
     fn clone(&self) -> Self {
         Associative {
             n_sets: self.n_sets,
@@ -262,7 +274,7 @@ where
 // Get Trait Implementation                                               //
 //------------------------------------------------------------------------//
 
-impl<K, V, U, W, C, H> Get<K, V, LockedItem<U>, LockedItem<W>>
+impl<K, V, U, W, C, H> Get<K, V, SequentialCell<U>, SequentialCell<W>>
     for Associative<C, H>
 where
     K: Hash + Clone,
@@ -271,12 +283,12 @@ where
     H: Hasher + Clone,
     C: Get<K, V, U, W>,
 {
-    unsafe fn get(&self, key: &K) -> Option<LockedItem<U>> {
+    unsafe fn get(&self, key: &K) -> Option<SequentialCell<U>> {
         let i = self.set(key.clone());
         self.containers[i].get(key)
     }
 
-    unsafe fn get_mut(&mut self, key: &K) -> Option<LockedItem<W>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<SequentialCell<W>> {
         let i = self.set(key.clone());
         self.containers[i].get_mut(key)
     }
@@ -290,7 +302,7 @@ where
 mod tests {
     use super::Associative;
     use crate::concurrent::tests::test_concurrent;
-    use crate::container::Vector;
+    use crate::container::Array;
     use crate::tests::{test_building_block, test_get};
     use std::collections::hash_map::DefaultHasher;
 
@@ -299,7 +311,7 @@ mod tests {
         test_building_block(Associative::new(
             5,
             10,
-            |n| Vector::new(n),
+            |n| Array::new(n),
             DefaultHasher::new(),
         ));
     }
@@ -310,7 +322,7 @@ mod tests {
             Associative::new(
                 30,
                 30,
-                |n| Vector::new(n),
+                |n| Array::new(n),
                 DefaultHasher::new(),
             ),
             64,
@@ -322,7 +334,7 @@ mod tests {
         test_get(Associative::new(
             5,
             10,
-            |n| Vector::new(n),
+            |n| Array::new(n),
             DefaultHasher::new(),
         ));
     }

@@ -91,10 +91,10 @@ struct LRFUCell<V, T: Timestamp + Copy> {
 /// ## Examples
 ///
 /// ```
-/// use cache::container::Vector;
+/// use cache::container::Array;
 /// use cache::policy::{Policy, LRFU};
 ///
-/// // let c = Policy::new(Vector::new(3), LRFU::new(2.0));
+/// // let c = Policy::new(Array::new(3), LRFU::new(2.0));
 /// ```
 pub struct LRFU<T: Timestamp + Copy> {
     exponent: f32,

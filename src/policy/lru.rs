@@ -28,11 +28,11 @@ pub struct LRUCell<V, T: Timestamp> {
 /// ## Examples
 ///
 /// ```
-/// use cache::container::Vector;
+/// use cache::container::Array;
 /// use cache::policy::{Policy, LRU};
 /// use cache::policy::timestamp::Clock;
 ///
-/// // let c = Policy::new(Vector::new(3), LRU::<Clock>::new());
+/// // let c = Policy::new(Array::new(3), LRU::<Clock>::new());
 /// ```
 pub struct LRU<T: Timestamp> {
     phantom: std::marker::PhantomData<T>,
