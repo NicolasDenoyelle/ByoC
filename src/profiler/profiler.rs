@@ -208,7 +208,7 @@ impl<C> Profiler<C> {
         self.stats.miss.load(Ordering::Relaxed)
     }
 
-		/// Get the total time spent in methods call so far.
+    /// Get the total time spent in methods call so far.
     pub fn time_stats(&self) -> u64 {
         let count_time = self.stats.count.read().1;
         let contains_time = self.stats.contains.read().1;

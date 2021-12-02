@@ -34,7 +34,7 @@ mod stream;
 pub use crate::container::stream::stream::{
     ByteStream, StreamCell, StreamMutCell,
 };
-/// In memory [`Stream`](trait.Stream.html) implementation in a Vec.
-pub mod vec_stream;
 /// [`Stream`](trait.Stream.html) implementation in a file.
 pub mod file_stream;
+/// In memory [`Stream`](trait.Stream.html) implementation in a Vec.
+pub mod vec_stream;

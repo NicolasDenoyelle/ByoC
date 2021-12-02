@@ -94,7 +94,7 @@ where
 
 /// [Building Blocks](trait.BuildingBlock.html)
 /// [popping](../trait.BuildingBlock.html#tymethod.pop)
-/// values in descending order. 
+/// values in descending order.
 pub trait Ordered<V: std::cmp::Ord> {}
 
 /// Thread safe [building blocks](trait.BuildingBlock.html).
@@ -104,8 +104,7 @@ pub trait Ordered<V: std::cmp::Ord> {}
 /// container can be used safely concurrently in between its clones
 /// obtained with the method
 /// [`Concurrent::clone()`](trait.Concurrent.html#tymethod.clone).
-pub trait Concurrent: Send + Sync
-{
+pub trait Concurrent: Send + Sync {
     /// Create a shallow copy of the container pointing to the same
     /// container that can be later used concurrently.
     fn clone(&self) -> Self;

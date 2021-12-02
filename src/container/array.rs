@@ -167,9 +167,7 @@ impl<T> DerefMut for ArrayMutCell<T> {
     }
 }
 
-impl<K: Eq, V> Get<K, V, ArrayCell<V>, ArrayMutCell<V>>
-    for Array<(K, V)>
-{
+impl<K: Eq, V> Get<K, V, ArrayCell<V>, ArrayMutCell<V>> for Array<(K, V)> {
     /// Get value inside a `Array`. The value is wrapped inside a
     /// [`ArrayCell`](struct.ArrayCell.html). The `ArrayCell` can
     /// further be dereferenced into a value reference.

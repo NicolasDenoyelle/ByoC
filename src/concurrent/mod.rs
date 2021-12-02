@@ -1,5 +1,5 @@
 mod sequential;
-pub use crate::concurrent::sequential::{SequentialCell, Sequential};
+pub use crate::concurrent::sequential::{Sequential, SequentialCell};
 
 mod associative;
 pub use crate::concurrent::associative::Associative;

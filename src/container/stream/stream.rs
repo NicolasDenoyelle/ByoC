@@ -356,7 +356,7 @@ where
     /// ```
     /// use cache::{BuildingBlock, Get};
     /// use cache::container::ByteStream;
-		/// use cache::container::stream::vec_stream::VecStreamFactory;
+    /// use cache::container::stream::vec_stream::VecStreamFactory;
     ///
     /// // Make a stream and populate it.
     /// // Array with 3 elements capacity.
@@ -408,7 +408,7 @@ where
     /// ```
     /// use cache::{BuildingBlock, Get};
     /// use cache::container::ByteStream;
-		/// use cache::container::stream::vec_stream::VecStreamFactory;
+    /// use cache::container::stream::vec_stream::VecStreamFactory;
     ///
     /// // Make a stream and populate it.
     /// let mut c = ByteStream::new(VecStreamFactory{}, 1);

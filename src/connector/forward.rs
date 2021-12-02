@@ -369,10 +369,7 @@ mod tests {
         test_building_block(Forward::new(Array::new(0), Array::new(0)));
         test_building_block(Forward::new(Array::new(0), Array::new(10)));
         test_building_block(Forward::new(Array::new(10), Array::new(0)));
-        test_building_block(Forward::new(
-            Array::new(10),
-            Array::new(100),
-        ));
+        test_building_block(Forward::new(Array::new(10), Array::new(100)));
     }
 
     #[test]
