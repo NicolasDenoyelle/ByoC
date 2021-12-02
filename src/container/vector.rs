@@ -1,86 +1,70 @@
-use crate::container::{Container, Get};
-use crate::marker::Packed;
+use crate::policy::Ordered;
+use crate::{BuildingBlock, Get};
 use std::cmp::Eq;
+use std::ops::{Deref, DerefMut};
 use std::vec::Vec;
 
 //-------------------------------------------------------------------------
 //  Vector struct
 //-------------------------------------------------------------------------
 
-/// Unordered [`container`](trait.Container.html).
+/// [`BuildingBlock`](../trait.BuildingBlock.html) implementation in a
+/// vector.
 ///
-/// Vector holds values in a `Vec<(index, value)>`.
-/// It is an unordered container.
-/// Any operation on vector (
-/// [`push()`](trait.Container.html#tymethod.push),
-/// [`take()`](trait.Container.html#tymethod.take),
-/// [`pop()`](trait.Container.html#tymethod.pop)
+/// Vector holds values in a `Vec<(key, value)>`.   
+/// See
+/// [`BuildingBlock methods implementation`](struct.Vector.html#impl-BuildingBlock%3C%27a%2C%20K%2C%20V%3E)
+/// for behavior on `push()` and `pop()`.
+///
+/// ## Safety
+///
+/// See
+/// [`Get methods implementation`](struct.Vector.html#impl-Get%3CK%2C%20V%2C%20VectorCell%3CV%3E%2C%20VectorMutCell%3CV%3E%3E).
 ///
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Vector};
+/// use cache::BuildingBlock;
+/// use cache::container::Vector;
 ///
-/// // container with only 1 element.
-/// let mut c = Vector::new(1);
+/// // Vector with 3 elements capacity.
+/// let mut c = Vector::new(3);
 ///
-/// // Container as room for first element and returns None.
-/// assert!(c.push(vec![("first", 4)]).pop().is_none());
+/// // BuildingBlock as room for 3 elements and returns an empty vector.
+/// // No element is rejected.
+/// assert!(c.push(vec![("first", 4), ("second", 2), ("third", 3)]).pop().is_none());
 ///
-/// // Container is full and pops inserted value.
-/// let (key, value) = c.push(vec![("second", 12)]).pop().unwrap();
-/// assert!(key == "second");
-/// assert!(value == 12);
+/// // Vector is full and pops extra inserted value (all values here).
+/// let (key, _) = c.push(vec![("fourth", 12)]).pop().unwrap();
+/// assert_eq!(key, "fourth");
+///
+/// // Vector pops elements in order of the highest values.
+/// let (key, value) = c.pop(1).pop().unwrap();
+/// assert_eq!(key, "first");
+/// let (key, value) = c.pop(1).pop().unwrap();
+/// assert_eq!(key, "third");
+/// let (key, value) = c.pop(1).pop().unwrap();
+/// assert_eq!(key, "second");
 /// ```
-pub struct Vector<K: Eq, V> {
+pub struct Vector<T> {
     capacity: usize,
-    values: Vec<(K, V)>,
+    values: Vec<T>,
 }
 
-impl<K: Eq, V> Vector<K, V> {
+impl<T> Vector<T> {
     pub fn new(n: usize) -> Self {
         Vector {
             capacity: n,
-            values: Vec::with_capacity(n + 1),
+            values: Vec::with_capacity(n),
         }
     }
 }
 
 //------------------------------------------------------------------------//
-// Iterator to take elements out.                                         //
+// BuildingBlock implementation
 //------------------------------------------------------------------------//
 
-struct VectorTakeIterator<'a, K, V> {
-    vec: &'a mut Vec<(K, V)>,
-    key: &'a K,
-    current: usize,
-}
-
-impl<'a, K: Eq, V> Iterator for VectorTakeIterator<'a, K, V> {
-    type Item = (K, V);
-    fn next(&mut self) -> Option<Self::Item> {
-        let n = self.vec.len();
-        if n == 0 {
-            None
-        } else {
-            loop {
-                if n <= self.current {
-                    break None;
-                } else if &self.vec[self.current].0 == self.key {
-                    break Some(self.vec.swap_remove(self.current));
-                } else {
-                    self.current += 1;
-                }
-            }
-        }
-    }
-}
-
-//------------------------------------------------------------------------//
-//  Container implementation.                                             //
-//------------------------------------------------------------------------//
-
-impl<'a, K, V> Container<'a, K, V> for Vector<K, V>
+impl<'a, K, V> BuildingBlock<'a, K, V> for Vector<(K, V)>
 where
     K: 'a + Eq,
     V: 'a + Ord,
@@ -101,12 +85,23 @@ where
         return self.values.len();
     }
 
+    /// Remove up to `n` values from the container.
+    /// If less than `n` values are stored in the container,
+    /// the returned vector contains all the container values and
+    /// the container is left empty.
+    /// This building block implements the trait
+    /// [`Ordered`](../policy/trait.Ordered.html), which means that
+    /// the highest values are popped out. This is implemented by
+    /// sorting the vector on values and spitting it where appropriate.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         self.values.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
         let i = self.values.len();
         self.values.split_off(i - std::cmp::min(i, n))
     }
 
+    /// Insert key/value pairs in the container. If the container cannot
+    /// store all the values, the last input values not fitting in are
+    /// returned.
     fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = std::cmp::min(
             self.capacity - self.values.len(),
@@ -120,49 +115,175 @@ where
         out
     }
 
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
-        Box::new(VectorTakeIterator {
-            vec: &mut self.values,
-            key: key,
-            current: 0usize,
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
+        match self.values.iter().enumerate().find_map(|(i, (k, _))| {
+            if k == key {
+                Some(i.clone())
+            } else {
+                None
+            }
+        }) {
+            None => None,
+            Some(i) => Some(self.values.swap_remove(i)),
+        }
+    }
+}
+
+// Make this container usable with a policy.
+impl<K, V: Ord> Ordered<V> for Vector<(K, V)> {}
+
+//------------------------------------------------------------------------//
+// Get trait implementation
+//------------------------------------------------------------------------//
+
+/// Read-only cell representing a reference to a value inside a
+/// [`Vector`](struct.Vector.html) container.
+pub struct VectorCell<T> {
+    t: *const T,
+}
+
+impl<T> Deref for VectorCell<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.t.as_ref().unwrap() }
+    }
+}
+
+/// Read-write cell holding a reference to a value inside a
+/// [`Vector`](struct.Vector.html) container.
+pub struct VectorMutCell<T> {
+    t: *mut T,
+}
+
+impl<T> Deref for VectorMutCell<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.t.as_ref().unwrap() }
+    }
+}
+
+impl<T> DerefMut for VectorMutCell<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.t.as_mut().unwrap() }
+    }
+}
+
+impl<K: Eq, V> Get<K, V, VectorCell<V>, VectorMutCell<V>>
+    for Vector<(K, V)>
+{
+    /// Get value inside a `Vector`. The value is wrapped inside a
+    /// [`VectorCell`](struct.VectorCell.html). The `VectorCell` can
+    /// further be dereferenced into a value reference.
+    ///
+    /// ## Safety:
+    ///
+    /// Using the return value inside the `VectorCell` is unsafe and can
+    /// lead to undefined behavior. The user of this method must ensure that
+    /// the Vector container is not modified until the `VectorCell` is
+    /// droped. Otherwise, the content of the `VectorCell` might be
+    /// corrupted.
+    ///
+    /// ## Example:
+    ///
+    /// ```
+    /// use cache::{BuildingBlock, Get};
+    /// use cache::container::Vector;
+    ///
+    /// // Make a vector and populate it.
+    /// let mut v = Vector::new(1);
+    /// v.push(vec![(1,1)]);
+    ///
+    /// // Get the value inside the vector.
+    /// let val = unsafe { v.get(&1).unwrap() };
+    ///
+    /// // Replace with another value.
+    /// v.flush();
+    /// v.push(vec![(2,2)]);
+    ///
+    /// // Val is corrupted and should not be accessible.
+    /// assert!(*val != 1);
+    /// ```
+    unsafe fn get(&self, key: &K) -> Option<VectorCell<V>> {
+        self.values.iter().find_map(move |(k, v)| {
+            if k == key {
+                Some(VectorCell { t: v })
+            } else {
+                None
+            }
+        })
+    }
+
+    /// Get value inside a `Vector`. The value is wrapped inside a
+    /// [`VectorMutCell`](struct.VectorMutCell.html). The `VectorMutCell`
+    /// can further be dereferenced into a value reference.
+    ///
+    /// ## Safety:
+    ///
+    /// Using the return value inside the `VectorMutCell` is unsafe and can
+    /// lead to undefined behavior. The user of this method must ensure that
+    /// the Vector container is not modified until the `VectorMutCell` is
+    /// droped. Otherwise, the content of the `VectorMutCell` might be
+    /// corrupted.
+    ///
+    /// ## Example:
+    ///
+    /// ```
+    /// use cache::{BuildingBlock, Get};
+    /// use cache::container::Vector;
+    ///
+    /// // Make a vector and populate it.
+    /// let mut v = Vector::new(1);
+    /// v.push(vec![(1,1)]);
+    ///
+    /// // Get the value inside the vector.
+    /// let mut val = unsafe { v.get_mut(&1).unwrap() };
+    ///
+    /// // Replace with another value.
+    /// v.flush();
+    /// v.push(vec![(2,2)]);
+    ///
+    /// // Val is corrupted and should not be accessible.
+    /// assert!(*val != 1);
+    /// ```
+    unsafe fn get_mut(&mut self, key: &K) -> Option<VectorMutCell<V>> {
+        self.values.iter_mut().find_map(move |(k, v)| {
+            if k == key {
+                Some(VectorMutCell { t: v })
+            } else {
+                None
+            }
         })
     }
 }
 
-impl<'a, K, V> Packed<'a, K, V> for Vector<K, V>
-where
-    K: 'a + Eq,
-    V: 'a + Ord,
-{
-}
+//------------------------------------------------------------------------//
+//  Tests
+//------------------------------------------------------------------------//
 
-impl<'a, K: 'a + Eq, V: 'a + Ord> Get<'a, K, V> for Vector<K, V> {
-    fn get<'b>(
-        &'b self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
-        Box::new(self.values.iter().filter_map(move |kv| {
-            if &kv.0 == key {
-                Some(kv)
-            } else {
-                None
-            }
-        }))
+#[cfg(test)]
+mod tests {
+    use super::Vector;
+    use crate::policy::tests::test_ordered;
+    use crate::tests::{test_building_block, test_get};
+
+    #[test]
+    fn building_block() {
+        test_building_block(Vector::new(0));
+        test_building_block(Vector::new(10));
+        test_building_block(Vector::new(100));
     }
 
-    fn get_mut<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
-        Box::new(self.values.iter_mut().filter_map(move |kv| {
-            if &kv.0 == key {
-                Some(kv)
-            } else {
-                None
-            }
-        }))
+    #[test]
+    fn ordered() {
+        test_ordered(Vector::new(0));
+        test_ordered(Vector::new(10));
+        test_ordered(Vector::new(100));
+    }
+
+    #[test]
+    fn get() {
+        test_get(Vector::new(0));
+        test_get(Vector::new(10));
+        test_get(Vector::new(100));
     }
 }

@@ -1,5 +1,6 @@
-use cache::{container::Container, marker::Concurrent};
-use std::{sync::mpsc::channel, thread, vec::Vec};
+use crate::concurrent::Concurrent;
+use crate::BuildingBlock;
+use std::{sync::mpsc::channel, thread};
 
 fn test_after_push<C>(
     c: C,
@@ -8,7 +9,7 @@ fn test_after_push<C>(
     popped_keys: Vec<u16>,
 ) where
     C: 'static
-        + Container<'static, u16, u32>
+        + BuildingBlock<'static, u16, u32>
         + Concurrent<'static, u16, u32>,
 {
     // Test container count is the incremented count.
@@ -30,10 +31,10 @@ fn test_after_push<C>(
     assert!(c.count() <= c.capacity());
 }
 
-pub fn push_concurrent<C>(c: C, num_thread: u8)
+fn push_concurrent<C>(c: C, num_thread: u8)
 where
     C: 'static
-        + Container<'static, u16, u32>
+        + BuildingBlock<'static, u16, u32>
         + Concurrent<'static, u16, u32>,
 {
     let capacity = c.capacity();
@@ -88,7 +89,7 @@ where
 pub fn test_concurrent<C>(c: C, num_thread: u8)
 where
     C: 'static
-        + Container<'static, u16, u32>
+        + BuildingBlock<'static, u16, u32>
         + Concurrent<'static, u16, u32>,
 {
     push_concurrent(c, num_thread);

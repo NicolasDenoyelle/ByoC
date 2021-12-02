@@ -10,7 +10,7 @@ use std::time::Instant;
 /// * `Clone`: Since timestamps are supposed to be lightweight it is reasonable
 /// to ask for it to be copy in order to facilitate management of object using
 /// timestamps.
-pub trait Timestamp: Ord + Clone {
+pub trait Timestamp: Ord + Eq + PartialOrd + PartialEq + Copy {
     /// Timestamp default constructor.
     fn new() -> Self;
     /// Timestamp difference to f32.
@@ -34,7 +34,7 @@ static mut COUNTER_STATE: AtomicU64 = AtomicU64::new(0);
 /// A timestamp based on a global counter.
 ///
 /// ```
-/// use cache::timestamp::{Timestamp, Counter};
+/// use cache::policy::timestamp::{Timestamp, Counter};
 ///
 /// // Counters are strictly ascending
 /// assert!(Counter::new() < Counter::new());
@@ -60,7 +60,7 @@ impl Timestamp for Counter {
     /// Convert to f32 then compute difference.
     ///
     /// ```
-    /// use cache::timestamp::{Timestamp, Counter};
+    /// use cache::policy::timestamp::{Timestamp, Counter};
     ///
     /// let t0 = Counter::new();
     /// let t1 = Counter::new();
@@ -83,7 +83,7 @@ impl Timestamp for Counter {
 /// To this date the granularity of the clock is the nanosecond.
 ///
 /// ```
-/// use cache::timestamp::{Timestamp, Clock};
+/// use cache::policy::timestamp::{Timestamp, Clock};
 ///    
 /// assert!(Clock::new() < Clock::new());
 /// ```

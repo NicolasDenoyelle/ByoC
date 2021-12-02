@@ -1,14 +1,16 @@
-use crate::container::{Container, Get, Sequential};
-use crate::marker::Concurrent;
-use crate::utils::clone::CloneCell;
+use crate::concurrent::Concurrent;
+use crate::concurrent::{LockedItem, Sequential};
+use crate::private::clone::CloneCell;
+use crate::{BuildingBlock, Get};
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
+use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
 // Concurrent implementation of container                                 //
 //------------------------------------------------------------------------//
 
-/// Associative [`container`](trait.Container.html) wrapper with
+/// Associative [`BuildingBlock`](../trait.BuildingBlock.html) wrapper with
 /// multiple sets.
 ///
 /// Associative container is an array of containers. Whenever an element
@@ -16,9 +18,7 @@ use std::marker::Sync;
 /// container key/value pair will be stored.  
 /// On insertion, if the target set is full, an element is popped from the
 /// same set. Therefore, the container may pop while not being full.
-/// This why it does not implement the trait
-/// [`Packed`](../marker/trait.Packed.html).  
-/// When invoking [`pop()`](trait.Container.html#tymethod.pop) to evict a
+/// When invoking [`pop()`](../trait.BuildingBlock.html#tymethod.pop) to evict a
 /// container element, the method is called on all sets. A victim is elected
 /// and then all elements that are not elected are reinserted inside the
 /// container.
@@ -26,13 +26,15 @@ use std::marker::Sync;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Vector, Associative};
+/// use cache::BuildingBlock;
+/// use cache::container::Vector;
+/// use cache::concurrent::Associative;
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// // Build a Vector cache of 2 sets. Each set hold one element.
 /// let mut c = Associative::new(2, 2, |n|{Vector::new(n)}, DefaultHasher::new());
 ///
-/// // Container as room for first and second element and returns None.
+/// // BuildingBlock as room for first and second element and returns None.
 /// assert!(c.push(vec![(0, 4)]).pop().is_none());
 /// assert!(c.push(vec![(1, 12)]).pop().is_none());
 ///
@@ -125,11 +127,11 @@ where
     }
 }
 
-impl<'a, K, V, C, H> Container<'a, K, V> for Associative<C, H>
+impl<'a, K, V, C, H> BuildingBlock<'a, K, V> for Associative<C, H>
 where
     K: 'a + Clone + Hash,
     V: 'a + Ord,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
     H: Hasher + Clone,
 {
     fn capacity(&self) -> usize {
@@ -151,10 +153,7 @@ where
         (0..self.n_sets).map(|i| self.containers[i].count()).sum()
     }
 
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
         let i = self.set(key.clone());
         self.containers[i].take(key)
     }
@@ -246,12 +245,9 @@ impl<'a, K, V, C, H> Concurrent<'a, K, V> for Associative<C, H>
 where
     K: 'a + Hash + Clone,
     V: 'a + Ord,
-    C: 'a + Container<'a, K, V>,
+    C: 'a + BuildingBlock<'a, K, V>,
     H: Hasher + Clone,
 {
-}
-
-impl<C, H: Hasher + Clone> Clone for Associative<C, H> {
     fn clone(&self) -> Self {
         Associative {
             n_sets: self.n_sets,
@@ -262,28 +258,72 @@ impl<C, H: Hasher + Clone> Clone for Associative<C, H> {
     }
 }
 
-impl<'a, K, V, C, H> Get<'a, K, V> for Associative<C, H>
+//------------------------------------------------------------------------//
+// Get Trait Implementation                                               //
+//------------------------------------------------------------------------//
+
+impl<K, V, U, W, C, H> Get<K, V, LockedItem<U>, LockedItem<W>>
+    for Associative<C, H>
 where
-    K: 'a + Hash + Clone,
-    V: 'a + Ord,
+    K: Hash + Clone,
+    U: Deref<Target = V>,
+    W: DerefMut<Target = V>,
     H: Hasher + Clone,
-    C: Container<'a, K, V> + Get<'a, K, V>,
+    C: Get<K, V, U, W>,
 {
-    fn get<'b>(
-        &'b self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
-        Box::new(self.containers.iter().flat_map(move |c| c.get(&key)))
+    unsafe fn get(&self, key: &K) -> Option<LockedItem<U>> {
+        let i = self.set(key.clone());
+        self.containers[i].get(key)
     }
 
-    fn get_mut<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
-        Box::new(
-            self.containers
-                .iter_mut()
-                .flat_map(move |c| c.get_mut(&key)),
-        )
+    unsafe fn get_mut(&mut self, key: &K) -> Option<LockedItem<W>> {
+        let i = self.set(key.clone());
+        self.containers[i].get_mut(key)
+    }
+}
+
+//------------------------------------------------------------------------//
+//  Tests
+//------------------------------------------------------------------------//
+
+#[cfg(test)]
+mod tests {
+    use super::Associative;
+    use crate::concurrent::tests::test_concurrent;
+    use crate::container::Vector;
+    use crate::tests::{test_building_block, test_get};
+    use std::collections::hash_map::DefaultHasher;
+
+    #[test]
+    fn building_block() {
+        test_building_block(Associative::new(
+            5,
+            10,
+            |n| Vector::new(n),
+            DefaultHasher::new(),
+        ));
+    }
+
+    #[test]
+    fn concurrent() {
+        test_concurrent(
+            Associative::new(
+                30,
+                30,
+                |n| Vector::new(n),
+                DefaultHasher::new(),
+            ),
+            64,
+        );
+    }
+
+    #[test]
+    fn get() {
+        test_get(Associative::new(
+            5,
+            10,
+            |n| Vector::new(n),
+            DefaultHasher::new(),
+        ));
     }
 }

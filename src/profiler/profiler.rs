@@ -1,27 +1,24 @@
-use crate::container::{Container, Get};
-use crate::marker::Concurrent;
-use crate::utils::clone::CloneCell;
+use crate::concurrent::Concurrent;
+use crate::private::clone::CloneCell;
+use crate::{BuildingBlock, Get};
 use std::marker::PhantomData;
+use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
-/// [`Container`](../trait.Container.html) wrapper to collect access,
+/// [`BuildingBlock`](../trait.BuildingBlock.html) wrapper to collect access,
 /// misses, hits and statistics about methods access time.
 ///
 /// Recording statistics is thread safe.
 /// If the wrapped container implements the concurrent trait, then
 /// the profiler does to.
 ///
-/// # Generics
-///
-/// * K: The keys type used for the cache.
-/// * V: The type of values stored in cache.
-/// * C: The type of the cache to profile.
-///
-/// # Examples
+/// ## Examples
 ///
 /// ```
-/// use cache::container::{Container, Get, Profiler, Vector};
+/// use cache::{BuildingBlock};
+/// use cache::container::Vector;
+/// use cache::profiler::Profiler;
 ///
 /// // Build a cache:
 /// let c = Vector::new(3);
@@ -29,7 +26,7 @@ use std::time::Instant;
 /// // Wrap it into a profiler.
 /// let mut c = Profiler::new(c);
 ///
-/// // Populate Container
+/// // Populate BuildingBlock
 /// c.push(vec![("first", 0), ("second", 1)]);
 ///
 /// // look at statistics
@@ -47,35 +44,35 @@ use std::time::Instant;
 /// // Make a request to a non contained key.
 /// // Reads are compulsory, writes hits and misses
 /// // depends on whether the key was found.
-/// assert!(c.take(&"third").next().is_none());
+/// assert!(c.take(&"third").is_none());
 /// assert_eq!(c.write(), 2);
 /// assert_eq!(c.read(), 5);
 /// assert_eq!(c.hit(), 0);
 /// assert_eq!(c.miss(), 1);
 ///
 /// // Make a request to a contained key:
-/// assert!(c.take(&"second").next().is_some());
+/// assert!(c.take(&"second").is_some());
 /// assert_eq!(c.write(), 3);
 /// assert_eq!(c.read(), 6);
 /// assert_eq!(c.hit(), 1);
 /// assert_eq!(c.miss(), 1);
 ///
 /// // `Get` methods update the same way as `take()` method:
-/// assert!(c.get(&"first").next().is_some());
-/// assert_eq!(c.write(), 4);
-/// assert_eq!(c.read(), 7);
-/// assert_eq!(c.hit(), 2);
-/// assert_eq!(c.miss(), 1);
+/// // assert!(c.get(&"first").next().is_some());
+/// // assert_eq!(c.write(), 4);
+/// // assert_eq!(c.read(), 7);
+/// // assert_eq!(c.hit(), 2);
+/// // assert_eq!(c.miss(), 1);
 ///
 /// // `flush()` updates reads and writes only if the result is iterated.
 /// // Reads and writes are incremented at each iteration.
 /// c.flush();
-/// assert_eq!(c.write(), 4);
+/// assert_eq!(c.write(), 3);
 ///
 /// // `contains()` is consider as one read and will update hits and misses.
 /// c.contains(&"first");
-/// assert_eq!(c.read(), 8);
-/// assert_eq!(c.hit(), 2);
+/// assert_eq!(c.read(), 7);
+/// assert_eq!(c.hit(), 1);
 /// assert_eq!(c.miss(), 2);
 ///
 /// // pretty print statistics.
@@ -180,17 +177,6 @@ impl<K, V, C> Profiler<K, V, C> {
     }
 }
 
-impl<K, V, C: Clone> Clone for Profiler<K, V, C> {
-    fn clone(&self) -> Self {
-        Profiler {
-            cache: self.cache.clone(),
-            stats: self.stats.clone(),
-            unused_k: PhantomData,
-            unused_v: PhantomData,
-        }
-    }
-}
-
 //------------------------------------------------------------------------//
 // Flush iterator
 //------------------------------------------------------------------------//
@@ -247,7 +233,7 @@ impl<'a, K, V, C> std::fmt::Debug for Profiler<K, V, C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -268,7 +254,7 @@ impl<'a, K, V, C> std::fmt::Display for Profiler<K, V, C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let read_ms = self.read_ms();
@@ -316,14 +302,14 @@ where
 }
 
 //------------------------------------------------------------------------//
-// Container implementation                                               //
+// BuildingBlock implementation                                               //
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, C> Container<'a, K, V> for Profiler<K, V, C>
+impl<'a, K, V, C> BuildingBlock<'a, K, V> for Profiler<K, V, C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
 {
     fn capacity(&self) -> usize {
         self.cache.capacity()
@@ -355,15 +341,22 @@ where
 
     /// Counts for one cache access.
     /// If key is found, count a hit else count a miss.
-    /// See [`take` function](../trait.Container.html)
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
-        Box::new(ProfilerReqIter {
-            elements: self.cache.take(key),
-            stats: self.stats.clone(),
-        })
+    /// See [`take` function](../trait.BuildingBlock.html#tymethod.take)
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
+        let t0 = Instant::now();
+        let item = self.cache.take(key);
+        let tf = t0.elapsed().as_millis();
+
+        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
+        if item.is_some() {
+            self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
+            self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
+            self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
+        } else {
+            self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst);
+        }
+        item
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
@@ -374,7 +367,7 @@ where
     }
 
     /// Counts for one cache access and one hit.
-    /// See [`pop` function](../trait.Container.html)
+    /// See [`pop` function](../trait.BuildingBlock.html#tymethod.pop)
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let t0 = Instant::now();
         let out = self.cache.pop(n);
@@ -412,33 +405,57 @@ impl<'a, K, V, C> Concurrent<'a, K, V> for Profiler<K, V, C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V> + Concurrent<'a, K, V>,
+    C: BuildingBlock<'a, K, V> + Concurrent<'a, K, V>,
 {
+    fn clone(&self) -> Self {
+        Profiler {
+            cache: Concurrent::clone(&self.cache),
+            stats: self.stats.clone(),
+            unused_k: PhantomData,
+            unused_v: PhantomData,
+        }
+    }
 }
 
-impl<'a, K, V, C> Get<'a, K, V> for Profiler<K, V, C>
+//------------------------------------------------------------------------//
+// Get trait implementation
+//------------------------------------------------------------------------//
+
+impl<K, V, U, W, C> Get<K, V, U, W> for Profiler<K, V, C>
 where
-    K: 'a,
-    V: 'a,
-    C: Container<'a, K, V> + Get<'a, K, V>,
+    U: Deref<Target = V>,
+    W: DerefMut<Target = V>,
+    C: Get<K, V, U, W>,
 {
-    fn get<'b>(
-        &'b self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b (K, V)> + 'b> {
-        Box::new(ProfilerReqIter {
-            elements: self.cache.get(key),
-            stats: self.stats.clone(),
-        })
+    unsafe fn get(&self, key: &K) -> Option<U> {
+        let t0 = Instant::now();
+        let item = self.cache.get(key);
+        let tf = t0.elapsed().as_millis();
+
+        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
+        if item.is_some() {
+            self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
+        } else {
+            self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst);
+        }
+        item
     }
 
-    fn get_mut<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = &'b mut (K, V)> + 'b> {
-        Box::new(ProfilerReqIter {
-            elements: self.cache.get_mut(key),
-            stats: self.stats.clone(),
-        })
+    unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
+        let t0 = Instant::now();
+        let item = self.cache.get_mut(key);
+        let tf = t0.elapsed().as_millis();
+
+        self.stats.read_ms.fetch_add(tf as u64, Ordering::SeqCst);
+        self.stats.read.fetch_add(1 as u64, Ordering::SeqCst);
+        if item.is_some() {
+            self.stats.write_ms.fetch_add(tf as u64, Ordering::SeqCst);
+            self.stats.write.fetch_add(1 as u64, Ordering::SeqCst);
+            self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst);
+        } else {
+            self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst);
+        }
+        item
     }
 }

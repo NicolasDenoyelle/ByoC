@@ -30,7 +30,8 @@ pub enum LockError<T> {
 /// that allows creation of objects that call `unlock()` on a RWLock when
 /// they go out of scope.
 ///
-/// # Examples
+/// ## Examples
+///
 /// ```ignore
 /// use cache::lock::RWLock;
 /// let lock = RWLock::new();
@@ -115,28 +116,28 @@ impl RWLock {
         }
     }
 
-    /// Try to acquire shared access to the lock.
-    /// If lock is acquired, return input value wrapped around a
-    /// [`RWLockGuard`](struct.RWLockGuard.html) such that when this
-    /// value goes out of scope, the lock is released.
-    /// If lock is not acquired, return the input value wrapped into
-    /// an error.
-    /// See [`try_lock()`](struct.RWLock.html#method.try_lock) for more
-    /// details.
-    pub fn try_lock_for<T>(
-        &self,
-        t: T,
-    ) -> Result<RWLockGuard<T>, TryLockError<T>> {
-        match self.try_lock() {
-            Ok(_) => Ok(RWLockGuard::new(self, t)),
-            Err(TryLockError::WouldBlock(_)) => {
-                Err(TryLockError::WouldBlock(t))
-            }
-            Err(TryLockError::Poisoned(_)) => {
-                Err(TryLockError::Poisoned(t))
-            }
-        }
-    }
+    // /// Try to acquire shared access to the lock.
+    // /// If lock is acquired, return input value wrapped around a
+    // /// [`RWLockGuard`](struct.RWLockGuard.html) such that when this
+    // /// value goes out of scope, the lock is released.
+    // /// If lock is not acquired, return the input value wrapped into
+    // /// an error.
+    // /// See [`try_lock()`](struct.RWLock.html#method.try_lock) for more
+    // /// details.
+    // pub fn try_lock_for<T>(
+    //     &self,
+    //     t: T,
+    // ) -> Result<RWLockGuard<T>, TryLockError<T>> {
+    //     match self.try_lock() {
+    //         Ok(_) => Ok(RWLockGuard::new(self, t)),
+    //         Err(TryLockError::WouldBlock(_)) => {
+    //             Err(TryLockError::WouldBlock(t))
+    //         }
+    //         Err(TryLockError::Poisoned(_)) => {
+    //             Err(TryLockError::Poisoned(t))
+    //         }
+    //     }
+    // }
 
     /// Try to acquire exclusive access to the lock.
     /// `try_lock_mut()` will succeed only if the lock is unlocked.
@@ -165,28 +166,28 @@ impl RWLock {
         }
     }
 
-    /// Try to acquire exlusive access to the lock.
-    /// If lock is acquired, return input value wrapped around a
-    /// [`RWLockGuard`](struct.RWLockGuard.html) such that when this
-    /// value goes out of scope, the lock is released.
-    /// If lock is not acquired, return the input value wrapped into
-    /// an error.
-    /// See [`try_lock_mut()`](struct.RWLock.html#method.try_lock) for more
-    /// details.
-    pub fn try_lock_mut_for<T>(
-        &self,
-        t: T,
-    ) -> Result<RWLockGuard<T>, TryLockError<T>> {
-        match self.try_lock_mut() {
-            Ok(_) => Ok(RWLockGuard::new(self, t)),
-            Err(TryLockError::Poisoned(_)) => {
-                Err(TryLockError::Poisoned(t))
-            }
-            Err(TryLockError::WouldBlock(_)) => {
-                Err(TryLockError::WouldBlock(t))
-            }
-        }
-    }
+    // /// Try to acquire exlusive access to the lock.
+    // /// If lock is acquired, return input value wrapped around a
+    // /// [`RWLockGuard`](struct.RWLockGuard.html) such that when this
+    // /// value goes out of scope, the lock is released.
+    // /// If lock is not acquired, return the input value wrapped into
+    // /// an error.
+    // /// See [`try_lock_mut()`](struct.RWLock.html#method.try_lock) for more
+    // /// details.
+    // pub fn try_lock_mut_for<T>(
+    //     &self,
+    //     t: T,
+    // ) -> Result<RWLockGuard<T>, TryLockError<T>> {
+    //     match self.try_lock_mut() {
+    //         Ok(_) => Ok(RWLockGuard::new(self, t)),
+    //         Err(TryLockError::Poisoned(_)) => {
+    //             Err(TryLockError::Poisoned(t))
+    //         }
+    //         Err(TryLockError::WouldBlock(_)) => {
+    //             Err(TryLockError::WouldBlock(t))
+    //         }
+    //     }
+    // }
 
     /// Hang until shared access to the lock is granted.
     /// Call [`unlock()`](struct.RWLock.html#method.unlock) to
@@ -302,6 +303,10 @@ impl RWLock {
         }
     }
 }
+
+//----------------------------------------------------------------------------//
+// Lock guard
+//----------------------------------------------------------------------------//
 
 /// A RWLock guard that unlock a lock when going out of scope.
 /// Element inside a RWLockGuard can be accessed with Deref and DerefMut methods.

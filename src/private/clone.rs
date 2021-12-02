@@ -1,6 +1,7 @@
-use crate::container::Container;
-use crate::lock::RWLock;
-use crate::marker::Concurrent;
+use crate::concurrent::Concurrent;
+use crate::policy::Ordered;
+use crate::private::lock::RWLock;
+use crate::{BuildingBlock, Get};
 use std::boxed::Box;
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
@@ -60,13 +61,15 @@ impl<V> InnerClone<V> {
 /// on call to `clone()`. CloneCell keeps track of the count of clones
 /// inside a [RWLock](../lock/struct.RWLock.html) and destroyes its content
 /// when all the clones have gone out of scope.
-/// CloneCell implements the [Containers](../container/trait.Container.html)
-/// when it wraps a container. This allows for instance to clone a concurrent
+/// CloneCell implements the
+/// [BuildingBlocks](../../trait.BuildingBlock.html) when it wraps a
+/// container. This allows for instance to clone a concurrent
 /// container and perform concurrent mutable access to it.
-/// Content inside a CloneCell struct can be accessed via `Deref` and `DerefMut`
-/// traits.
+/// Content inside a CloneCell struct can be accessed via `Deref`
+/// and `DerefMut` traits.
 ///
-/// # Example
+/// ## Example
+///
 /// ```ignore
 /// use cache::utils::clone::CloneCell;
 ///
@@ -131,14 +134,14 @@ unsafe impl<V: Send> Send for CloneCell<V> {}
 unsafe impl<V: Sync> Sync for CloneCell<V> {}
 
 //-------------------------------------------------------------------------
-//                         Container implementation
+//                         BuildingBlock implementation
 //-------------------------------------------------------------------------
 
-impl<'a, K, V, C> Container<'a, K, V> for CloneCell<C>
+impl<'a, K, V, C> BuildingBlock<'a, K, V> for CloneCell<C>
 where
     K: 'a,
     V: 'a,
-    C: Container<'a, K, V>,
+    C: BuildingBlock<'a, K, V>,
 {
     fn capacity(&self) -> usize {
         self.deref().capacity()
@@ -152,10 +155,7 @@ where
         self.deref().contains(key)
     }
 
-    fn take<'b>(
-        &'b mut self,
-        key: &'b K,
-    ) -> Box<dyn Iterator<Item = (K, V)> + 'b> {
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
         self.deref_mut().take(key)
     }
 
@@ -178,13 +178,37 @@ where
     V: 'a,
     C: Concurrent<'a, K, V>,
 {
+    fn clone(&self) -> Self {
+        Clone::clone(&self)
+    }
+}
+
+impl<V: Ord, C: Ordered<V>> Ordered<V> for CloneCell<C> {}
+
+//------------------------------------------------------------------------//
+// Get trait implementation
+//------------------------------------------------------------------------//
+
+impl<K, V, C, U, W> Get<K, V, U, W> for CloneCell<C>
+where
+    U: Deref<Target = V>,
+    W: Deref<Target = V> + DerefMut,
+    C: Get<K, V, U, W>,
+{
+    unsafe fn get(&self, key: &K) -> Option<U> {
+        self.deref().get(key)
+    }
+
+    unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
+        self.deref_mut().get_mut(key)
+    }
 }
 
 //-------------------------------------------------------------------------
 // Tests
 //-------------------------------------------------------------------------
 
-#[cfg(tests)]
+#[cfg(test)]
 mod tests {
     use super::CloneCell;
     use std::thread;
