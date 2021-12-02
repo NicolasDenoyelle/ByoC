@@ -1,6 +1,5 @@
-use crate::policy::Ordered;
 use crate::private::ptr::OrdPtr;
-use crate::BuildingBlock;
+use crate::{BuildingBlock, Ordered};
 use std::collections::{BTreeMap, BTreeSet};
 
 //------------------------------------------------------------------------//

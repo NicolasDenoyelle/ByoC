@@ -1,8 +1,6 @@
-use crate::concurrent::Concurrent;
-use crate::policy::Ordered;
 use crate::private::clone::CloneCell;
 use crate::private::lock::{LockError, RWLock};
-use crate::{BuildingBlock, Get};
+use crate::{BuildingBlock, Concurrent, Get, Ordered};
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
 
@@ -10,19 +8,20 @@ use std::ops::{Deref, DerefMut};
 // Sequential wrapper implementation                                      //
 //------------------------------------------------------------------------//
 
-/// Concurrent [`BuildingBlock`](../trait.BuildingBlock.html) wrapper with a lock.
+/// Concurrent [`BuildingBlock`](../trait.BuildingBlock.html) wrapper with
+/// a lock.
+///
 /// Makes a container thread safe by sequentializing its access.
 ///
 /// ## Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::concurrent::Concurrent;
-/// use cache::container::Vector;
+/// use cache::{BuildingBlock, Concurrent};
+/// use cache::container::Array;
 /// use cache::concurrent::Sequential;
 ///
-/// // Build a concurrent Vector cache.
-/// let mut c1 = Sequential::new(Vector::new(1));
+/// // Build a concurrent Array cache.
+/// let mut c1 = Sequential::new(Array::new(1));
 /// let mut c2 = Concurrent::clone(&c1);
 ///
 /// assert!(c1.push(vec![(0u16, 4)]).pop().is_none());
@@ -45,7 +44,7 @@ impl<C> Sequential<C> {
         }
     }
 
-    /// Get mutable access to wrapped container.
+    /// Get mutable access to a wrapped container.
     /// Lock is not acquired.
     /// Therefore, the use of returned container
     /// is not thread safe. Management of thread safety
@@ -125,12 +124,7 @@ unsafe impl<C> Send for Sequential<C> {}
 
 unsafe impl<C> Sync for Sequential<C> {}
 
-impl<'a, K, V, C> Concurrent<'a, K, V> for Sequential<C>
-where
-    K: 'a,
-    V: 'a,
-    C: BuildingBlock<'a, K, V>,
-{
+impl<C> Concurrent for Sequential<C> {
     fn clone(&self) -> Self {
         Sequential {
             container: self.container.clone(),
@@ -143,27 +137,40 @@ where
 // Get Trait Implementation                                               //
 //------------------------------------------------------------------------//
 
-pub struct LockedItem<V> {
+/// Element from a building block wrapped in a
+/// [`Sequential`](struct.Sequential.html) building block.
+///
+/// This structure holds both the element and a lock on the container
+/// where the element comes from. The lock is either shared or exclusive
+/// depending on whether the element is read-only or read-write.
+///
+/// ## Safety:
+/// While this structure will prevent unsafe access between the
+/// values and the building block containing them, if an unsafe access to
+/// the container is attempted, while values wrapped in this struct are
+/// alive, the caller will be stalled waiting to acquire the lock, and
+/// potentially making a deadlock.
+pub struct SequentialCell<V> {
     value: V,
     lock: RWLock,
 }
 
-impl<V> LockedItem<V> {
+impl<V> SequentialCell<V> {
     pub fn new(value: V, lock: &RWLock) -> Self {
-        LockedItem {
+        SequentialCell {
             value: value,
             lock: lock.clone(),
         }
     }
 }
 
-impl<V> Drop for LockedItem<V> {
+impl<V> Drop for SequentialCell<V> {
     fn drop(&mut self) {
         self.lock.unlock()
     }
 }
 
-impl<V, W> Deref for LockedItem<V>
+impl<V, W> Deref for SequentialCell<V>
 where
     V: Deref<Target = W>,
 {
@@ -173,7 +180,7 @@ where
     }
 }
 
-impl<V, W> DerefMut for LockedItem<V>
+impl<V, W> DerefMut for SequentialCell<V>
 where
     V: DerefMut<Target = W>,
 {
@@ -182,34 +189,34 @@ where
     }
 }
 
-impl<K, V, U, W, C> Get<K, V, LockedItem<U>, LockedItem<W>>
+impl<K, V, U, W, C> Get<K, V, SequentialCell<U>, SequentialCell<W>>
     for Sequential<C>
 where
     U: Deref<Target = V>,
     W: DerefMut<Target = V>,
     C: Get<K, V, U, W>,
 {
-    unsafe fn get(&self, key: &K) -> Option<LockedItem<U>> {
+    unsafe fn get(&self, key: &K) -> Option<SequentialCell<U>> {
         match self.lock.lock() {
             Ok(_) => match (*self.container).get(key) {
                 None => {
                     self.lock.unlock();
                     None
                 }
-                Some(w) => Some(LockedItem::new(w, &self.lock)),
+                Some(w) => Some(SequentialCell::new(w, &self.lock)),
             },
             Err(_) => None,
         }
     }
 
-    unsafe fn get_mut(&mut self, key: &K) -> Option<LockedItem<W>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<SequentialCell<W>> {
         match self.lock.lock_mut() {
             Ok(_) => match (*self.container).get_mut(key) {
                 None => {
                     self.lock.unlock();
                     None
                 }
-                Some(w) => Some(LockedItem::new(w, &self.lock)),
+                Some(w) => Some(SequentialCell::new(w, &self.lock)),
             },
             Err(_) => None,
         }
@@ -224,24 +231,24 @@ where
 mod tests {
     use super::Sequential;
     use crate::concurrent::tests::test_concurrent;
-    use crate::container::Vector;
+    use crate::container::Array;
     use crate::tests::{test_building_block, test_get};
 
     #[test]
     fn building_block() {
-        test_building_block(Sequential::new(Vector::new(0)));
-        test_building_block(Sequential::new(Vector::new(100)));
+        test_building_block(Sequential::new(Array::new(0)));
+        test_building_block(Sequential::new(Array::new(100)));
     }
 
     #[test]
     fn concurrent() {
-        test_concurrent(Sequential::new(Vector::new(0)), 64);
-        test_concurrent(Sequential::new(Vector::new(100)), 64);
+        test_concurrent(Sequential::new(Array::new(0)), 64);
+        test_concurrent(Sequential::new(Array::new(100)), 64);
     }
 
     #[test]
     fn get() {
-        test_get(Sequential::new(Vector::new(0)));
-        test_get(Sequential::new(Vector::new(100)));
+        test_get(Sequential::new(Array::new(0)));
+        test_get(Sequential::new(Array::new(100)));
     }
 }

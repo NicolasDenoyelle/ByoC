@@ -28,10 +28,10 @@ pub struct FIFOCell<V> {
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::container::Vector;
+/// use cache::container::Array;
 /// use cache::policy::{Policy, FIFO};
 ///
-/// let mut c = Policy::new(Vector::new(3), FIFO::new());
+/// let mut c = Policy::new(Array::new(3), FIFO::new());
 /// c.push(vec![("item1",()), ("item2",()), ("item0",())]);
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item2");

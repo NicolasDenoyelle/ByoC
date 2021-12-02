@@ -1,6 +1,5 @@
-use crate::concurrent::Concurrent;
-use crate::policy::{Ordered, Reference, ReferenceFactory};
-use crate::{BuildingBlock, Get};
+use crate::policy::{Reference, ReferenceFactory};
+use crate::{BuildingBlock, Concurrent, Get, Ordered};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
@@ -20,10 +19,10 @@ use std::ops::{Deref, DerefMut};
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::container::Vector;
+/// use cache::container::Array;
 /// use cache::policy::{Policy, FIFO};
 ///
-/// let mut c = Policy::new(Vector::new(3), FIFO::new());
+/// let mut c = Policy::new(Array::new(3), FIFO::new());
 /// c.push(vec![("item1",()), ("item2",()), ("item0",())]);
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item2");
@@ -144,13 +143,12 @@ where
     }
 }
 
-impl<'a, K, V, C, R, F> Concurrent<'a, K, V> for Policy<C, V, R, F>
+impl<'a, V, C, R, F> Concurrent for Policy<C, V, R, F>
 where
-    K: 'a,
     V: 'a,
     R: 'a + Reference<V>,
     F: ReferenceFactory<V, R> + Clone + Send + Sync,
-    C: BuildingBlock<'a, K, R> + Concurrent<'a, K, R>,
+    C: Concurrent,
 {
     fn clone(&self) -> Self {
         Policy {
@@ -165,7 +163,15 @@ where
 // Get trait implementation
 //------------------------------------------------------------------------//
 
-struct PolicyCell<V, R, U>
+/// A Cell wrapping elements borrowed from inside a `Policy` building block.
+///
+/// It can be dereferenced through the wrapped building block element cell
+/// to obtain original value.
+///
+/// ## Safety:
+/// The safety of using this cell depends on the safety of using the wrapped
+/// element cell.
+pub struct PolicyCell<V, R, U>
 where
     R: Reference<V>,
     U: Deref<Target = R>,
@@ -233,7 +239,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::Policy;
-    use crate::container::Vector;
+    use crate::container::Array;
     use crate::policy::default::Default;
     use crate::policy::tests::test_ordered;
     use crate::tests::{test_building_block, test_get};
@@ -241,21 +247,21 @@ mod tests {
     #[test]
     fn building_block() {
         for i in vec![0, 10, 100] {
-            test_building_block(Policy::new(Vector::new(i), Default {}));
+            test_building_block(Policy::new(Array::new(i), Default {}));
         }
     }
 
     #[test]
     fn get() {
         for i in vec![0, 10, 100] {
-            test_get(Policy::new(Vector::new(i), Default {}));
+            test_get(Policy::new(Array::new(i), Default {}));
         }
     }
 
     #[test]
     fn ordered() {
         for i in vec![0, 10, 100] {
-            test_ordered(Policy::new(Vector::new(i), Default {}));
+            test_ordered(Policy::new(Array::new(i), Default {}));
         }
     }
 }

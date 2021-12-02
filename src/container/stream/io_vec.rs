@@ -83,7 +83,7 @@ impl IOChunk {
     }
 }
 
-/// Vector of fixed size chunks stored into a stream of bytes (e.g a file).
+/// Array of fixed size chunks stored into a stream of bytes (e.g a file).
 /// The vector primitives will
 /// [serialize](../../../bincode/fn.serialize.html)/[deserialize](../../../bincode/fn.deserialize_from.html) items into/from fixed size chunks.
 /// If items cannot fit chunks, methods will fail.
@@ -650,7 +650,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::IOVec;
-    use crate::container::stream::VecStream;
+    use crate::container::stream::vec_stream::VecStream;
 
     #[test]
     fn test_iovec() {

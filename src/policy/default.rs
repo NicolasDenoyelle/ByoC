@@ -10,10 +10,10 @@ use std::cmp::Ord;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::Vector;
+/// use cache::container::Array;
 /// use cache::policy::{Policy, Default};
 ///
-/// let c = Policy::new(Vector::new(3), Default::new());
+/// let c = Policy::new(Array::new(3), Default::new());
 /// c.push(vec!["item1", "item2", "item0"]);
 /// assert_eq!(c.pop(1).pop().unwrap(), "item2");
 /// assert_eq!(c.pop(1).pop().unwrap(), "item1");

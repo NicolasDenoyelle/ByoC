@@ -1,44 +1,43 @@
-use crate::policy::Ordered;
-use crate::{BuildingBlock, Get};
+use crate::{BuildingBlock, Get, Ordered};
 use std::cmp::Eq;
 use std::ops::{Deref, DerefMut};
 use std::vec::Vec;
 
 //-------------------------------------------------------------------------
-//  Vector struct
+//  Array struct
 //-------------------------------------------------------------------------
 
 /// [`BuildingBlock`](../trait.BuildingBlock.html) implementation in a
-/// vector.
+/// array.
 ///
-/// Vector holds values in a `Vec<(key, value)>`.   
+/// Array holds values in a `Vec<(key, value)>`.   
 /// See
-/// [`BuildingBlock methods implementation`](struct.Vector.html#impl-BuildingBlock%3C%27a%2C%20K%2C%20V%3E)
+/// [`BuildingBlock methods implementation`](struct.Array.html#impl-BuildingBlock%3C%27a%2C%20K%2C%20V%3E)
 /// for behavior on `push()` and `pop()`.
 ///
 /// ## Safety
 ///
 /// See
-/// [`Get methods implementation`](struct.Vector.html#impl-Get%3CK%2C%20V%2C%20VectorCell%3CV%3E%2C%20VectorMutCell%3CV%3E%3E).
+/// [`Get methods implementation`](struct.Array.html#impl-Get%3CK%2C%20V%2C%20ArrayCell%3CV%3E%2C%20ArrayMutCell%3CV%3E%3E).
 ///
 /// ## Examples
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::container::Vector;
+/// use cache::container::Array;
 ///
-/// // Vector with 3 elements capacity.
-/// let mut c = Vector::new(3);
+/// // Array with 3 elements capacity.
+/// let mut c = Array::new(3);
 ///
-/// // BuildingBlock as room for 3 elements and returns an empty vector.
+/// // BuildingBlock as room for 3 elements and returns an empty array.
 /// // No element is rejected.
 /// assert!(c.push(vec![("first", 4), ("second", 2), ("third", 3)]).pop().is_none());
 ///
-/// // Vector is full and pops extra inserted value (all values here).
+/// // Array is full and pops extra inserted value (all values here).
 /// let (key, _) = c.push(vec![("fourth", 12)]).pop().unwrap();
 /// assert_eq!(key, "fourth");
 ///
-/// // Vector pops elements in order of the highest values.
+/// // Array pops elements in order of the highest values.
 /// let (key, value) = c.pop(1).pop().unwrap();
 /// assert_eq!(key, "first");
 /// let (key, value) = c.pop(1).pop().unwrap();
@@ -46,14 +45,14 @@ use std::vec::Vec;
 /// let (key, value) = c.pop(1).pop().unwrap();
 /// assert_eq!(key, "second");
 /// ```
-pub struct Vector<T> {
+pub struct Array<T> {
     capacity: usize,
     values: Vec<T>,
 }
 
-impl<T> Vector<T> {
+impl<T> Array<T> {
     pub fn new(n: usize) -> Self {
-        Vector {
+        Array {
             capacity: n,
             values: Vec::with_capacity(n),
         }
@@ -64,7 +63,7 @@ impl<T> Vector<T> {
 // BuildingBlock implementation
 //------------------------------------------------------------------------//
 
-impl<'a, K, V> BuildingBlock<'a, K, V> for Vector<(K, V)>
+impl<'a, K, V> BuildingBlock<'a, K, V> for Array<(K, V)>
 where
     K: 'a + Eq,
     V: 'a + Ord,
@@ -87,12 +86,12 @@ where
 
     /// Remove up to `n` values from the container.
     /// If less than `n` values are stored in the container,
-    /// the returned vector contains all the container values and
+    /// the returned array contains all the container values and
     /// the container is left empty.
     /// This building block implements the trait
     /// [`Ordered`](../policy/trait.Ordered.html), which means that
     /// the highest values are popped out. This is implemented by
-    /// sorting the vector on values and spitting it where appropriate.
+    /// sorting the array on values and spitting it where appropriate.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         self.values.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
         let i = self.values.len();
@@ -130,19 +129,19 @@ where
 }
 
 // Make this container usable with a policy.
-impl<K, V: Ord> Ordered<V> for Vector<(K, V)> {}
+impl<K, V: Ord> Ordered<V> for Array<(K, V)> {}
 
 //------------------------------------------------------------------------//
 // Get trait implementation
 //------------------------------------------------------------------------//
 
 /// Read-only cell representing a reference to a value inside a
-/// [`Vector`](struct.Vector.html) container.
-pub struct VectorCell<T> {
+/// [`Array`](struct.Array.html) container.
+pub struct ArrayCell<T> {
     t: *const T,
 }
 
-impl<T> Deref for VectorCell<T> {
+impl<T> Deref for ArrayCell<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         unsafe { self.t.as_ref().unwrap() }
@@ -150,50 +149,48 @@ impl<T> Deref for VectorCell<T> {
 }
 
 /// Read-write cell holding a reference to a value inside a
-/// [`Vector`](struct.Vector.html) container.
-pub struct VectorMutCell<T> {
+/// [`Array`](struct.Array.html) container.
+pub struct ArrayMutCell<T> {
     t: *mut T,
 }
 
-impl<T> Deref for VectorMutCell<T> {
+impl<T> Deref for ArrayMutCell<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
         unsafe { self.t.as_ref().unwrap() }
     }
 }
 
-impl<T> DerefMut for VectorMutCell<T> {
+impl<T> DerefMut for ArrayMutCell<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         unsafe { self.t.as_mut().unwrap() }
     }
 }
 
-impl<K: Eq, V> Get<K, V, VectorCell<V>, VectorMutCell<V>>
-    for Vector<(K, V)>
-{
-    /// Get value inside a `Vector`. The value is wrapped inside a
-    /// [`VectorCell`](struct.VectorCell.html). The `VectorCell` can
+impl<K: Eq, V> Get<K, V, ArrayCell<V>, ArrayMutCell<V>> for Array<(K, V)> {
+    /// Get value inside a `Array`. The value is wrapped inside a
+    /// [`ArrayCell`](struct.ArrayCell.html). The `ArrayCell` can
     /// further be dereferenced into a value reference.
     ///
     /// ## Safety:
     ///
-    /// Using the return value inside the `VectorCell` is unsafe and can
+    /// Using the return value inside the `ArrayCell` is unsafe and can
     /// lead to undefined behavior. The user of this method must ensure that
-    /// the Vector container is not modified until the `VectorCell` is
-    /// droped. Otherwise, the content of the `VectorCell` might be
+    /// the Array container is not modified until the `ArrayCell` is
+    /// droped. Otherwise, the content of the `ArrayCell` might be
     /// corrupted.
     ///
     /// ## Example:
     ///
     /// ```
     /// use cache::{BuildingBlock, Get};
-    /// use cache::container::Vector;
+    /// use cache::container::Array;
     ///
-    /// // Make a vector and populate it.
-    /// let mut v = Vector::new(1);
+    /// // Make a array and populate it.
+    /// let mut v = Array::new(1);
     /// v.push(vec![(1,1)]);
     ///
-    /// // Get the value inside the vector.
+    /// // Get the value inside the array.
     /// let val = unsafe { v.get(&1).unwrap() };
     ///
     /// // Replace with another value.
@@ -203,39 +200,39 @@ impl<K: Eq, V> Get<K, V, VectorCell<V>, VectorMutCell<V>>
     /// // Val is corrupted and should not be accessible.
     /// assert!(*val != 1);
     /// ```
-    unsafe fn get(&self, key: &K) -> Option<VectorCell<V>> {
+    unsafe fn get(&self, key: &K) -> Option<ArrayCell<V>> {
         self.values.iter().find_map(move |(k, v)| {
             if k == key {
-                Some(VectorCell { t: v })
+                Some(ArrayCell { t: v })
             } else {
                 None
             }
         })
     }
 
-    /// Get value inside a `Vector`. The value is wrapped inside a
-    /// [`VectorMutCell`](struct.VectorMutCell.html). The `VectorMutCell`
+    /// Get value inside a `Array`. The value is wrapped inside a
+    /// [`ArrayMutCell`](struct.ArrayMutCell.html). The `ArrayMutCell`
     /// can further be dereferenced into a value reference.
     ///
     /// ## Safety:
     ///
-    /// Using the return value inside the `VectorMutCell` is unsafe and can
+    /// Using the return value inside the `ArrayMutCell` is unsafe and can
     /// lead to undefined behavior. The user of this method must ensure that
-    /// the Vector container is not modified until the `VectorMutCell` is
-    /// droped. Otherwise, the content of the `VectorMutCell` might be
+    /// the Array container is not modified until the `ArrayMutCell` is
+    /// droped. Otherwise, the content of the `ArrayMutCell` might be
     /// corrupted.
     ///
     /// ## Example:
     ///
     /// ```
     /// use cache::{BuildingBlock, Get};
-    /// use cache::container::Vector;
+    /// use cache::container::Array;
     ///
-    /// // Make a vector and populate it.
-    /// let mut v = Vector::new(1);
+    /// // Make a array and populate it.
+    /// let mut v = Array::new(1);
     /// v.push(vec![(1,1)]);
     ///
-    /// // Get the value inside the vector.
+    /// // Get the value inside the array.
     /// let mut val = unsafe { v.get_mut(&1).unwrap() };
     ///
     /// // Replace with another value.
@@ -245,10 +242,10 @@ impl<K: Eq, V> Get<K, V, VectorCell<V>, VectorMutCell<V>>
     /// // Val is corrupted and should not be accessible.
     /// assert!(*val != 1);
     /// ```
-    unsafe fn get_mut(&mut self, key: &K) -> Option<VectorMutCell<V>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<ArrayMutCell<V>> {
         self.values.iter_mut().find_map(move |(k, v)| {
             if k == key {
-                Some(VectorMutCell { t: v })
+                Some(ArrayMutCell { t: v })
             } else {
                 None
             }
@@ -262,28 +259,28 @@ impl<K: Eq, V> Get<K, V, VectorCell<V>, VectorMutCell<V>>
 
 #[cfg(test)]
 mod tests {
-    use super::Vector;
+    use super::Array;
     use crate::policy::tests::test_ordered;
     use crate::tests::{test_building_block, test_get};
 
     #[test]
     fn building_block() {
-        test_building_block(Vector::new(0));
-        test_building_block(Vector::new(10));
-        test_building_block(Vector::new(100));
+        test_building_block(Array::new(0));
+        test_building_block(Array::new(10));
+        test_building_block(Array::new(100));
     }
 
     #[test]
     fn ordered() {
-        test_ordered(Vector::new(0));
-        test_ordered(Vector::new(10));
-        test_ordered(Vector::new(100));
+        test_ordered(Array::new(0));
+        test_ordered(Array::new(10));
+        test_ordered(Array::new(100));
     }
 
     #[test]
     fn get() {
-        test_get(Vector::new(0));
-        test_get(Vector::new(10));
-        test_get(Vector::new(100));
+        test_get(Array::new(0));
+        test_get(Array::new(10));
+        test_get(Array::new(100));
     }
 }

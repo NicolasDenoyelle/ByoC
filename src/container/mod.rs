@@ -1,10 +1,8 @@
-pub mod vector;
-pub use crate::container::vector::Vector;
 mod btree;
 pub use crate::container::btree::BTree;
 #[cfg(feature = "stream")]
 pub mod stream;
-#[cfg(feature = "tempfile")]
-pub use crate::container::stream::TempFileStreamFactory;
 #[cfg(feature = "stream")]
-pub use crate::container::stream::{ByteStream, VecStreamFactory};
+pub use crate::container::stream::ByteStream;
+pub mod array;
+pub use crate::container::array::Array;

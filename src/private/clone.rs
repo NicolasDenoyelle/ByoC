@@ -1,7 +1,5 @@
-use crate::concurrent::Concurrent;
-use crate::policy::Ordered;
 use crate::private::lock::RWLock;
-use crate::{BuildingBlock, Get};
+use crate::{BuildingBlock, Concurrent, Get, Ordered};
 use std::boxed::Box;
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
@@ -172,11 +170,9 @@ where
     }
 }
 
-impl<'a, K, V, C> Concurrent<'a, K, V> for CloneCell<C>
+impl<C> Concurrent for CloneCell<C>
 where
-    K: 'a,
-    V: 'a,
-    C: Concurrent<'a, K, V>,
+    C: Concurrent,
 {
     fn clone(&self) -> Self {
         Clone::clone(&self)
