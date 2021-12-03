@@ -158,6 +158,9 @@ pub mod profiler;
 /// alltogether to avoid this problem.
 pub mod policy;
 
+mod builder;
+pub use crate::builder::Builder;
+
 /// Library boilerplate code.
 /// This code is not available to user but used throughout the
 /// library.

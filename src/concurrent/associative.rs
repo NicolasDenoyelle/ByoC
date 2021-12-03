@@ -36,7 +36,8 @@ use std::ops::{Deref, DerefMut};
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// // Build a Array cache of 2 sets. Each set hold one element.
-/// let mut c = Associative::new(2, 2, |n|{Array::new(n)}, DefaultHasher::new());
+/// let mut c = Associative::new(vec![Array::new(2), Array::new(2)],
+///                              DefaultHasher::new());
 ///
 /// // BuildingBlock as room for first and second element and returns None.
 /// assert!(c.push(vec![(0, 4)]).pop().is_none());
@@ -52,8 +53,6 @@ use std::ops::{Deref, DerefMut};
 /// }
 ///```
 pub struct Associative<C, H: Hasher + Clone> {
-    n_sets: usize,
-    set_size: usize,
     containers: CloneCell<Vec<Sequential<C>>>,
     hasher: H,
 }
@@ -61,37 +60,23 @@ pub struct Associative<C, H: Hasher + Clone> {
 impl<C, H: Hasher + Clone> Associative<C, H> {
     /// Construct a new associative container.
     ///
-    /// This function builds `n_sets` containers of capacity `set_size`
-    /// each using a closure provided by the user to build a container
-    /// given its desired capacity. Neither `n_sets` nor `set_size` can
-    /// be zero or else this function will panic.
-    pub fn new<F: Fn(usize) -> C>(
-        n_sets: usize,
-        set_size: usize,
-        new: F,
-        set_hasher: H,
-    ) -> Self {
-        if n_sets * set_size == 0 {
-            panic!("Associative container must contain at least one set with non zero capacity.");
+    /// This function builds an associative container using other
+    /// containers as sets.
+    pub fn new(sets: Vec<C>, key_hasher: H) -> Self {
+        Associative {
+            containers: CloneCell::new(
+                sets.into_iter().map(|c| Sequential::new(c)).collect(),
+            ),
+            hasher: key_hasher,
         }
-
-        let mut a = Associative {
-            n_sets: n_sets,
-            set_size: set_size,
-            containers: CloneCell::new(Vec::with_capacity(n_sets)),
-            hasher: set_hasher,
-        };
-        for _ in 0..n_sets {
-            a.containers.push(Sequential::new(new(set_size)));
-        }
-        a
     }
 
     fn set<K: Hash>(&self, key: K) -> usize {
+        let n_sets = self.containers.len();
         let mut hasher = self.hasher.clone();
         key.hash(&mut hasher);
         let i = hasher.finish();
-        usize::from((i % (self.n_sets as u64)) as u16)
+        usize::from((i % (n_sets as u64)) as u16)
     }
 }
 
@@ -103,7 +88,7 @@ where
     H: Hasher + Clone,
 {
     fn capacity(&self) -> usize {
-        return self.n_sets * self.set_size;
+        self.containers.iter().map(|c| c.capacity()).sum()
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
@@ -118,7 +103,7 @@ where
     }
 
     fn count(&self) -> usize {
-        (0..self.n_sets).map(|i| self.containers[i].count()).sum()
+        self.containers.iter().map(|c| c.count()).sum()
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
@@ -136,16 +121,16 @@ where
     /// method.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let mut victims = Vec::<(K, V)>::new();
-        if n == 0 || self.n_sets == 0 {
+        if n == 0 || self.capacity() == 0 {
             return victims;
         }
         victims.reserve(n);
 
+        let n_sets = self.containers.len();
         // Collect all buckets element count.
         // We acquire exclusive lock on buckets in the process.
-        let mut counts =
-            Vec::<(usize, usize)>::with_capacity(self.n_sets + 1);
-        for i in 0..self.n_sets {
+        let mut counts = Vec::<(usize, usize)>::with_capacity(n_sets + 1);
+        for i in 0..n_sets {
             let n = match self.containers[i].lock_mut() {
                 Ok(_) => unsafe { self.containers[i].deref_mut().count() },
                 Err(_) => 0usize,
@@ -238,9 +223,10 @@ where
     /// `Associative` bulding block is not at capacity.
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = elements.len();
+        let n_sets = self.containers.len();
         let mut set_elements: Vec<Vec<(K, V)>> =
-            Vec::with_capacity(self.n_sets);
-        for _ in 0..self.n_sets {
+            Vec::with_capacity(n_sets);
+        for _ in 0..n_sets {
             set_elements.push(Vec::with_capacity(n));
         }
         for e in elements.into_iter() {
@@ -262,8 +248,6 @@ unsafe impl<C, H: Hasher + Clone> Sync for Associative<C, H> {}
 impl<C, H: Hasher + Clone> Concurrent for Associative<C, H> {
     fn clone(&self) -> Self {
         Associative {
-            n_sets: self.n_sets,
-            set_size: self.set_size,
             containers: self.containers.clone(),
             hasher: self.hasher.clone(),
         }
@@ -308,34 +292,34 @@ mod tests {
 
     #[test]
     fn building_block() {
+        let mut containers = Vec::new();
+        for _ in 0..10 {
+            containers.push(Array::new(5));
+        }
         test_building_block(Associative::new(
-            5,
-            10,
-            |n| Array::new(n),
+            containers,
             DefaultHasher::new(),
         ));
     }
 
     #[test]
     fn concurrent() {
+        let mut containers = Vec::new();
+        for _ in 0..30 {
+            containers.push(Array::new(30));
+        }
         test_concurrent(
-            Associative::new(
-                30,
-                30,
-                |n| Array::new(n),
-                DefaultHasher::new(),
-            ),
+            Associative::new(containers, DefaultHasher::new()),
             64,
         );
     }
 
     #[test]
     fn get() {
-        test_get(Associative::new(
-            5,
-            10,
-            |n| Array::new(n),
-            DefaultHasher::new(),
-        ));
+        let mut containers = Vec::new();
+        for _ in 0..10 {
+            containers.push(Array::new(5));
+        }
+        test_get(Associative::new(containers, DefaultHasher::new()));
     }
 }
