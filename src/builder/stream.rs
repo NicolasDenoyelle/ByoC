@@ -1,7 +1,7 @@
 use crate::builder::{Builder, ForwardBuilder, PolicyBuilder};
-use crate::policy::{Reference, ReferenceFactory};
 use crate::container::stream::{Stream, StreamFactory};
 use crate::container::ByteStream;
+use crate::policy::{Reference, ReferenceFactory};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
@@ -16,7 +16,7 @@ where
     unused: PhantomData<(T, S)>,
 }
 
-impl<K, V, S, F> ByteStreamBuilder<(K,V), S, F>
+impl<K, V, S, F> ByteStreamBuilder<(K, V), S, F>
 where
     K: DeserializeOwned + Serialize,
     V: DeserializeOwned + Serialize,
@@ -26,8 +26,8 @@ where
     pub fn forward<R, RB: Builder<R>>(
         self,
     ) -> ForwardBuilder<
-        ByteStream<(K,V), S, F>,
-        ByteStreamBuilder<(K,V), S, F>,
+        ByteStream<(K, V), S, F>,
+        ByteStreamBuilder<(K, V), S, F>,
         R,
         RB,
     > {
@@ -38,11 +38,11 @@ where
         self,
         policy: RF,
     ) -> PolicyBuilder<
-        ByteStream<(K,V), S, F>,
+        ByteStream<(K, V), S, F>,
         V,
         R,
         RF,
-        ByteStreamBuilder<(K,V), S, F>,
+        ByteStreamBuilder<(K, V), S, F>,
     > {
         PolicyBuilder::new(self, policy)
     }

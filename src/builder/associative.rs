@@ -1,7 +1,7 @@
 use crate::builder::Builder;
 use crate::concurrent::Associative;
-use std::marker::PhantomData;
 use std::hash::Hasher;
+use std::marker::PhantomData;
 
 pub struct AssociativeBuilder<C, H, B>
 where

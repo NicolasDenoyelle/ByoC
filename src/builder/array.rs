@@ -1,30 +1,24 @@
+use crate::builder::{Builder, ForwardBuilder, PolicyBuilder};
 use crate::container::Array;
 use crate::policy::{Reference, ReferenceFactory};
-use crate::builder::{
-    Builder, ForwardBuilder, PolicyBuilder,
-};
 use std::marker::PhantomData;
-
 
 pub struct ArrayBuilder<T> {
     capacity: usize,
-		unused: PhantomData<T>,
+    unused: PhantomData<T>,
 }
 
-impl<K,V> ArrayBuilder<(K,V)> {
+impl<K, V> ArrayBuilder<(K, V)> {
     pub fn forward<R, RB: Builder<R>>(
         self,
-    ) -> ForwardBuilder<Array<(K,V)>, ArrayBuilder<(K,V)>, R, RB> {
+    ) -> ForwardBuilder<Array<(K, V)>, ArrayBuilder<(K, V)>, R, RB> {
         ForwardBuilder::new(self)
     }
 
-    pub fn with_policy<
-        R: Reference<V>,
-        F: ReferenceFactory<V, R>,
-    >(
+    pub fn with_policy<R: Reference<V>, F: ReferenceFactory<V, R>>(
         self,
         policy: F,
-    ) -> PolicyBuilder<Array<(K, V)>, V, R, F, ArrayBuilder<(K,V)>> {
+    ) -> PolicyBuilder<Array<(K, V)>, V, R, F, ArrayBuilder<(K, V)>> {
         PolicyBuilder::new(self, policy)
     }
 }
