@@ -1,7 +1,8 @@
-use crate::builder::{Builder, ForwardBuilder, PolicyBuilder};
+use crate::builder::traits::{
+    Associative, Builder, Forward, Policy, Sequential,
+};
 use crate::container::stream::{Stream, StreamFactory};
 use crate::container::ByteStream;
-use crate::policy::{Reference, ReferenceFactory};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
@@ -16,36 +17,70 @@ where
     unused: PhantomData<(T, S)>,
 }
 
-impl<K, V, S, F> ByteStreamBuilder<(K, V), S, F>
+impl<T, S, F> ByteStreamBuilder<T, S, F>
 where
-    K: DeserializeOwned + Serialize,
-    V: DeserializeOwned + Serialize,
+    T: DeserializeOwned + Serialize,
     S: Stream,
     F: StreamFactory<S> + Clone,
 {
-    pub fn forward<R, RB: Builder<R>>(
-        self,
-    ) -> ForwardBuilder<
-        ByteStream<(K, V), S, F>,
-        ByteStreamBuilder<(K, V), S, F>,
-        R,
-        RB,
-    > {
-        ForwardBuilder::new(self)
+    pub fn new(factory: F, capacity: usize) -> Self {
+        ByteStreamBuilder {
+            factory: factory,
+            capacity: capacity,
+            unused: PhantomData,
+        }
     }
+}
 
-    pub fn with_policy<R: Reference<V>, RF: ReferenceFactory<V, R>>(
-        self,
-        policy: RF,
-    ) -> PolicyBuilder<
-        ByteStream<(K, V), S, F>,
-        V,
-        R,
-        RF,
-        ByteStreamBuilder<(K, V), S, F>,
-    > {
-        PolicyBuilder::new(self, policy)
+impl<T, S, F> Clone for ByteStreamBuilder<T, S, F>
+where
+    T: DeserializeOwned + Serialize,
+    S: Stream,
+    F: StreamFactory<S> + Clone,
+{
+    fn clone(&self) -> Self {
+        ByteStreamBuilder {
+            factory: self.factory.clone(),
+            capacity: self.capacity,
+            unused: PhantomData,
+        }
     }
+}
+
+impl<T, S, F> Associative<ByteStream<T, S, F>>
+    for ByteStreamBuilder<T, S, F>
+where
+    T: DeserializeOwned + Serialize,
+    S: Stream,
+    F: StreamFactory<S> + Clone,
+{
+}
+
+impl<T, S, F> Sequential<ByteStream<T, S, F>>
+    for ByteStreamBuilder<T, S, F>
+where
+    T: DeserializeOwned + Serialize,
+    S: Stream,
+    F: StreamFactory<S> + Clone,
+{
+}
+
+impl<T, S, F, R, RB> Forward<ByteStream<T, S, F>, R, RB>
+    for ByteStreamBuilder<T, S, F>
+where
+    T: DeserializeOwned + Serialize,
+    S: Stream,
+    F: StreamFactory<S> + Clone,
+    RB: Builder<R>,
+{
+}
+
+impl<T, S, F> Policy<ByteStream<T, S, F>> for ByteStreamBuilder<T, S, F>
+where
+    T: DeserializeOwned + Serialize,
+    S: Stream,
+    F: StreamFactory<S> + Clone,
+{
 }
 
 impl<T, S, F> Builder<ByteStream<T, S, F>> for ByteStreamBuilder<T, S, F>

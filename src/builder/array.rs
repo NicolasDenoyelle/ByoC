@@ -1,27 +1,54 @@
-use crate::builder::{Builder, ForwardBuilder, PolicyBuilder};
+use crate::builder::traits::{
+    Associative, Builder, Forward, Policy, Sequential,
+};
 use crate::container::Array;
-use crate::policy::{Reference, ReferenceFactory};
 use std::marker::PhantomData;
 
+/// [Array](../../container/array/struct.Array.html)
+/// [builder](../traits/Builder.html).
+///
+/// This builder can be consumed later to spawn an
+/// [Array](../../container/array/struct.Array.html) container.
+///
+/// ## Examples
+/// ```
+/// use cache::BuildingBlock;
+/// use cache::builder::traits::*;
+/// use cache::builder::builders::ArrayBuilder;
+///
+/// let mut array = ArrayBuilder::new(2).build();
+/// array.push(vec![(1, 2)]);
+/// ```
 pub struct ArrayBuilder<T> {
     capacity: usize,
     unused: PhantomData<T>,
 }
 
-impl<K, V> ArrayBuilder<(K, V)> {
-    pub fn forward<R, RB: Builder<R>>(
-        self,
-    ) -> ForwardBuilder<Array<(K, V)>, ArrayBuilder<(K, V)>, R, RB> {
-        ForwardBuilder::new(self)
-    }
-
-    pub fn with_policy<R: Reference<V>, F: ReferenceFactory<V, R>>(
-        self,
-        policy: F,
-    ) -> PolicyBuilder<Array<(K, V)>, V, R, F, ArrayBuilder<(K, V)>> {
-        PolicyBuilder::new(self, policy)
+impl<T> ArrayBuilder<T> {
+    /// The [Array](../../container/array/struct.Array.html) container
+    /// spawned by this builder will have a maximum `capacity`.
+    pub fn new(capacity: usize) -> Self {
+        ArrayBuilder {
+            capacity: capacity,
+            unused: PhantomData,
+        }
     }
 }
+
+impl<T> Clone for ArrayBuilder<T> {
+    fn clone(&self) -> Self {
+        ArrayBuilder {
+            capacity: self.capacity,
+            unused: PhantomData,
+        }
+    }
+}
+
+impl<T> Policy<Array<T>> for ArrayBuilder<T> {}
+impl<T> Associative<Array<T>> for ArrayBuilder<T> {}
+impl<T> Sequential<Array<T>> for ArrayBuilder<T> {}
+
+impl<T, R, RB: Builder<R>> Forward<Array<T>, R, RB> for ArrayBuilder<T> {}
 
 impl<T> Builder<Array<T>> for ArrayBuilder<T> {
     fn build(self) -> Array<T> {
