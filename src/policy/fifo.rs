@@ -48,6 +48,14 @@ impl FIFO {
     }
 }
 
+impl Clone for FIFO {
+    fn clone(&self) -> Self {
+        FIFO {
+            counter: AtomicU64::new(self.counter.load(Relaxed)),
+        }
+    }
+}
+
 impl<V> ReferenceFactory<V, FIFOCell<V>> for FIFO {
     fn wrap(&mut self, v: V) -> FIFOCell<V> {
         FIFOCell {

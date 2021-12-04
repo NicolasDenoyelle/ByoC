@@ -38,6 +38,14 @@ pub struct LRU<T: Timestamp> {
     phantom: std::marker::PhantomData<T>,
 }
 
+impl<T: Timestamp> Clone for LRU<T> {
+    fn clone(&self) -> Self {
+        LRU {
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
 impl<T: Timestamp> LRU<T> {
     pub fn new() -> Self {
         LRU {

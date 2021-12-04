@@ -93,7 +93,7 @@ where
 }
 
 /// [Building Blocks](trait.BuildingBlock.html)
-/// [popping](../trait.BuildingBlock.html#tymethod.pop)
+/// [popping](./trait.BuildingBlock.html#tymethod.pop)
 /// values in descending order.
 pub trait Ordered<V: std::cmp::Ord> {}
 
@@ -157,6 +157,51 @@ pub mod profiler;
 /// stable order of values should not allow access to their inner values
 /// alltogether to avoid this problem.
 pub mod policy;
+
+/// Helpers to easily build complex building block chain.
+///
+/// Builder module provides the tool ease the process of building
+/// a complex building block chain.
+///
+/// Consider the following key/value store architecture:   
+/// The container is made of two layers, where the first layer
+/// uses an [Array](./container/struct.Array.html)
+/// [building block](trait.BuildingBlock.html) with a capacity
+/// of 10000 elements. The second layer uses a
+/// [BTree](./container/struct.BTree.html) building block with
+/// a capacity of 1000000 elements. The two containers are connected
+/// with a [Forward](./connector/struct.Forward.html) connector.
+/// We want the [most recently used](./policy/struct.LRU.html) elements to
+/// stay in the first layer, and we want to be able to access the container
+/// [concurrently](./trait.Concurrent.html).
+///
+/// Without the builder pattern, such container would be built as follow:
+/// ```
+/// use cache::BuildingBlock;
+/// use cache::container::{Array, BTree};
+/// use cache::connector::Forward;
+/// use cache::concurrent::Sequential;
+/// use cache::policy::{Policy, LRU, timestamp::Clock};
+///
+/// let array = Array::new(10000);
+/// let btree = BTree::new(1000000);
+/// let forward = Forward::new(array, btree);
+/// let policy = Policy::new(forward, LRU::<Clock>::new());
+/// let mut container = Sequential::new(policy);
+/// container.push(vec![(1,2)]);
+/// ```
+///
+/// With a builder pattern, the same code becomes:
+/// ```
+/// use cache::BuildingBlock;
+/// use cache::policy::{LRU, timestamp::Clock};
+/// use cache::builder::traits::*;
+/// use cache::builder::Begin;
+///
+/// let mut container = Begin::array(10000).forward(Begin::btree(1000000)).with_policy(LRU::<Clock>::new()).into_sequential().build();
+/// container.push(vec![(1,2)]);
+/// ```
+pub mod builder;
 
 /// Library boilerplate code.
 /// This code is not available to user but used throughout the
