@@ -73,34 +73,38 @@ impl<L, LB, R, RB> Sequential<Forward<L, R>>
 where
     LB: Builder<L>,
     RB: Builder<R>,
-{}
+{
+}
 
-impl<L, LB, R, RB> Profiler<Forward<L, R>>
-    for ForwardBuilder<L, LB, R, RB>
+impl<L, LB, R, RB> Profiler<Forward<L, R>> for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
     RB: Builder<R>,
-{}
+{
+}
 
 impl<L, LB, R, RB> Associative<Forward<L, R>>
     for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L> + Clone,
     RB: Builder<R> + Clone,
-{}
+{
+}
 
 impl<L, LB, R, RB> ForwardTo<Forward<L, R>, R, RB>
     for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
     RB: Builder<R>,
-{}
+{
+}
 
 impl<L, LB, R, RB> Policy<Forward<L, R>> for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
     RB: Builder<R>,
-{}
+{
+}
 
 impl<L, LB, R, RB> Builder<Forward<L, R>> for ForwardBuilder<L, LB, R, RB>
 where

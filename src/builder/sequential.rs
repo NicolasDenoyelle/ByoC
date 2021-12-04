@@ -1,4 +1,6 @@
-use crate::builder::traits::{Associative, Builder, Forward, Policy, Profiler};
+use crate::builder::traits::{
+    Associative, Builder, Forward, Policy, Profiler,
+};
 use crate::concurrent::Sequential;
 use std::marker::PhantomData;
 

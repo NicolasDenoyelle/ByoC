@@ -1,5 +1,5 @@
 use crate::builder::traits::{
-    Associative, Builder, Forward, Policy, Sequential, Profiler,
+    Associative, Builder, Forward, Policy, Profiler, Sequential,
 };
 use crate::container::Array;
 use std::marker::PhantomData;
