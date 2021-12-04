@@ -21,11 +21,11 @@ std::thread::panicking
 	and prefetching data.
 * DONE Parallel Tests
 	Build Concurrent Container trait tests.
-* TODO Test Stream building block
-* TODO Individual components unit tests.
-* TODO Builder pattern to build a cache.
-* TODO Reference wrapper to wrap values into references.
+* DONE Test Stream building block
+* DONE Individual components unit tests.
+* DONE Builder pattern to build a cache.
+* DONE Reference wrapper to wrap values into references.
 	The building block name is "policy" and goes in a different directory
 	than wrapper.
-* TODO Rename wrapper into transform
-
+* DEL Rename wrapper into transform
+* TODO Compresion building block.
