@@ -93,7 +93,7 @@ where
 }
 
 /// [Building Blocks](trait.BuildingBlock.html)
-/// [popping](../trait.BuildingBlock.html#tymethod.pop)
+/// [popping](./trait.BuildingBlock.html#tymethod.pop)
 /// values in descending order.
 pub trait Ordered<V: std::cmp::Ord> {}
 
