@@ -2,6 +2,27 @@ use crate::builder::traits::{Associative, Builder, Forward, Policy};
 use crate::concurrent::Sequential;
 use std::marker::PhantomData;
 
+/// [Sequential](../../concurrent/struct.Sequential.html)
+/// container [builder](../traits/trait.Builder.html).
+///
+/// This builder can be consumed later to wrap some containers into a
+/// [Sequential](../../concurrent/struct.Sequential.html)
+/// container.
+///
+/// ## Examples
+/// ```
+/// use cache::BuildingBlock;
+/// use cache::builder::traits::*;
+/// use cache::builder::builders::{ArrayBuilder, SequentialBuilder};
+///
+/// let array_builder = ArrayBuilder::new(2);
+/// let mut container = SequentialBuilder::new(array_builder).build();
+/// container.push(vec![(1, 2)]);
+///
+/// // You can also chain calls:
+/// let mut container = ArrayBuilder::new(2).into_sequential().build();
+/// container.push(vec![(1, 2)]);
+/// ```
 pub struct SequentialBuilder<C, B>
 where
     B: Builder<C>,

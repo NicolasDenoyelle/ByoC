@@ -10,6 +10,7 @@ mod stream;
 mod start;
 pub use start::Start;
 
+/// Build a specific container builder.
 pub mod builders {
     pub use crate::builder::array::ArrayBuilder;
     pub use crate::builder::associative::AssociativeBuilder;
@@ -21,6 +22,7 @@ pub mod builders {
     pub use crate::builder::stream::ByteStreamBuilder;
 }
 
+/// Traits enabling builders chaining capabilities.
 pub mod traits {
     use crate::builder::associative::AssociativeBuilder;
     use crate::builder::forward::ForwardBuilder;
@@ -33,10 +35,14 @@ pub mod traits {
     use serde::{de::DeserializeOwned, Serialize};
     use std::hash::Hasher;
 
+    /// [Building Block](../../trait.BuildingBlock.html) building
+    /// capability.
     pub trait Builder<C> {
         fn build(self) -> C;
     }
 
+    /// [`Policy`](../../policy/policy/struct.Policy.html)
+    /// wrapping capability.
     pub trait Policy<C>: Builder<C> {
         fn with_policy<V, R: Reference<V>, F: ReferenceFactory<V, R>>(
             self,
@@ -49,6 +55,9 @@ pub mod traits {
         }
     }
 
+    /// Connection between two building blocks with a
+    /// [`Forward`](../../connector/struct.Forward.html)
+    /// [building block](../../trait.BuildingBlock.html).
     pub trait Forward<C, R, RB: Builder<R>>: Builder<C> {
         fn forward(self) -> ForwardBuilder<C, Self, R, RB>
         where
@@ -58,6 +67,9 @@ pub mod traits {
         }
     }
 
+    /// Replicate  a builder into multiple builders to later build
+    /// an [`Associative`](../../concurrent/struct.Associative.html)
+    /// container.
     pub trait Associative<C>: Builder<C> + Clone {
         fn into_associative<H: Hasher + Clone>(
             self,

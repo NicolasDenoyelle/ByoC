@@ -21,6 +21,54 @@ use crate::policy::{Reference, ReferenceFactory};
 use std::hash::Hasher;
 use std::marker::PhantomData;
 
+/// [Forward](../../connector/struct.Forward.html)
+/// container [builder](../traits/trait.Builder.html).
+///
+/// This builder can be consumed later to connect two containers together
+/// with a [Forward](../../connector/struct.Forward.html) connector.
+/// It is built in two steps. The initial step is to wrap the left side
+/// container, and later the wrap of the right side container.
+///
+/// After the creation of this builder, the builder is in a half initialized
+/// state. Until it is fully initialized, i.e wrapping a right side
+/// container, method to add a policy or connect this container to another
+/// one, etc. that are not finishing the initialization will panic.
+///
+/// To finish initialization of this container, you have to call one of the /// methods:
+/// [`array()`](../traits/trait.Array.html#tymethod.array),
+/// [`btree()`](../traits/trait.BTree.html#tymethod.btree),
+/// [`byte_stream()`](../traits/trait.ByteStream.html#tymethod.byte_stream),
+/// while methods:
+/// [`with_policy()`](../traits/trait.Policy.html#tymethod.with_policy),
+/// [`forward()`](../traits/trait.Forward.html#tymethod.forward),
+/// [`into_associative()`](../traits/trait.Associative.html#tymethod.into_associative),
+/// [`into_sequential()`](../traits/trait.Sequential.html#tymethod.into_sequential) will panic.
+///
+/// Once the container is fully initialize, you can call the latter methods,
+/// while the former methods will panic.
+///
+/// ## Examples
+/// ```
+/// use cache::BuildingBlock;
+/// use cache::builder::traits::*;
+/// use cache::policy::FIFO;
+/// use cache::container::{Array, BTree as Tree};
+/// use cache::builder::builders::{ArrayBuilder, BTreeBuilder, ForwardBuilder};
+///
+/// let array_builder = ArrayBuilder::new(2);
+/// let forward_builder = ForwardBuilder::new(array_builder);
+/// let mut container = forward_builder.btree(2).build();
+/// container.push(vec![(1, 2)]);
+///
+/// // You can also chain calls.
+/// let mut container = (ArrayBuilder::new(2).forward().btree(2)).build();
+/// container.push(vec![(1, 2)]);
+///
+/// // You can for instance wrap the whole piece of connected components
+/// // in a policy container.
+/// let mut container = (ArrayBuilder::new(2).forward().btree(2)).with_policy(FIFO::new()).build();
+/// container.push(vec![(1, 2)]);
+/// ```
 pub struct ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
@@ -171,6 +219,7 @@ where
                 "Cannot connect forward until connected to another block."
             )
         }
+
         ForwardBuilder::new(self)
     }
 }

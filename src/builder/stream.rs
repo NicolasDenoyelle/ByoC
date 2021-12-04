@@ -6,6 +6,22 @@ use crate::container::ByteStream;
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
+/// [ByteStream](../../container/struct.ByteStream.html)
+/// [builder](../traits/trait.Builder.html).
+///
+/// This builder can be consumed later to spawn a
+/// [ByteStream](../../container/struct.ByteStream.html) container.
+///
+/// ## Examples
+/// ```
+/// use cache::BuildingBlock;
+/// use cache::builder::traits::*;
+/// use cache::container::stream::vec_stream::VecStreamFactory;
+/// use cache::builder::builders::ByteStreamBuilder;
+///
+/// let mut stream = ByteStreamBuilder::new(VecStreamFactory{}, 2).build();
+/// stream.push(vec![(1, 2)]);
+/// ```
 pub struct ByteStreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,

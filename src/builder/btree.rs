@@ -4,11 +4,11 @@ use crate::builder::traits::{
 use crate::container::BTree;
 use std::marker::PhantomData;
 
-/// [Btree](../../container/btree/struct.Btree.html)
-/// [builder](../traits/Builder.html).
+/// [BTree](../../container/struct.BTree.html)
+/// [builder](../traits/trait.Builder.html).
 ///
 /// This builder can be consumed later to spawn an
-/// [Btree](../../container/btree/struct.Btree.html) container.
+/// [BTree](../../container/struct.BTree.html) container.
 ///
 /// ## Examples
 /// ```

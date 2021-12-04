@@ -10,6 +10,28 @@ use crate::container::stream::{Stream, StreamFactory};
 #[cfg(feature = "stream")]
 use serde::{de::DeserializeOwned, Serialize};
 
+/// Empty struct used to start a container
+/// [builder](../traits/trait.Builder.html) chain.
+///
+/// This builder can be consumed to produce a the first component
+/// of a [building block](../../trait.BuildingBlock.html) chain.
+/// In order to start the chain, you can call one of the methods:
+/// [`array()`](../traits/trait.Array.html#tymethod.array),
+/// [`btree()`](../traits/trait.BTree.html#tymethod.btree),
+/// [`byte_stream()`](../traits/trait.ByteStream.html#tymethod.byte_stream),
+///
+/// ## Examples
+/// ```
+/// use cache::BuildingBlock;
+/// use cache::builder::traits::*;
+/// use cache::builder::Start;
+///
+/// // Build a multi-layer concurrent cache where the first layer stores
+/// // up to two elements in an `Array` type container and the second layer
+/// // stores up to four elements into a `BTree` type container.
+/// let mut container = Start{}.array(2).forward().btree(4).into_sequential().build();
+/// container.push(vec![(1, 2)]);
+/// ```
 pub struct Start {}
 
 impl Clone for Start {

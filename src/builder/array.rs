@@ -4,11 +4,11 @@ use crate::builder::traits::{
 use crate::container::Array;
 use std::marker::PhantomData;
 
-/// [Array](../../container/array/struct.Array.html)
-/// [builder](../traits/Builder.html).
+/// [Array](../../container/struct.Array.html)
+/// [builder](../traits/trait.Builder.html).
 ///
 /// This builder can be consumed later to spawn an
-/// [Array](../../container/array/struct.Array.html) container.
+/// [Array](../../container/struct.Array.html) container.
 ///
 /// ## Examples
 /// ```
