@@ -1,5 +1,5 @@
 use crate::builder::traits::{
-    Associative, Builder, Forward, Policy, Sequential,
+    Associative, Builder, Forward, Policy, Sequential, Profiler,
 };
 use crate::container::BTree;
 use std::marker::PhantomData;
@@ -48,6 +48,11 @@ impl<K: Ord + Copy, V: Ord> Associative<BTree<K, V>>
 }
 
 impl<K: Ord + Copy, V: Ord> Sequential<BTree<K, V>>
+    for BTreeBuilder<K, V>
+{
+}
+
+impl<K: Ord + Copy, V: Ord> Profiler<BTree<K, V>>
     for BTreeBuilder<K, V>
 {
 }

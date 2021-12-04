@@ -1,5 +1,5 @@
 use crate::builder::traits::{
-    Associative, Builder, Forward, Policy, Sequential,
+    Associative, Builder, Forward, Policy, Sequential, Profiler,
 };
 use crate::container::Array;
 use std::marker::PhantomData;
@@ -47,6 +47,7 @@ impl<T> Clone for ArrayBuilder<T> {
 impl<T> Policy<Array<T>> for ArrayBuilder<T> {}
 impl<T> Associative<Array<T>> for ArrayBuilder<T> {}
 impl<T> Sequential<Array<T>> for ArrayBuilder<T> {}
+impl<T> Profiler<Array<T>> for ArrayBuilder<T> {}
 
 impl<T, R, RB: Builder<R>> Forward<Array<T>, R, RB> for ArrayBuilder<T> {}
 

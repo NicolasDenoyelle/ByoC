@@ -3,6 +3,7 @@ mod associative;
 mod btree;
 mod forward;
 mod policy;
+mod profiler;
 mod sequential;
 #[cfg(feature = "stream")]
 mod stream;
@@ -17,6 +18,7 @@ pub mod builders {
     pub use crate::builder::btree::BTreeBuilder;
     pub use crate::builder::forward::ForwardBuilder;
     pub use crate::builder::policy::PolicyBuilder;
+    pub use crate::builder::profiler::ProfilerBuilder;
     pub use crate::builder::sequential::SequentialBuilder;
     #[cfg(feature = "stream")]
     pub use crate::builder::stream::ByteStreamBuilder;
@@ -27,6 +29,7 @@ pub mod traits {
     use crate::builder::associative::AssociativeBuilder;
     use crate::builder::forward::ForwardBuilder;
     use crate::builder::policy::PolicyBuilder;
+    use crate::builder::profiler::ProfilerBuilder;
     use crate::builder::sequential::SequentialBuilder;
     use crate::policy::{Reference, ReferenceFactory};
     use std::hash::Hasher;
@@ -88,6 +91,17 @@ pub mod traits {
             Self: Sized,
         {
             SequentialBuilder::new(self)
+        }
+    }
+
+    /// [Profile](../../profiler/struct.Profiler.html) the preceding
+    /// building block.
+    pub trait Profiler<C>: Builder<C> {
+        fn profile(self) -> ProfilerBuilder<C, Self>
+        where
+            Self: Sized,
+        {
+            ProfilerBuilder::new(self)
         }
     }
 }

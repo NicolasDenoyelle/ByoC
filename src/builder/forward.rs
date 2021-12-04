@@ -1,13 +1,9 @@
-use crate::builder::builders::{
-    AssociativeBuilder, PolicyBuilder, SequentialBuilder,
-};
 use crate::builder::traits::{
-    Associative, Builder, Forward as ForwardTo, Policy, Sequential,
+    Associative, Builder, Forward as ForwardTo, Policy, Profiler,
+    Sequential,
 };
 
 use crate::connector::Forward;
-use crate::policy::{Reference, ReferenceFactory};
-use std::hash::Hasher;
 use std::marker::PhantomData;
 
 /// [Forward](../../connector/struct.Forward.html)
@@ -77,56 +73,34 @@ impl<L, LB, R, RB> Sequential<Forward<L, R>>
 where
     LB: Builder<L>,
     RB: Builder<R>,
-{
-    fn into_sequential(self) -> SequentialBuilder<Forward<L, R>, Self> {
-        SequentialBuilder::new(self)
-    }
-}
+{}
+
+impl<L, LB, R, RB> Profiler<Forward<L, R>>
+    for ForwardBuilder<L, LB, R, RB>
+where
+    LB: Builder<L>,
+    RB: Builder<R>,
+{}
 
 impl<L, LB, R, RB> Associative<Forward<L, R>>
     for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L> + Clone,
     RB: Builder<R> + Clone,
-{
-    fn into_associative<H: Hasher + Clone>(
-        self,
-        n_sets: usize,
-        key_hasher: H,
-    ) -> AssociativeBuilder<Forward<L, R>, H, Self> {
-        AssociativeBuilder::new(self, n_sets, key_hasher)
-    }
-}
+{}
 
 impl<L, LB, R, RB> ForwardTo<Forward<L, R>, R, RB>
     for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
     RB: Builder<R>,
-{
-    fn forward(
-        self,
-        rbuilder: RB,
-    ) -> ForwardBuilder<Forward<L, R>, Self, R, RB> {
-        ForwardBuilder::new(self, rbuilder)
-    }
-}
+{}
 
 impl<L, LB, R, RB> Policy<Forward<L, R>> for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
     RB: Builder<R>,
-{
-    fn with_policy<V, I: Reference<V>, F: ReferenceFactory<V, I>>(
-        self,
-        policy: F,
-    ) -> PolicyBuilder<Forward<L, R>, V, I, F, Self>
-    where
-        Self: Sized,
-    {
-        PolicyBuilder::new(self, policy)
-    }
-}
+{}
 
 impl<L, LB, R, RB> Builder<Forward<L, R>> for ForwardBuilder<L, LB, R, RB>
 where

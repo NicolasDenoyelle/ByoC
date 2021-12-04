@@ -1,4 +1,4 @@
-use crate::builder::traits::{Associative, Builder, Forward, Policy};
+use crate::builder::traits::{Associative, Builder, Forward, Policy, Profiler};
 use crate::concurrent::Sequential;
 use std::marker::PhantomData;
 
@@ -61,6 +61,11 @@ impl<C, B> Associative<Sequential<C>> for SequentialBuilder<C, B> where
 }
 
 impl<C, B> Policy<Sequential<C>> for SequentialBuilder<C, B> where
+    B: Builder<C>
+{
+}
+
+impl<C, B> Profiler<Sequential<C>> for SequentialBuilder<C, B> where
     B: Builder<C>
 {
 }

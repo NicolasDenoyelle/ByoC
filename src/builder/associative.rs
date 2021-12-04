@@ -1,4 +1,4 @@
-use crate::builder::traits::{Builder, Forward, Policy};
+use crate::builder::traits::{Builder, Forward, Policy, Profiler};
 use crate::concurrent::Associative;
 use std::hash::Hasher;
 use std::marker::PhantomData;
@@ -67,6 +67,13 @@ where
 }
 
 impl<C, H, B> Policy<Associative<C, H>> for AssociativeBuilder<C, H, B>
+where
+    B: Builder<C> + Clone,
+    H: Hasher + Clone,
+{
+}
+
+impl<C, H, B> Profiler<Associative<C, H>> for AssociativeBuilder<C, H, B>
 where
     B: Builder<C> + Clone,
     H: Hasher + Clone,

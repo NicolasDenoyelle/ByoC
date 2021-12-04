@@ -1,5 +1,5 @@
 use crate::builder::traits::{
-    Associative, Builder, Forward, Policy, Sequential,
+    Associative, Builder, Forward, Policy, Sequential, Profiler,
 };
 use crate::container::stream::{Stream, StreamFactory};
 use crate::container::ByteStream;
@@ -73,6 +73,15 @@ where
 }
 
 impl<T, S, F> Sequential<ByteStream<T, S, F>>
+    for ByteStreamBuilder<T, S, F>
+where
+    T: DeserializeOwned + Serialize,
+    S: Stream,
+    F: StreamFactory<S> + Clone,
+{
+}
+
+impl<T, S, F> Profiler<ByteStream<T, S, F>>
     for ByteStreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
