@@ -7,8 +7,8 @@ mod sequential;
 #[cfg(feature = "stream")]
 mod stream;
 
-mod start;
-pub use start::Start;
+mod begin;
+pub use begin::Begin;
 
 /// Build a specific container builder.
 pub mod builders {
@@ -28,11 +28,7 @@ pub mod traits {
     use crate::builder::forward::ForwardBuilder;
     use crate::builder::policy::PolicyBuilder;
     use crate::builder::sequential::SequentialBuilder;
-    #[cfg(feature = "stream")]
-    use crate::container::stream::{Stream, StreamFactory};
     use crate::policy::{Reference, ReferenceFactory};
-    #[cfg(feature = "stream")]
-    use serde::{de::DeserializeOwned, Serialize};
     use std::hash::Hasher;
 
     /// [Building Block](../../trait.BuildingBlock.html) building
@@ -59,15 +55,15 @@ pub mod traits {
     /// [`Forward`](../../connector/struct.Forward.html)
     /// [building block](../../trait.BuildingBlock.html).
     pub trait Forward<C, R, RB: Builder<R>>: Builder<C> {
-        fn forward(self) -> ForwardBuilder<C, Self, R, RB>
+        fn forward(self, rbuilder: RB) -> ForwardBuilder<C, Self, R, RB>
         where
             Self: Sized,
         {
-            ForwardBuilder::new(self)
+            ForwardBuilder::new(self, rbuilder)
         }
     }
 
-    /// Replicate  a builder into multiple builders to later build
+    /// Replicate a builder into multiple builders to later build
     /// an [`Associative`](../../concurrent/struct.Associative.html)
     /// container.
     pub trait Associative<C>: Builder<C> + Clone {
@@ -83,6 +79,9 @@ pub mod traits {
         }
     }
 
+    /// Wrap a container builder into a
+    /// [sequential](../../concurrent/struct.Sequential.html) building block
+    /// to secure concurrent access behind a lock.
     pub trait Sequential<C>: Builder<C> {
         fn into_sequential(self) -> SequentialBuilder<C, Self>
         where
@@ -90,24 +89,5 @@ pub mod traits {
         {
             SequentialBuilder::new(self)
         }
-    }
-
-    pub trait Array<T, B> {
-        fn array(self, capacity: usize) -> B;
-    }
-
-    pub trait BTree<K: Copy + Ord, V: Ord, B> {
-        fn btree(self, capacity: usize) -> B;
-    }
-
-    #[cfg(feature = "stream")]
-    pub trait ByteStream<
-        T: DeserializeOwned + Serialize,
-        S: Stream,
-        F: StreamFactory<S> + Clone,
-        B,
-    >
-    {
-        fn byte_stream(self, factory: F, capacity: usize) -> B;
     }
 }

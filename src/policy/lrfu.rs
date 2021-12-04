@@ -101,6 +101,15 @@ pub struct LRFU<T: Timestamp + Copy> {
     phantom: std::marker::PhantomData<T>,
 }
 
+impl<T: Timestamp + Copy> Clone for LRFU<T> {
+    fn clone(&self) -> Self {
+        LRFU {
+            exponent: self.exponent,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
 impl<T: Timestamp + Copy> LRFU<T> {
     /// Construct a LRFU references factory.
     ///
