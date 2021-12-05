@@ -61,22 +61,17 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
 
 /// Access values inside a [building block](trait.BuildingBlock.html).
 ///
-/// This trait is a companion trait of the
-/// [`BuildingBlock`](trait.BuildingBlock.html) trait.
 /// When a building block implements this trait, it provides access to
 /// values inside itself.
-/// Values are wrapped in a RAII guard such that if they are modified,
-/// modifications can be forwarded in the building block when for instance,
-/// the building block is a key/value container in a file.
-/// Values can be accessed by dereferencing the guard into the value inside
-/// the building block.
+/// Values are wrapped in a Cell that can be dereferenced to obtain
+/// a reference to the value matching the key in the building block.
 ///
 /// ## Safety:
 ///
 /// At this time, it does not seam feasible to return a trait object with
 /// the same lifetime as the function call. Therefore, any lifetime
 /// inference on the returned structure would require it to have the same
-/// lifetime as building block instance which would for instance prevent
+/// lifetime as the building block instance which would for instance prevent
 /// to call this trait method in a loop. As a result, this trait
 /// implementation maybe `unsafe`, because the returned guard lifetime
 /// may outlive the borrowing lifetime of the container where the inner
@@ -89,6 +84,31 @@ where
     unsafe fn get(&self, key: &K) -> Option<U>;
 }
 
+/// Access values inside a [building block](trait.BuildingBlock.html).
+///
+/// When a building block implements this trait, it provides access to
+/// mutable values inside itself.
+/// Values are wrapped in a Cell that can be dereferenced to obtain
+/// a reference to the value matching the key in the building block.
+/// This trait is separated from [`Get`](./trait.Get.html) because
+/// some containers ([BTree](./container/struct.BTree.html)) have to
+/// be mutated when they are accessed, hence they can implement `get_mut()`
+/// but not `get()`. These two traits may also require different trait
+/// bounds because, for instance int the former the value can be moved
+/// from a building block not implementing `GetMut` to one implementing
+/// it and returning the value from there
+/// (See [`Forward`](./connector/struct.Forward.html)).
+///
+/// ## Safety:
+///
+/// At this time, it does not seam feasible to return a trait object with
+/// the same lifetime as the function call. Therefore, any lifetime
+/// inference on the returned structure would require it to have the same
+/// lifetime as the building block instance which would for instance prevent
+/// to call this trait method in a loop. As a result, this trait
+/// implementation maybe `unsafe`, because the returned guard lifetime
+/// may outlive the borrowing lifetime of the container where the inner
+/// value originates from.
 pub trait GetMut<K, V, W>
 where
     W: Deref<Target = V> + DerefMut,

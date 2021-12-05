@@ -266,13 +266,15 @@ where
     /// If it is not found, it is searched in the right side.
     /// If it is found in the right side, we try to make room
     /// in the left side to move it there.
-    /// If the left side can't pop, the found element is reinserted
-    /// on the right side and returned from there.
+    /// If the left side can't pop, None is returned even though
+    /// the value is in the building block.
     /// If the left side can pop, the element is inserted in the left side
     /// in lieu of a victim and the victim is inserted on the right side.
-    /// If the insertion of the victim fails on the right side,
-    /// we take back the element in the left side and put it back in the
-    /// right side, while the victim goes back in the left side.
+    /// If one of these insertions fail, we back track to the initial
+    /// building block state and None is returned even though the value is
+    /// in the building block.
+    /// If they succeed or if the element was already on the left side,
+    /// we return the value from the left side.
     unsafe fn get_mut(&mut self, key: &K) -> Option<LW> {
         // If key is in left, we can return it.
         if let Some(x) = self.left.get_mut(key) {
