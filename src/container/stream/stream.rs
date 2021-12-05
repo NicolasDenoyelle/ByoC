@@ -1,7 +1,7 @@
 use crate::container::stream::io_vec::{IOStruct, IOStructMut, IOVec};
 use crate::container::stream::{Stream, StreamFactory};
 use crate::private::set::MinSet;
-use crate::{BuildingBlock, Get, Ordered};
+use crate::{BuildingBlock, Get, GetMut, Ordered};
 use serde::{de::DeserializeOwned, Serialize};
 use std::ops::{Deref, DerefMut};
 
@@ -331,8 +331,7 @@ where
     }
 }
 
-impl<K, V, F, S> Get<K, V, StreamCell<K, V>, StreamMutCell<K, V, S>>
-    for ByteStream<(K, V), S, F>
+impl<K, V, F, S> Get<K, V, StreamCell<K, V>> for ByteStream<(K, V), S, F>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
@@ -388,7 +387,16 @@ where
                 })
             })
     }
+}
 
+impl<K, V, F, S> GetMut<K, V, StreamMutCell<K, V, S>>
+    for ByteStream<(K, V), S, F>
+where
+    K: DeserializeOwned + Serialize + Eq,
+    V: DeserializeOwned + Serialize,
+    S: Stream,
+    F: StreamFactory<S> + Clone,
+{
     /// Get a mutable value inside a `ByteStream`. The value is wrapped
     /// inside a [`StreamMutCell`](struct.StreamMutCell.html).
     /// The `StreamMutCell` can further be dereferenced into a value
@@ -406,7 +414,7 @@ where
     /// ## Example:
     ///
     /// ```
-    /// use cache::{BuildingBlock, Get};
+    /// use cache::{BuildingBlock, Get, GetMut};
     /// use cache::container::ByteStream;
     /// use cache::container::stream::vec_stream::VecStreamFactory;
     ///
@@ -452,7 +460,7 @@ mod tests {
     use super::ByteStream;
     use crate::container::stream::vec_stream::VecStreamFactory;
     use crate::policy::tests::test_ordered;
-    use crate::tests::{test_building_block, test_get};
+    use crate::tests::{test_building_block, test_get, test_get_mut};
 
     #[test]
     fn building_block() {
@@ -472,6 +480,7 @@ mod tests {
     fn get() {
         for i in vec![0, 10, 100] {
             test_get(ByteStream::new(VecStreamFactory {}, i));
+            test_get_mut(ByteStream::new(VecStreamFactory {}, i));
         }
     }
 }

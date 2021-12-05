@@ -1,6 +1,6 @@
 use crate::private::clone::CloneCell;
 use crate::private::lock::{LockError, RWLock};
-use crate::{BuildingBlock, Concurrent, Get, Ordered};
+use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered};
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
 
@@ -189,12 +189,10 @@ where
     }
 }
 
-impl<K, V, U, W, C> Get<K, V, SequentialCell<U>, SequentialCell<W>>
-    for Sequential<C>
+impl<K, V, U, C> Get<K, V, SequentialCell<U>> for Sequential<C>
 where
     U: Deref<Target = V>,
-    W: DerefMut<Target = V>,
-    C: Get<K, V, U, W>,
+    C: Get<K, V, U>,
 {
     unsafe fn get(&self, key: &K) -> Option<SequentialCell<U>> {
         match self.lock.lock() {
@@ -208,7 +206,13 @@ where
             Err(_) => None,
         }
     }
+}
 
+impl<K, V, W, C> GetMut<K, V, SequentialCell<W>> for Sequential<C>
+where
+    W: DerefMut<Target = V>,
+    C: GetMut<K, V, W>,
+{
     unsafe fn get_mut(&mut self, key: &K) -> Option<SequentialCell<W>> {
         match self.lock.lock_mut() {
             Ok(_) => match (*self.container).get_mut(key) {
@@ -232,7 +236,7 @@ mod tests {
     use super::Sequential;
     use crate::concurrent::tests::test_concurrent;
     use crate::container::Array;
-    use crate::tests::{test_building_block, test_get};
+    use crate::tests::{test_building_block, test_get, test_get_mut};
 
     #[test]
     fn building_block() {
@@ -250,5 +254,7 @@ mod tests {
     fn get() {
         test_get(Sequential::new(Array::new(0)));
         test_get(Sequential::new(Array::new(100)));
+        test_get_mut(Sequential::new(Array::new(0)));
+        test_get_mut(Sequential::new(Array::new(100)));
     }
 }

@@ -1,5 +1,5 @@
 use crate::private::clone::CloneCell;
-use crate::{BuildingBlock, Concurrent, Get, Ordered};
+use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -347,11 +347,10 @@ where
 // Get trait implementation
 //------------------------------------------------------------------------//
 
-impl<K, V, U, W, C> Get<K, V, U, W> for Profiler<C>
+impl<K, V, U, C> Get<K, V, U> for Profiler<C>
 where
     U: Deref<Target = V>,
-    W: DerefMut<Target = V>,
-    C: Get<K, V, U, W>,
+    C: Get<K, V, U>,
 {
     unsafe fn get(&self, key: &K) -> Option<U> {
         let (time, out) = time_it!(self.cache.get(key));
@@ -364,7 +363,13 @@ where
         };
         out
     }
+}
 
+impl<K, V, W, C> GetMut<K, V, W> for Profiler<C>
+where
+    W: DerefMut<Target = V>,
+    C: GetMut<K, V, W>,
+{
     unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
         let (time, out) = time_it!(self.cache.get_mut(key));
         self.stats.get_mut.add(1, time);
