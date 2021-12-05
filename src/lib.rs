@@ -81,13 +81,18 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
 /// implementation maybe `unsafe`, because the returned guard lifetime
 /// may outlive the borrowing lifetime of the container where the inner
 /// value originates from.
-pub trait Get<K, V, U, W>
+pub trait Get<K, V, U>
 where
     U: Deref<Target = V>,
-    W: Deref<Target = V> + DerefMut,
 {
     /// Get a read-only smart pointer to a value inside the container.
     unsafe fn get(&self, key: &K) -> Option<U>;
+}
+
+pub trait GetMut<K, V, W>
+where
+    W: Deref<Target = V> + DerefMut,
+{
     /// Get a smart pointer to a mutable value inside the container.
     unsafe fn get_mut(&mut self, key: &K) -> Option<W>;
 }

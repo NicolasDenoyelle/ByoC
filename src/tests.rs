@@ -1,5 +1,5 @@
 extern crate rand;
-use crate::{BuildingBlock, Get};
+use crate::{BuildingBlock, Get, GetMut};
 use rand::random;
 use std::ops::{Deref, DerefMut};
 
@@ -50,11 +50,24 @@ where
     (inserted, out)
 }
 
-pub fn test_get<'a, C, U, W>(mut c: C)
+pub fn test_get<'a, C, U>(mut c: C)
 where
     U: Deref<Target = u32>,
+    C: 'a + BuildingBlock<'a, u16, u32> + Get<u16, u32, U>,
+{
+    let elements: Vec<(u16, u32)> =
+        (0u16..10u16).map(|i| (i, i as u32)).collect();
+    let (elements, _) = insert(&mut c, elements);
+
+    for (k, _) in elements.iter() {
+        assert!(unsafe { c.get(k) }.is_some());
+    }
+}
+
+pub fn test_get_mut<'a, C, W>(mut c: C)
+where
     W: Deref<Target = u32> + DerefMut,
-    C: 'a + BuildingBlock<'a, u16, u32> + Get<u16, u32, U, W>,
+    C: 'a + BuildingBlock<'a, u16, u32> + GetMut<u16, u32, W>,
 {
     let elements: Vec<(u16, u32)> =
         (0u16..10u16).map(|i| (i, i as u32)).collect();
@@ -66,7 +79,7 @@ where
     }
 
     for (k, v) in elements.iter() {
-        assert_eq!(*unsafe { c.get(k).unwrap() } as u32, *v + 1u32);
+        assert_eq!(*unsafe { c.get_mut(k).unwrap() } as u32, *v + 1u32);
     }
 }
 

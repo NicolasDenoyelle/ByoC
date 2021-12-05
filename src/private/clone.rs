@@ -1,5 +1,5 @@
 use crate::private::lock::RWLock;
-use crate::{BuildingBlock, Concurrent, Get, Ordered};
+use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered};
 use std::boxed::Box;
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut, Drop};
@@ -185,16 +185,21 @@ impl<V: Ord, C: Ordered<V>> Ordered<V> for CloneCell<C> {}
 // Get trait implementation
 //------------------------------------------------------------------------//
 
-impl<K, V, C, U, W> Get<K, V, U, W> for CloneCell<C>
+impl<K, V, C, U> Get<K, V, U> for CloneCell<C>
 where
     U: Deref<Target = V>,
-    W: Deref<Target = V> + DerefMut,
-    C: Get<K, V, U, W>,
+    C: Get<K, V, U>,
 {
     unsafe fn get(&self, key: &K) -> Option<U> {
         self.deref().get(key)
     }
+}
 
+impl<K, V, C, W> GetMut<K, V, W> for CloneCell<C>
+where
+    W: Deref<Target = V> + DerefMut,
+    C: GetMut<K, V, W>,
+{
     unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
         self.deref_mut().get_mut(key)
     }

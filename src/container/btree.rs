@@ -1,6 +1,7 @@
 use crate::private::ptr::OrdPtr;
-use crate::{BuildingBlock, Ordered};
+use crate::{BuildingBlock, GetMut, Ordered};
 use std::collections::{BTreeMap, BTreeSet};
+use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
 // Ordered set of references and key value map.                           //
@@ -219,6 +220,62 @@ where
 impl<K: Ord + Copy, V: Ord> Ordered<V> for BTree<K, V> {}
 
 //------------------------------------------------------------------------//
+//  GetMut trait implementation
+//------------------------------------------------------------------------//
+
+pub struct BTreeCell<K: Copy + Ord, V: Ord> {
+    key: K,
+    value: OrdPtr<V>,
+    // Where to reinsert element on drop.
+    set: *mut BTreeSet<(OrdPtr<V>, K)>,
+}
+
+impl<K: Copy + Ord, V: Ord> Deref for BTreeCell<K, V> {
+    type Target = V;
+    fn deref(&self) -> &Self::Target {
+        self.value.deref()
+    }
+}
+
+impl<K: Copy + Ord, V: Ord> DerefMut for BTreeCell<K, V> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.value.deref_mut()
+    }
+}
+
+impl<K: Copy + Ord, V: Ord> Drop for BTreeCell<K, V> {
+    fn drop(&mut self) {
+        unsafe {
+            assert!(self
+                .set
+                .as_mut()
+                .unwrap()
+                .insert((self.value.clone(), self.key)));
+        }
+    }
+}
+
+impl<K: Copy + Ord, V: Ord> GetMut<K, V, BTreeCell<K, V>> for BTree<K, V> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<BTreeCell<K, V>> {
+        match self.map.get(key) {
+            None => None,
+            Some(i) => {
+                let (_, value) = self.references.get(*i).unwrap();
+                let value = OrdPtr::new(value);
+                let vk = (value, *key);
+                assert!(self.set.remove(&vk));
+                let (value, key) = vk;
+                Some(BTreeCell {
+                    key: key,
+                    value: value,
+                    set: &mut self.set,
+                })
+            }
+        }
+    }
+}
+
+//------------------------------------------------------------------------//
 //  Tests
 //------------------------------------------------------------------------//
 
@@ -226,7 +283,7 @@ impl<K: Ord + Copy, V: Ord> Ordered<V> for BTree<K, V> {}
 mod tests {
     use super::BTree;
     use crate::policy::tests::test_ordered;
-    use crate::tests::test_building_block;
+    use crate::tests::{test_building_block, test_get_mut};
 
     #[test]
     fn building_block() {
@@ -240,5 +297,12 @@ mod tests {
         test_ordered(BTree::new(0));
         test_ordered(BTree::new(10));
         test_ordered(BTree::new(100));
+    }
+
+    #[test]
+    fn get() {
+        test_get_mut(BTree::new(0));
+        test_get_mut(BTree::new(10));
+        test_get_mut(BTree::new(100));
     }
 }

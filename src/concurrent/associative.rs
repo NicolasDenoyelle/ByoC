@@ -1,6 +1,6 @@
 use crate::concurrent::{Sequential, SequentialCell};
 use crate::private::clone::CloneCell;
-use crate::{BuildingBlock, Concurrent, Get};
+use crate::{BuildingBlock, Concurrent, Get, GetMut};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
@@ -258,20 +258,26 @@ impl<C, H: Hasher + Clone> Concurrent for Associative<C, H> {
 // Get Trait Implementation                                               //
 //------------------------------------------------------------------------//
 
-impl<K, V, U, W, C, H> Get<K, V, SequentialCell<U>, SequentialCell<W>>
-    for Associative<C, H>
+impl<K, V, U, C, H> Get<K, V, SequentialCell<U>> for Associative<C, H>
 where
     K: Hash + Clone,
     U: Deref<Target = V>,
-    W: DerefMut<Target = V>,
     H: Hasher + Clone,
-    C: Get<K, V, U, W>,
+    C: Get<K, V, U>,
 {
     unsafe fn get(&self, key: &K) -> Option<SequentialCell<U>> {
         let i = self.set(key.clone());
         self.containers[i].get(key)
     }
+}
 
+impl<K, V, W, C, H> GetMut<K, V, SequentialCell<W>> for Associative<C, H>
+where
+    K: Hash + Clone,
+    W: DerefMut<Target = V>,
+    H: Hasher + Clone,
+    C: GetMut<K, V, W>,
+{
     unsafe fn get_mut(&mut self, key: &K) -> Option<SequentialCell<W>> {
         let i = self.set(key.clone());
         self.containers[i].get_mut(key)
@@ -287,7 +293,7 @@ mod tests {
     use super::Associative;
     use crate::concurrent::tests::test_concurrent;
     use crate::container::Array;
-    use crate::tests::{test_building_block, test_get};
+    use crate::tests::{test_building_block, test_get, test_get_mut};
     use std::collections::hash_map::DefaultHasher;
 
     #[test]
@@ -321,5 +327,10 @@ mod tests {
             containers.push(Array::new(5));
         }
         test_get(Associative::new(containers, DefaultHasher::new()));
+        let mut containers = Vec::new();
+        for _ in 0..10 {
+            containers.push(Array::new(5));
+        }
+        test_get_mut(Associative::new(containers, DefaultHasher::new()));
     }
 }

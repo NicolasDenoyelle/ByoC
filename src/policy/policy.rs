@@ -1,5 +1,5 @@
 use crate::policy::{Reference, ReferenceFactory};
-use crate::{BuildingBlock, Concurrent, Get, Ordered};
+use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
@@ -201,15 +201,13 @@ where
     }
 }
 
-impl<K, V, R, U, W, F, C>
-    Get<K, V, PolicyCell<V, R, U>, PolicyCell<V, R, W>>
+impl<K, V, R, U, F, C> Get<K, V, PolicyCell<V, R, U>>
     for Policy<C, V, R, F>
 where
     R: Reference<V>,
     U: Deref<Target = R>,
-    W: DerefMut<Target = R>,
     F: ReferenceFactory<V, R> + Clone + Send + Sync,
-    C: Get<K, R, U, W> + Ordered<R>,
+    C: Get<K, R, U> + Ordered<R>,
 {
     unsafe fn get(&self, key: &K) -> Option<PolicyCell<V, R, U>> {
         match self.container.get(key) {
@@ -220,7 +218,16 @@ where
             }),
         }
     }
+}
 
+impl<K, V, R, W, F, C> GetMut<K, V, PolicyCell<V, R, W>>
+    for Policy<C, V, R, F>
+where
+    R: Reference<V>,
+    W: DerefMut<Target = R>,
+    F: ReferenceFactory<V, R> + Clone + Send + Sync,
+    C: GetMut<K, R, W> + Ordered<R>,
+{
     unsafe fn get_mut(&mut self, key: &K) -> Option<PolicyCell<V, R, W>> {
         match self.container.get_mut(key) {
             None => None,
@@ -242,7 +249,7 @@ mod tests {
     use crate::container::Array;
     use crate::policy::default::Default;
     use crate::policy::tests::test_ordered;
-    use crate::tests::{test_building_block, test_get};
+    use crate::tests::{test_building_block, test_get, test_get_mut};
 
     #[test]
     fn building_block() {
@@ -255,6 +262,7 @@ mod tests {
     fn get() {
         for i in vec![0, 10, 100] {
             test_get(Policy::new(Array::new(i), Default {}));
+            test_get_mut(Policy::new(Array::new(i), Default {}));
         }
     }
 

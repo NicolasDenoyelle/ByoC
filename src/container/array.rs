@@ -1,4 +1,4 @@
-use crate::{BuildingBlock, Get, Ordered};
+use crate::{BuildingBlock, Get, GetMut, Ordered};
 use std::cmp::Eq;
 use std::ops::{Deref, DerefMut};
 use std::vec::Vec;
@@ -167,7 +167,7 @@ impl<T> DerefMut for ArrayMutCell<T> {
     }
 }
 
-impl<K: Eq, V> Get<K, V, ArrayCell<V>, ArrayMutCell<V>> for Array<(K, V)> {
+impl<K: Eq, V> Get<K, V, ArrayCell<V>> for Array<(K, V)> {
     /// Get value inside a `Array`. The value is wrapped inside a
     /// [`ArrayCell`](struct.ArrayCell.html). The `ArrayCell` can
     /// further be dereferenced into a value reference.
@@ -209,7 +209,9 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>, ArrayMutCell<V>> for Array<(K, V)> {
             }
         })
     }
+}
 
+impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
     /// Get value inside a `Array`. The value is wrapped inside a
     /// [`ArrayMutCell`](struct.ArrayMutCell.html). The `ArrayMutCell`
     /// can further be dereferenced into a value reference.
@@ -225,7 +227,7 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>, ArrayMutCell<V>> for Array<(K, V)> {
     /// ## Example:
     ///
     /// ```
-    /// use cache::{BuildingBlock, Get};
+    /// use cache::{BuildingBlock, GetMut};
     /// use cache::container::Array;
     ///
     /// // Make a array and populate it.
@@ -252,7 +254,6 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>, ArrayMutCell<V>> for Array<(K, V)> {
         })
     }
 }
-
 //------------------------------------------------------------------------//
 //  Tests
 //------------------------------------------------------------------------//
@@ -261,7 +262,7 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>, ArrayMutCell<V>> for Array<(K, V)> {
 mod tests {
     use super::Array;
     use crate::policy::tests::test_ordered;
-    use crate::tests::{test_building_block, test_get};
+    use crate::tests::{test_building_block, test_get, test_get_mut};
 
     #[test]
     fn building_block() {
@@ -282,5 +283,8 @@ mod tests {
         test_get(Array::new(0));
         test_get(Array::new(10));
         test_get(Array::new(100));
+        test_get_mut(Array::new(0));
+        test_get_mut(Array::new(10));
+        test_get_mut(Array::new(100));
     }
 }

@@ -1,4 +1,4 @@
-use crate::{BuildingBlock, Get};
+use crate::{BuildingBlock, Get, GetMut};
 use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
@@ -22,7 +22,7 @@ use std::ops::{Deref, DerefMut};
 /// ## Examples
 ///
 /// ```
-/// use cache::{BuildingBlock, Get};
+/// use cache::{BuildingBlock, GetMut};
 /// use cache::connector::Forward;
 /// use cache::container::Array;
 ///
@@ -231,18 +231,15 @@ where
     }
 }
 
-impl<'b, K, V, L, R, LU, RU, LW, RW>
-    Get<K, V, ForwardCell<V, LU, RU>, ForwardCell<V, LW, RW>>
+impl<'b, K, V, L, R, LU, RU> Get<K, V, ForwardCell<V, LU, RU>>
     for Forward<L, R>
 where
     K: 'b,
     V: 'b,
     LU: Deref<Target = V>,
     RU: Deref<Target = V>,
-    LW: Deref<Target = V> + DerefMut,
-    RW: Deref<Target = V> + DerefMut,
-    L: Get<K, V, LU, LW> + BuildingBlock<'b, K, V>,
-    R: Get<K, V, RU, RW> + BuildingBlock<'b, K, V>,
+    L: Get<K, V, LU> + BuildingBlock<'b, K, V>,
+    R: Get<K, V, RU> + BuildingBlock<'b, K, V>,
 {
     unsafe fn get(&self, key: &K) -> Option<ForwardCell<V, LU, RU>> {
         match self.left.get(key) {
@@ -253,7 +250,16 @@ where
             },
         }
     }
+}
 
+impl<'b, K, V, L, R, LW> GetMut<K, V, LW> for Forward<L, R>
+where
+    K: 'b,
+    V: 'b,
+    LW: Deref<Target = V> + DerefMut,
+    L: GetMut<K, V, LW> + BuildingBlock<'b, K, V>,
+    R: BuildingBlock<'b, K, V>,
+{
     /// Get a smart pointer to a mutable value inside the container.
     ///
     /// The element will be searched first in the left side.
@@ -267,13 +273,10 @@ where
     /// If the insertion of the victim fails on the right side,
     /// we take back the element in the left side and put it back in the
     /// right side, while the victim goes back in the left side.
-    unsafe fn get_mut(
-        &mut self,
-        key: &K,
-    ) -> Option<ForwardCell<V, LW, RW>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<LW> {
         // If key is in left, we can return it.
         if let Some(x) = self.left.get_mut(key) {
-            return Some(ForwardCell::Ltype(x));
+            return Some(x);
         }
 
         // If value is not in right, then we return None.
@@ -286,10 +289,8 @@ where
         // We push the value in left. If it does not pop, we return it.
         let (k, v) = match self.left.push(vec![(k, v)]).pop() {
             None => {
-                return Some(ForwardCell::Ltype(
-                    self.left.get_mut(key).expect(
-                        "Element inserted in left cannot be retrieved",
-                    ),
+                return Some(self.left.get_mut(key).expect(
+                    "Element inserted in left cannot be retrieved",
                 ))
             }
             Some(x) => x,
@@ -303,13 +304,9 @@ where
             // LEFT can't pop, we have no choice but to use right.
             None => {
                 // Fails if cannot reinsert an element in right that used to be
-                // in right.
+                // in right and we return None.
                 assert!(self.right.push(vec![(k, v)]).pop().is_none());
-                return Some(ForwardCell::Rtype(
-                    self.right
-                        .get_mut(key)
-                        .expect("Key inside container not found"),
-                ));
+                return None;
             }
         };
 
@@ -320,11 +317,11 @@ where
             None => {
                 match self.right.push(vec![(k1, v1)]).pop() {
                     None => {
-                        return Some(ForwardCell::Ltype(
+                        return Some(
                             self.left
                                 .get_mut(key)
                                 .expect("Key inside container not found"),
-                        ))
+                        )
                     }
                     // Push in right did not work. We have to back track to the
                     // initial situation and return the key/value from RIGHT.
@@ -346,11 +343,7 @@ where
         // and we have to use right.
         assert!(self.left.push(vec![(k1, v1)]).pop().is_none());
         assert!(self.right.push(vec![(k, v)]).pop().is_none());
-        return Some(ForwardCell::Rtype(
-            self.right
-                .get_mut(key)
-                .expect("Key inside container not found"),
-        ));
+        return None;
     }
 }
 
@@ -362,7 +355,7 @@ where
 mod tests {
     use super::Forward;
     use crate::container::Array;
-    use crate::tests::{test_building_block, test_get};
+    use crate::tests::{test_building_block, test_get, test_get_mut};
 
     #[test]
     fn building_block() {
@@ -378,5 +371,7 @@ mod tests {
         test_get(Forward::new(Array::new(0), Array::new(10)));
         test_get(Forward::new(Array::new(10), Array::new(0)));
         test_get(Forward::new(Array::new(10), Array::new(100)));
+        test_get_mut(Forward::new(Array::new(10), Array::new(0)));
+        test_get_mut(Forward::new(Array::new(10), Array::new(100)));
     }
 }

@@ -1,4 +1,5 @@
 use std::cmp::{Ord, Ordering};
+use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
 //-------------------------------------------------------------------------//
@@ -22,6 +23,19 @@ impl<T: Ord> OrdPtr<T> {
         OrdPtr {
             ptr: NonNull::<T>::from(value),
         }
+    }
+}
+
+impl<T: Ord> Deref for OrdPtr<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        unsafe { self.ptr.as_ref() }
+    }
+}
+
+impl<T: Ord> DerefMut for OrdPtr<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.ptr.as_mut() }
     }
 }
 
