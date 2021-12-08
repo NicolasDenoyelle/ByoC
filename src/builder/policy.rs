@@ -1,4 +1,4 @@
-use crate::builder::traits::{Associative, Builder, Forward, Sequential};
+use crate::builder::traits::{Associative, Builder, Multilevel, Sequential};
 use crate::policy::{Policy, Reference, ReferenceFactory};
 use std::marker::PhantomData;
 
@@ -83,7 +83,7 @@ where
     }
 }
 
-impl<L, V, I, F, LB, R, RB> Forward<Policy<L, V, I, F>, R, RB>
+impl<L, V, I, F, LB, R, RB> Multilevel<Policy<L, V, I, F>, R, RB>
     for PolicyBuilder<L, V, I, F, LB>
 where
     LB: Builder<L>,

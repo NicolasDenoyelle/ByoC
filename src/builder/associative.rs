@@ -1,4 +1,4 @@
-use crate::builder::traits::{Builder, Forward, Policy, Profiler};
+use crate::builder::traits::{Builder, Multilevel, Policy, Profiler};
 use crate::concurrent::Associative;
 use std::hash::Hasher;
 use std::marker::PhantomData;
@@ -80,7 +80,7 @@ where
 {
 }
 
-impl<L, H, LB, R, RB> Forward<Associative<L, H>, R, RB>
+impl<L, H, LB, R, RB> Multilevel<Associative<L, H>, R, RB>
     for AssociativeBuilder<L, H, LB>
 where
     LB: Builder<L> + Clone,
