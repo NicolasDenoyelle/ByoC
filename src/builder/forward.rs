@@ -68,7 +68,7 @@ where
     }
 }
 
-impl<L, LB, R, RB> Sequential<Forward<L, R>>
+impl<K, V, L, LB, R, RB> Sequential<Forward<K, V, L, R>>
     for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
@@ -76,14 +76,15 @@ where
 {
 }
 
-impl<L, LB, R, RB> Profiler<Forward<L, R>> for ForwardBuilder<L, LB, R, RB>
+impl<K, V, L, LB, R, RB> Profiler<Forward<K, V, L, R>>
+    for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
     RB: Builder<R>,
 {
 }
 
-impl<L, LB, R, RB> Associative<Forward<L, R>>
+impl<K, V, L, LB, R, RB> Associative<Forward<K, V, L, R>>
     for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L> + Clone,
@@ -91,7 +92,7 @@ where
 {
 }
 
-impl<L, LB, R, RB> ForwardTo<Forward<L, R>, R, RB>
+impl<K, V, L, LB, R, RB> ForwardTo<Forward<K, V, L, R>, R, RB>
     for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
@@ -99,19 +100,21 @@ where
 {
 }
 
-impl<L, LB, R, RB> Policy<Forward<L, R>> for ForwardBuilder<L, LB, R, RB>
+impl<K, V, L, LB, R, RB> Policy<Forward<K, V, L, R>>
+    for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
     RB: Builder<R>,
 {
 }
 
-impl<L, LB, R, RB> Builder<Forward<L, R>> for ForwardBuilder<L, LB, R, RB>
+impl<K, V, L, LB, R, RB> Builder<Forward<K, V, L, R>>
+    for ForwardBuilder<L, LB, R, RB>
 where
     LB: Builder<L>,
     RB: Builder<R>,
 {
-    fn build(self) -> Forward<L, R> {
+    fn build(self) -> Forward<K, V, L, R> {
         Forward::new(self.lbuilder.build(), self.rbuilder.build())
     }
 }

@@ -59,37 +59,6 @@ impl<T> Array<T> {
     }
 }
 
-impl<K: Eq, V> Prefetch<K> for Array<(K, V)> {
-    fn prefetch(&mut self, mut keys: Vec<K>) {
-        if (keys.len()) == 0 {
-            return;
-        }
-        let mut values = Vec::with_capacity(self.capacity);
-        let mut is_prefetch = Vec::new();
-        let mut others = Vec::new();
-
-        std::mem::swap(&mut self.values, &mut values);
-
-        for (k, v) in values.into_iter() {
-            match keys.iter().enumerate().find_map(|(i, _k)| {
-                match _k == &k {
-                    true => Some(i),
-                    false => None,
-                }
-            }) {
-                Some(i) => {
-                    keys.swap_remove(i);
-                    is_prefetch.push((k, v));
-                }
-                None => others.push((k, v)),
-            }
-        }
-
-        self.values.append(&mut is_prefetch);
-        self.values.append(&mut others);
-    }
-}
-
 //------------------------------------------------------------------------//
 // BuildingBlock implementation
 //------------------------------------------------------------------------//
@@ -285,8 +254,45 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
         })
     }
 }
+
 //------------------------------------------------------------------------//
-//  Tests
+// Prefetch trait
+//------------------------------------------------------------------------//
+
+impl<'a, K: 'a + Eq, V: 'a + Ord> Prefetch<'a, K, V> for Array<(K, V)> {
+		/// Array prefetch implementation moves matching keys to the front.
+    fn prefetch(&mut self, mut keys: Vec<K>) {
+        if (keys.len()) == 0 {
+            return;
+        }
+        let mut values = Vec::with_capacity(self.capacity);
+        let mut is_prefetch = Vec::new();
+        let mut others = Vec::new();
+
+        std::mem::swap(&mut self.values, &mut values);
+
+        for (k, v) in values.into_iter() {
+            match keys.iter().enumerate().find_map(|(i, _k)| {
+                match _k == &k {
+                    true => Some(i),
+                    false => None,
+                }
+            }) {
+                Some(i) => {
+                    keys.swap_remove(i);
+                    is_prefetch.push((k, v));
+                }
+                None => others.push((k, v)),
+            }
+        }
+
+        self.values.append(&mut is_prefetch);
+        self.values.append(&mut others);
+    }
+}
+
+//------------------------------------------------------------------------//
+// Tests
 //------------------------------------------------------------------------//
 
 #[cfg(test)]

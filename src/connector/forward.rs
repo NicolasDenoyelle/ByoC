@@ -1,6 +1,6 @@
-use crate::{BuildingBlock, Get, GetMut};
+use crate::{BuildingBlock, Get, GetMut, Prefetch};
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
-
 //------------------------------------------------------------------------//
 // BuildingBlock Stack
 //------------------------------------------------------------------------//
@@ -63,23 +63,27 @@ use std::ops::{Deref, DerefMut};
 /// assert_eq!(cache.pop(1).pop().unwrap().0, "first")
 /// // [[("second", 0), ("third", 3)][]]
 /// ```
-pub struct Forward<L, R> {
+pub struct Forward<K, V, L, R> {
     left: L,
     right: R,
+    unused: PhantomData<(K, V)>,
 }
 
-impl<L, R> Forward<L, R> {
+impl<K, V, L, R> Forward<K, V, L, R> {
     /// Construct a Forward Cache.
     pub fn new(left: L, right: R) -> Self {
         Forward {
             left: left,
             right: right,
+            unused: PhantomData,
         }
     }
 }
 
-impl<'a, K: 'a, V: 'a, L, R> BuildingBlock<'a, K, V> for Forward<L, R>
+impl<'a, K, V, L, R> BuildingBlock<'a, K, V> for Forward<K, V, L, R>
 where
+    K: 'a,
+    V: 'a,
     L: BuildingBlock<'a, K, V>,
     R: BuildingBlock<'a, K, V>,
 {
@@ -232,7 +236,7 @@ where
 }
 
 impl<'b, K, V, L, R, LU, RU> Get<K, V, ForwardCell<V, LU, RU>>
-    for Forward<L, R>
+    for Forward<K, V, L, R>
 where
     K: 'b,
     V: 'b,
@@ -252,7 +256,7 @@ where
     }
 }
 
-impl<'b, K, V, L, R, LW> GetMut<K, V, LW> for Forward<L, R>
+impl<'b, K, V, L, R, LW> GetMut<K, V, LW> for Forward<K, V, L, R>
 where
     K: 'b,
     V: 'b,
@@ -346,6 +350,35 @@ where
         assert!(self.left.push(vec![(k1, v1)]).pop().is_none());
         assert!(self.right.push(vec![(k, v)]).pop().is_none());
         return None;
+    }
+}
+
+//------------------------------------------------------------------------//
+// Prefetch trait
+//------------------------------------------------------------------------//
+
+impl<'a, K, V, L, R> Prefetch<'a, K, V> for Forward<K, V, L, R>
+where
+    K: 'a + Eq,
+    V: 'a,
+    L: BuildingBlock<'a, K, V>,
+    R: BuildingBlock<'a, K, V> + Prefetch<'a, K, V>,
+{
+		/// Forward prefetch implementation moves matching keys
+		/// in the right side into the left side.
+		/// This is achieved by calling the
+		/// [`push()`](struct.Forward.html#method.push) method after retrieving
+		/// elements from the right side.
+    fn prefetch(&mut self, mut keys: Vec<K>) {
+        // Then right side.
+				let matches = self.right.take_multiple(keys);
+
+        // Finally insert matches.
+        // Reinsertion must work because we the container still has the same
+        // number of elements.
+				if matches.len() > 0 {
+						assert!(self.push(matches).pop().is_none());
+				}
     }
 }
 

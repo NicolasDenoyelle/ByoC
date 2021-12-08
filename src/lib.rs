@@ -135,8 +135,11 @@ pub trait Concurrent: Send + Sync {
     fn clone(&self) -> Self;
 }
 
-pub trait Prefetch<K> {
+pub trait Prefetch<'a, K: 'a, V: 'a>: BuildingBlock<'a, K, V> {
     fn prefetch(&mut self, _keys: Vec<K>) {}
+    fn take_multiple(&mut self, keys: Vec<K>) -> Vec<(K, V)> {
+        keys.iter().map(|k| self.take(k)).filter_map(|i| i).collect()
+    }
 }
 
 /// Storage implementation for key/value pairs.
