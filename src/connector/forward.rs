@@ -364,21 +364,21 @@ where
     L: BuildingBlock<'a, K, V>,
     R: BuildingBlock<'a, K, V> + Prefetch<'a, K, V>,
 {
-		/// Forward prefetch implementation moves matching keys
-		/// in the right side into the left side.
-		/// This is achieved by calling the
-		/// [`push()`](struct.Forward.html#method.push) method after retrieving
-		/// elements from the right side.
+    /// Forward prefetch implementation moves matching keys
+    /// in the right side into the left side.
+    /// This is achieved by calling the
+    /// [`push()`](struct.Forward.html#method.push) method after retrieving
+    /// elements from the right side.
     fn prefetch(&mut self, mut keys: Vec<K>) {
         // Then right side.
-				let matches = self.right.take_multiple(keys);
+        let matches = self.right.take_multiple(keys);
 
         // Finally insert matches.
         // Reinsertion must work because we the container still has the same
         // number of elements.
-				if matches.len() > 0 {
-						assert!(self.push(matches).pop().is_none());
-				}
+        if matches.len() > 0 {
+            assert!(self.push(matches).pop().is_none());
+        }
     }
 }
 

@@ -138,7 +138,10 @@ pub trait Concurrent: Send + Sync {
 pub trait Prefetch<'a, K: 'a, V: 'a>: BuildingBlock<'a, K, V> {
     fn prefetch(&mut self, _keys: Vec<K>) {}
     fn take_multiple(&mut self, keys: Vec<K>) -> Vec<(K, V)> {
-        keys.iter().map(|k| self.take(k)).filter_map(|i| i).collect()
+        keys.iter()
+            .map(|k| self.take(k))
+            .filter_map(|i| i)
+            .collect()
     }
 }
 

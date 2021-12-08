@@ -260,7 +260,7 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
 //------------------------------------------------------------------------//
 
 impl<'a, K: 'a + Eq, V: 'a + Ord> Prefetch<'a, K, V> for Array<(K, V)> {
-		/// Array prefetch implementation moves matching keys to the front.
+    /// Array prefetch implementation moves matching keys to the front.
     fn prefetch(&mut self, mut keys: Vec<K>) {
         if (keys.len()) == 0 {
             return;
