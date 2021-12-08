@@ -1,4 +1,4 @@
-use crate::{BuildingBlock, Get, GetMut, Ordered};
+use crate::{BuildingBlock, Get, GetMut, Ordered, Prefetch};
 use std::cmp::Eq;
 use std::ops::{Deref, DerefMut};
 use std::vec::Vec;
@@ -56,6 +56,37 @@ impl<T> Array<T> {
             capacity: n,
             values: Vec::with_capacity(n),
         }
+    }
+}
+
+impl<K: Eq, V> Prefetch<K> for Array<(K, V)> {
+    fn prefetch(&mut self, mut keys: Vec<K>) {
+        if (keys.len()) == 0 {
+            return;
+        }
+        let mut values = Vec::with_capacity(self.capacity);
+        let mut is_prefetch = Vec::new();
+        let mut others = Vec::new();
+
+        std::mem::swap(&mut self.values, &mut values);
+
+        for (k, v) in values.into_iter() {
+            match keys.iter().enumerate().find_map(|(i, _k)| {
+                match _k == &k {
+                    true => Some(i),
+                    false => None,
+                }
+            }) {
+                Some(i) => {
+                    keys.swap_remove(i);
+                    is_prefetch.push((k, v));
+                }
+                None => others.push((k, v)),
+            }
+        }
+
+        self.values.append(&mut is_prefetch);
+        self.values.append(&mut others);
     }
 }
 

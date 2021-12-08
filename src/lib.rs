@@ -135,6 +135,10 @@ pub trait Concurrent: Send + Sync {
     fn clone(&self) -> Self;
 }
 
+pub trait Prefetch<K> {
+    fn prefetch(&mut self, _keys: Vec<K>) {}
+}
+
 /// Storage implementation for key/value pairs.
 ///
 /// As long as a container is not full, it must accept new key/value
