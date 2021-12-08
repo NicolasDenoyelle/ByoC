@@ -1,4 +1,6 @@
-use crate::builder::traits::{Associative, Builder, Multilevel, Sequential};
+use crate::builder::traits::{
+    Associative, Builder, Multilevel, Sequential,
+};
 use crate::policy::{Policy, Reference, ReferenceFactory};
 use std::marker::PhantomData;
 

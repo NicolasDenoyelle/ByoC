@@ -58,7 +58,10 @@ pub mod traits {
     /// [`Multilevel`](../../connector/struct.Multilevel.html)
     /// [building block](../../trait.BuildingBlock.html).
     pub trait Multilevel<C, R, RB: Builder<R>>: Builder<C> {
-        fn multilevel(self, rbuilder: RB) -> MultilevelBuilder<C, Self, R, RB>
+        fn multilevel(
+            self,
+            rbuilder: RB,
+        ) -> MultilevelBuilder<C, Self, R, RB>
         where
             Self: Sized,
         {

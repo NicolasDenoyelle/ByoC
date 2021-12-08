@@ -60,7 +60,8 @@ impl<C, B> Associative<Profiler<C>> for ProfilerBuilder<C, B> where
 {
 }
 
-impl<L, LB, R, RB> Multilevel<Profiler<L>, R, RB> for ProfilerBuilder<L, LB>
+impl<L, LB, R, RB> Multilevel<Profiler<L>, R, RB>
+    for ProfilerBuilder<L, LB>
 where
     LB: Builder<L>,
     RB: Builder<R>,

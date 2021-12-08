@@ -137,9 +137,9 @@ pub trait Concurrent: Send + Sync {
 
 pub trait Prefetch<'a, K: 'a, V: 'a>: BuildingBlock<'a, K, V> {
     fn prefetch(&mut self, _keys: Vec<K>) {}
-		/// Optimized implementation to take multiple keys out of a building
-		/// block. This method return a vector of all elements matching input
-		/// keys that were inside a building block.
+    /// Optimized implementation to take multiple keys out of a building
+    /// block. This method return a vector of all elements matching input
+    /// keys that were inside a building block.
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
         keys.iter()
             .map(|k| self.take(k))

@@ -381,12 +381,12 @@ where
         }
     }
 
-		/// This method will take matching keys on the left side then on
-		/// the right side.
-		/// Matching keys found on the left side are not searched on the right
-		/// side.
-		/// Input `keys` is updated as a side effect to contain
-		/// only non matching keys.
+    /// This method will take matching keys on the left side then on
+    /// the right side.
+    /// Matching keys found on the left side are not searched on the right
+    /// side.
+    /// Input `keys` is updated as a side effect to contain
+    /// only non matching keys.
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
         let mut left = self.left.take_multiple(keys);
 
@@ -408,10 +408,10 @@ where
         }
 
         let mut right = self.right.take_multiple(keys);
-				
+
         // Remove matching keys in case these keys are used in other
         // calls to take_multiple.
-				right.sort_unstable_by(|(k1, _), (k2, _)| k1.cmp(k2));
+        right.sort_unstable_by(|(k1, _), (k2, _)| k1.cmp(k2));
         let found: Vec<usize> = keys
             .iter()
             .enumerate()
@@ -446,9 +446,18 @@ mod tests {
     #[test]
     fn building_block() {
         test_building_block(Multilevel::new(Array::new(0), Array::new(0)));
-        test_building_block(Multilevel::new(Array::new(0), Array::new(10)));
-        test_building_block(Multilevel::new(Array::new(10), Array::new(0)));
-        test_building_block(Multilevel::new(Array::new(10), Array::new(100)));
+        test_building_block(Multilevel::new(
+            Array::new(0),
+            Array::new(10),
+        ));
+        test_building_block(Multilevel::new(
+            Array::new(10),
+            Array::new(0),
+        ));
+        test_building_block(Multilevel::new(
+            Array::new(10),
+            Array::new(100),
+        ));
     }
 
     #[test]

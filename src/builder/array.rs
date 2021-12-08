@@ -49,7 +49,10 @@ impl<T> Associative<Array<T>> for ArrayBuilder<T> {}
 impl<T> Sequential<Array<T>> for ArrayBuilder<T> {}
 impl<T> Profiler<Array<T>> for ArrayBuilder<T> {}
 
-impl<T, R, RB: Builder<R>> Multilevel<Array<T>, R, RB> for ArrayBuilder<T> {}
+impl<T, R, RB: Builder<R>> Multilevel<Array<T>, R, RB>
+    for ArrayBuilder<T>
+{
+}
 
 impl<T> Builder<Array<T>> for ArrayBuilder<T> {
     fn build(self) -> Array<T> {
