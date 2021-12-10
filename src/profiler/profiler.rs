@@ -1,5 +1,5 @@
 use crate::private::clone::CloneCell;
-use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered};
+use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered, Prefetch};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -379,6 +379,32 @@ where
             }
             None => self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst),
         };
+        out
+    }
+}
+
+//------------------------------------------------------------------------//
+// Prefetch Trait Implementation
+//------------------------------------------------------------------------//
+
+impl<'a, K, V, C> Prefetch<'a, K, V> for Profiler<C>
+where
+    K: 'a,
+    V: 'a,
+    C: BuildingBlock<'a, K, V> + Prefetch<'a, K, V>,
+{
+    fn prefetch(&mut self, keys: Vec<K>) {
+        self.cache.prefetch(keys)
+    }
+
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let n = keys.len();
+        let (time, out) = time_it!(self.cache.take_multiple(keys));
+        self.stats.take.add(n, time);
+        let hits = out.len() as u64;
+        let misses = n as u64 - hits;
+        self.stats.hit.fetch_add(hits, Ordering::SeqCst);
+        self.stats.miss.fetch_add(misses, Ordering::SeqCst);
         out
     }
 }

@@ -1,6 +1,6 @@
 use crate::private::clone::CloneCell;
 use crate::private::lock::{LockError, RWLock};
-use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered};
+use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered, Prefetch};
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
 
@@ -224,6 +224,27 @@ where
             },
             Err(_) => None,
         }
+    }
+}
+
+//------------------------------------------------------------------------//
+// Prefetch Trait Implementation
+//------------------------------------------------------------------------//
+
+impl<'a, K, V, C> Prefetch<'a, K, V> for Sequential<C>
+where
+    K: 'a,
+    V: 'a,
+    C: BuildingBlock<'a, K, V> + Prefetch<'a, K, V>,
+{
+    fn prefetch(&mut self, keys: Vec<K>) {
+        let _ = self.lock.lock_for(()).unwrap();
+        self.container.prefetch(keys)
+    }
+
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let _ = self.lock.lock_for(()).unwrap();
+        self.container.take_multiple(keys)
     }
 }
 

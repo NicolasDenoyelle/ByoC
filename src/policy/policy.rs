@@ -1,5 +1,5 @@
 use crate::policy::{Reference, ReferenceFactory};
-use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered};
+use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered, Prefetch};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
@@ -236,6 +236,31 @@ where
                 unused: PhantomData,
             }),
         }
+    }
+}
+
+//------------------------------------------------------------------------//
+// Prefetch Trait Implementation
+//------------------------------------------------------------------------//
+
+impl<'a, K, V, C, R, F> Prefetch<'a, K, V> for Policy<C, V, R, F>
+where
+    K: 'a,
+    V: 'a,
+    R: 'a + Reference<V>,
+    C: BuildingBlock<'a, K, R> + Prefetch<'a, K, R>,
+    F: ReferenceFactory<V, R>,
+{
+    fn prefetch(&mut self, keys: Vec<K>) {
+        self.container.prefetch(keys)
+    }
+
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        self.container
+            .take_multiple(keys)
+            .into_iter()
+            .map(|(k, r)| (k, r.unwrap()))
+            .collect()
     }
 }
 

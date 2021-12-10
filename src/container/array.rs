@@ -259,35 +259,21 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
 // Prefetch trait
 //------------------------------------------------------------------------//
 
-impl<'a, K: 'a + Eq, V: 'a + Ord> Prefetch<'a, K, V> for Array<(K, V)> {
-    /// Array prefetch implementation moves matching keys to the front.
-    fn prefetch(&mut self, mut keys: Vec<K>) {
-        if (keys.len()) == 0 {
-            return;
-        }
-        let mut values = Vec::with_capacity(self.capacity);
-        let mut is_prefetch = Vec::new();
-        let mut others = Vec::new();
-
-        std::mem::swap(&mut self.values, &mut values);
-
-        for (k, v) in values.into_iter() {
-            match keys.iter().enumerate().find_map(|(i, _k)| {
-                match _k == &k {
-                    true => Some(i),
-                    false => None,
+impl<'a, K: 'a + Ord, V: 'a + Ord> Prefetch<'a, K, V> for Array<(K, V)> {
+    // One pass take
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let mut ret = Vec::with_capacity(keys.len());
+        keys.sort();
+        for i in (0..self.values.len()).rev() {
+            match keys.binary_search(&self.values[i].0) {
+                Ok(j) => {
+                    keys.remove(j);
+                    ret.push(self.values.swap_remove(i));
                 }
-            }) {
-                Some(i) => {
-                    keys.swap_remove(i);
-                    is_prefetch.push((k, v));
-                }
-                None => others.push((k, v)),
+                Err(_) => {}
             }
         }
-
-        self.values.append(&mut is_prefetch);
-        self.values.append(&mut others);
+        ret
     }
 }
 

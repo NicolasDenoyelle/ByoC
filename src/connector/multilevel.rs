@@ -388,43 +388,31 @@ where
     /// Input `keys` is updated as a side effect to contain
     /// only non matching keys.
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        keys.sort();
+
         let mut left = self.left.take_multiple(keys);
 
         // Remove matches from keys before querying on the right side.
-        left.sort_unstable_by(|(k1, _), (k2, _)| k1.cmp(k2));
-        let found: Vec<usize> = keys
-            .iter()
-            .enumerate()
-            .rev()
-            .filter_map(|(i, k)| {
-                match left.binary_search_by(|(key, _)| key.cmp(k)) {
-                    Ok(_) => Some(i),
-                    Err(_) => None,
+        for (k, _) in left.iter() {
+            match keys.binary_search(k) {
+                Ok(i) => {
+                    keys.remove(i);
                 }
-            })
-            .collect();
-        for i in found.into_iter() {
-            (*keys).swap_remove(i);
+                Err(_) => {}
+            }
         }
 
         let mut right = self.right.take_multiple(keys);
 
         // Remove matching keys in case these keys are used in other
         // calls to take_multiple.
-        right.sort_unstable_by(|(k1, _), (k2, _)| k1.cmp(k2));
-        let found: Vec<usize> = keys
-            .iter()
-            .enumerate()
-            .rev()
-            .filter_map(|(i, k)| {
-                match right.binary_search_by(|(key, _)| key.cmp(k)) {
-                    Ok(_) => Some(i),
-                    Err(_) => None,
+        for (k, _) in right.iter() {
+            match keys.binary_search(k) {
+                Ok(i) => {
+                    keys.remove(i);
                 }
-            })
-            .collect();
-        for i in found.into_iter() {
-            (*keys).swap_remove(i);
+                Err(_) => {}
+            }
         }
 
         // Return final matches.

@@ -1,6 +1,6 @@
 use crate::concurrent::{Sequential, SequentialCell};
 use crate::private::clone::CloneCell;
-use crate::{BuildingBlock, Concurrent, Get, GetMut};
+use crate::{BuildingBlock, Concurrent, Get, GetMut, Prefetch};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
@@ -281,6 +281,65 @@ where
     unsafe fn get_mut(&mut self, key: &K) -> Option<SequentialCell<W>> {
         let i = self.set(key.clone());
         self.containers[i].get_mut(key)
+    }
+}
+
+//------------------------------------------------------------------------//
+// Prefetch Trait Implementation
+//------------------------------------------------------------------------//
+
+impl<'a, K, V, H, C> Prefetch<'a, K, V> for Associative<C, H>
+where
+    K: 'a + Clone + Hash,
+    V: 'a + Ord,
+    C: BuildingBlock<'a, K, V> + Prefetch<'a, K, V>,
+    H: Hasher + Clone,
+{
+    fn prefetch(&mut self, keys: Vec<K>) {
+        let mut set_keys: Vec<Vec<K>> =
+            Vec::with_capacity(self.containers.len());
+        for _ in 0..self.containers.len() {
+            set_keys.push(Vec::with_capacity(keys.len()));
+        }
+
+        for k in keys.into_iter() {
+            set_keys[self.set(k.clone())].push(k);
+        }
+
+        for c in self.containers.deref_mut().iter_mut().rev() {
+            c.prefetch(set_keys.pop().unwrap());
+        }
+    }
+
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let mut ret = Vec::with_capacity(keys.len());
+
+        // Rearrange keys per set.
+        let mut set_keys: Vec<Vec<K>> =
+            Vec::with_capacity(self.containers.len());
+        for _ in 0..self.containers.len() {
+            set_keys.push(Vec::with_capacity(keys.len()));
+        }
+        for k in keys.drain(0..keys.len()) {
+            set_keys[self.set(k.clone())].push(k);
+        }
+
+        // Take from each bucket.
+        for (c, keys) in self
+            .containers
+            .deref_mut()
+            .iter_mut()
+            .zip(set_keys.iter_mut())
+        {
+            ret.append(&mut c.take_multiple(keys));
+        }
+
+        // Put the remaining keys back in the input keys.
+        for mut sk in set_keys.into_iter() {
+            keys.append(&mut sk);
+        }
+
+        ret
     }
 }
 

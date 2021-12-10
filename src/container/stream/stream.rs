@@ -1,7 +1,7 @@
 use crate::container::stream::io_vec::{IOStruct, IOStructMut, IOVec};
 use crate::container::stream::{Stream, StreamFactory};
 use crate::private::set::MinSet;
-use crate::{BuildingBlock, Get, GetMut, Ordered};
+use crate::{BuildingBlock, Get, GetMut, Ordered, Prefetch};
 use serde::{de::DeserializeOwned, Serialize};
 use std::ops::{Deref, DerefMut};
 
@@ -448,6 +448,36 @@ where
                     }
                 })
             })
+    }
+}
+
+//------------------------------------------------------------------------//
+// Prefetch Trait Implementation
+//------------------------------------------------------------------------//
+
+impl<'a, K, V, S, F> Prefetch<'a, K, V> for ByteStream<(K, V), S, F>
+where
+    K: 'a + DeserializeOwned + Serialize + Ord,
+    V: 'a + DeserializeOwned + Serialize + Ord,
+    S: 'a + Stream,
+    F: StreamFactory<S> + Clone,
+{
+    fn prefetch(&mut self, _keys: Vec<K>) {}
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let mut ret = Vec::with_capacity(keys.len());
+        keys.sort();
+        for stream in self.streams.iter_mut().filter_map(|s| s.as_ref()) {
+            for (k, v) in stream.iter().map(|x| x.unwrap()) {
+                match keys.binary_search(&k) {
+                    Ok(i) => {
+                        ret.push((k, v));
+                        keys.remove(i);
+                    }
+                    Err(_) => {}
+                }
+            }
+        }
+        ret
     }
 }
 

@@ -131,6 +131,12 @@ impl<V> DerefMut for CloneCell<V> {
 unsafe impl<V: Send> Send for CloneCell<V> {}
 unsafe impl<V: Sync> Sync for CloneCell<V> {}
 
+impl<T, V: Iterator<Item = T>> Iterator for CloneCell<V> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        self.deref_mut().next()
+    }
+}
 //-------------------------------------------------------------------------
 //                         BuildingBlock implementation
 //-------------------------------------------------------------------------
