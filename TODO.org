@@ -16,9 +16,10 @@ std::thread::panicking
 * DEL Compact IO Map
 	Instead of building a map with elements offset based on key hash,
 	just pack elements to be more space efficient.
-* TODO Prefetcher:
-	Build a Prefetcher trait and Prefetcher container wrapping a container
-	and prefetching data.
+* DONE Prefetcher Trait
+* TODO Prefetcher building block implementations.
+A building block wrapping another and asynchronously prefetching keys based.
+on some predictions.
 * DONE Parallel Tests
 	Build Concurrent Container trait tests.
 * DONE Test Stream building block
@@ -29,3 +30,6 @@ std::thread::panicking
 	than wrapper.
 * DEL Rename wrapper into transform
 * TODO Compresion building block.
+* TODO Benchmarks:
++ Multiple distributions of keys
++ Different sizes of keys and values.
