@@ -285,7 +285,9 @@ impl<'a, K: 'a + Ord, V: 'a + Ord> Prefetch<'a, K, V> for Array<(K, V)> {
 mod tests {
     use super::Array;
     use crate::policy::tests::test_ordered;
-    use crate::tests::{test_building_block, test_get, test_get_mut};
+    use crate::tests::{
+        test_building_block, test_get, test_get_mut, test_prefetch,
+    };
 
     #[test]
     fn building_block() {
@@ -309,5 +311,12 @@ mod tests {
         test_get_mut(Array::new(0));
         test_get_mut(Array::new(10));
         test_get_mut(Array::new(100));
+    }
+
+    #[test]
+    fn prefetch() {
+        test_prefetch(Array::new(0));
+        test_prefetch(Array::new(10));
+        test_prefetch(Array::new(100));
     }
 }

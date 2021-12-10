@@ -274,7 +274,9 @@ mod tests {
     use crate::container::Array;
     use crate::policy::default::Default;
     use crate::policy::tests::test_ordered;
-    use crate::tests::{test_building_block, test_get, test_get_mut};
+    use crate::tests::{
+        test_building_block, test_get, test_get_mut, test_prefetch,
+    };
 
     #[test]
     fn building_block() {
@@ -288,6 +290,13 @@ mod tests {
         for i in vec![0, 10, 100] {
             test_get(Policy::new(Array::new(i), Default {}));
             test_get_mut(Policy::new(Array::new(i), Default {}));
+        }
+    }
+
+    #[test]
+    fn prefetch() {
+        for i in vec![0, 10, 100] {
+            test_prefetch(Policy::new(Array::new(i), Default {}));
         }
     }
 

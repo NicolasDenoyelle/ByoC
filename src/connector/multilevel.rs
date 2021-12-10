@@ -429,7 +429,9 @@ where
 mod tests {
     use super::Multilevel;
     use crate::container::Array;
-    use crate::tests::{test_building_block, test_get, test_get_mut};
+    use crate::tests::{
+        test_building_block, test_get, test_get_mut, test_prefetch,
+    };
 
     #[test]
     fn building_block() {
@@ -456,5 +458,13 @@ mod tests {
         test_get(Multilevel::new(Array::new(10), Array::new(100)));
         test_get_mut(Multilevel::new(Array::new(10), Array::new(0)));
         test_get_mut(Multilevel::new(Array::new(10), Array::new(100)));
+    }
+
+    #[test]
+    fn prefetch() {
+        test_prefetch(Multilevel::new(Array::new(0), Array::new(0)));
+        test_prefetch(Multilevel::new(Array::new(0), Array::new(10)));
+        test_prefetch(Multilevel::new(Array::new(10), Array::new(0)));
+        test_prefetch(Multilevel::new(Array::new(10), Array::new(100)));
     }
 }

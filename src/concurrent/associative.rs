@@ -352,7 +352,9 @@ mod tests {
     use super::Associative;
     use crate::concurrent::tests::test_concurrent;
     use crate::container::Array;
-    use crate::tests::{test_building_block, test_get, test_get_mut};
+    use crate::tests::{
+        test_building_block, test_get, test_get_mut, test_prefetch,
+    };
     use std::collections::hash_map::DefaultHasher;
 
     #[test]
@@ -391,5 +393,14 @@ mod tests {
             containers.push(Array::new(5));
         }
         test_get_mut(Associative::new(containers, DefaultHasher::new()));
+    }
+
+    #[test]
+    fn prefetch() {
+        let mut containers = Vec::new();
+        for _ in 0..10 {
+            containers.push(Array::new(5));
+        }
+        test_prefetch(Associative::new(containers, DefaultHasher::new()));
     }
 }

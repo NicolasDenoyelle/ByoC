@@ -490,7 +490,9 @@ mod tests {
     use super::ByteStream;
     use crate::container::stream::vec_stream::VecStreamFactory;
     use crate::policy::tests::test_ordered;
-    use crate::tests::{test_building_block, test_get, test_get_mut};
+    use crate::tests::{
+        test_building_block, test_get, test_get_mut, test_prefetch,
+    };
 
     #[test]
     fn building_block() {
@@ -511,6 +513,13 @@ mod tests {
         for i in vec![0, 10, 100] {
             test_get(ByteStream::new(VecStreamFactory {}, i));
             test_get_mut(ByteStream::new(VecStreamFactory {}, i));
+        }
+    }
+
+    #[test]
+    fn prefetch() {
+        for i in vec![0, 10, 100] {
+            test_prefetch(ByteStream::new(VecStreamFactory {}, i));
         }
     }
 }
