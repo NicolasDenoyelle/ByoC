@@ -198,6 +198,8 @@ where
 
     let mut all_keys: Vec<u16> =
         inserted.iter().map(|(k, _)| k.clone()).collect();
+
+    // Make sure prefetch method keeps everything inside the container.
     c.prefetch(all_keys.clone());
     for (k, _) in inserted.iter() {
         assert!(c.contains(k));
@@ -205,6 +207,16 @@ where
 
     let mut take_all = c.take_multiple(&mut all_keys);
 
+    // Test that input keys contain original input keys minus some removed
+    // keys.
+    let mut inserted_keys: Vec<u16> =
+        inserted.iter().map(|(k, _)| k.clone()).collect();
+    inserted_keys.sort();
+    for k in all_keys {
+        assert!(inserted_keys.binary_search(&k).is_ok());
+    }
+
+    // Make sure that we took all the keys that we inserted.
     inserted.sort();
     take_all.sort();
     for (a, b) in inserted.iter().zip(take_all.iter()) {
