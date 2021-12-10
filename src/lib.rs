@@ -97,7 +97,7 @@ where
 /// bounds because, for instance int the former the value can be moved
 /// from a building block not implementing `GetMut` to one implementing
 /// it and returning the value from there
-/// (See [`Forward`](./connector/struct.Forward.html)).
+/// (See [`Multilevel`](./connector/struct.Multilevel.html)).
 ///
 /// ## Safety:
 ///
@@ -133,6 +133,39 @@ pub trait Concurrent: Send + Sync {
     /// Create a shallow copy of the container pointing to the same
     /// container that can be later used concurrently.
     fn clone(&self) -> Self;
+}
+
+/// Accelerate next lookups for a set of keys.
+///
+/// This trait provides a
+/// [`prefetch()`](trait.Prefetch.html#tymethod.prefetch) method allowing
+/// to pay some compute cost upfront to accelerate the next lookup of some
+/// keys. This is usefull in a context where a thread runs in the background
+/// to reorganize a building block while the building block user is busy
+/// doing something else. This feature is also aimed for future
+/// implementations of an automatic prefetcher that can predict next
+/// accessed keys and prefetch them in the background.
+pub trait Prefetch<'a, K: 'a, V: 'a>: BuildingBlock<'a, K, V> {
+    /// This the method that will reorganize the building block to
+    /// accelerate next lookup of some `keys`. The default implementation
+    /// does nothing.
+    fn prefetch(&mut self, _keys: Vec<K>) {}
+
+    /// Optimized implementation to take multiple keys out of a building
+    /// block. This method returns a vector of all elements matching input
+    /// `keys` that were inside a building block. Input keys can be
+    /// altered only to remove keys that have been taken out of the
+    /// building block.
+    /// This method is aimed to accelerate the implementation of
+    /// [`prefetch()`](trait.Prefetch.html#tymethod.prefetch) method.
+    /// BuildingBlock implementer should make sure to implement this method
+    /// if it can be faster than the default implementation.
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        keys.iter()
+            .map(|k| self.take(k))
+            .filter_map(|i| i)
+            .collect()
+    }
 }
 
 /// Storage implementation for key/value pairs.
@@ -195,7 +228,7 @@ pub mod policy;
 /// of 10000 elements. The second layer uses a
 /// [BTree](./container/struct.BTree.html) building block with
 /// a capacity of 1000000 elements. The two containers are connected
-/// with a [Forward](./connector/struct.Forward.html) connector.
+/// with a [Multilevel](./connector/struct.Multilevel.html) connector.
 /// We want the [most recently used](./policy/struct.LRU.html) elements to
 /// stay in the first layer, and we want to be able to access the container
 /// [concurrently](./trait.Concurrent.html).
@@ -204,14 +237,14 @@ pub mod policy;
 /// ```
 /// use cache::BuildingBlock;
 /// use cache::container::{Array, BTree};
-/// use cache::connector::Forward;
+/// use cache::connector::Multilevel;
 /// use cache::concurrent::Sequential;
 /// use cache::policy::{Policy, LRU, timestamp::Clock};
 ///
 /// let array = Array::new(10000);
 /// let btree = BTree::new(1000000);
-/// let forward = Forward::new(array, btree);
-/// let policy = Policy::new(forward, LRU::<Clock>::new());
+/// let multilevel = Multilevel::new(array, btree);
+/// let policy = Policy::new(multilevel, LRU::<Clock>::new());
 /// let mut container = Sequential::new(policy);
 /// container.push(vec![(1,2)]);
 /// ```
@@ -223,7 +256,7 @@ pub mod policy;
 /// use cache::builder::traits::*;
 /// use cache::builder::Begin;
 ///
-/// let mut container = Begin::array(10000).forward(Begin::btree(1000000)).with_policy(LRU::<Clock>::new()).into_sequential().build();
+/// let mut container = Begin::array(10000).multilevel(Begin::btree(1000000)).with_policy(LRU::<Clock>::new()).into_sequential().build();
 /// container.push(vec![(1,2)]);
 /// ```
 pub mod builder;

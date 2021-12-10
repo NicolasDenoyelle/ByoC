@@ -1,5 +1,5 @@
 use crate::policy::{Reference, ReferenceFactory};
-use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered};
+use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered, Prefetch};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
@@ -240,6 +240,31 @@ where
 }
 
 //------------------------------------------------------------------------//
+// Prefetch Trait Implementation
+//------------------------------------------------------------------------//
+
+impl<'a, K, V, C, R, F> Prefetch<'a, K, V> for Policy<C, V, R, F>
+where
+    K: 'a,
+    V: 'a,
+    R: 'a + Reference<V>,
+    C: BuildingBlock<'a, K, R> + Prefetch<'a, K, R>,
+    F: ReferenceFactory<V, R>,
+{
+    fn prefetch(&mut self, keys: Vec<K>) {
+        self.container.prefetch(keys)
+    }
+
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        self.container
+            .take_multiple(keys)
+            .into_iter()
+            .map(|(k, r)| (k, r.unwrap()))
+            .collect()
+    }
+}
+
+//------------------------------------------------------------------------//
 //  Tests
 //------------------------------------------------------------------------//
 
@@ -249,7 +274,9 @@ mod tests {
     use crate::container::Array;
     use crate::policy::default::Default;
     use crate::policy::tests::test_ordered;
-    use crate::tests::{test_building_block, test_get, test_get_mut};
+    use crate::tests::{
+        test_building_block, test_get, test_get_mut, test_prefetch,
+    };
 
     #[test]
     fn building_block() {
@@ -263,6 +290,13 @@ mod tests {
         for i in vec![0, 10, 100] {
             test_get(Policy::new(Array::new(i), Default {}));
             test_get_mut(Policy::new(Array::new(i), Default {}));
+        }
+    }
+
+    #[test]
+    fn prefetch() {
+        for i in vec![0, 10, 100] {
+            test_prefetch(Policy::new(Array::new(i), Default {}));
         }
     }
 

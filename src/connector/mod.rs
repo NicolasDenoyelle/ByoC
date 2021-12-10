@@ -1,2 +1,2 @@
-mod forward;
-pub use crate::connector::forward::{Forward, ForwardCell};
+mod multilevel;
+pub use crate::connector::multilevel::{Multilevel, MultilevelCell};

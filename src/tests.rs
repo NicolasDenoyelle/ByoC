@@ -1,5 +1,5 @@
 extern crate rand;
-use crate::{BuildingBlock, Get, GetMut};
+use crate::{BuildingBlock, Get, GetMut, Prefetch};
 use rand::random;
 use std::ops::{Deref, DerefMut};
 
@@ -184,4 +184,42 @@ where
     test_n(&mut c, capacity / 2);
     test_n(&mut c, capacity);
     test_n(&mut c, capacity * 2);
+}
+
+pub fn test_prefetch<'a, C>(mut c: C)
+where
+    C: BuildingBlock<'a, u16, u32> + Prefetch<'a, u16, u32>,
+{
+    let n = c.capacity();
+    let elements: Vec<(u16, u32)> = (0..n as u64)
+        .map(|i| (i as u16, rand(0u64, n as u64) as u32))
+        .collect();
+    let (mut inserted, _) = insert(&mut c, elements.clone());
+
+    let mut all_keys: Vec<u16> =
+        inserted.iter().map(|(k, _)| k.clone()).collect();
+
+    // Make sure prefetch method keeps everything inside the container.
+    c.prefetch(all_keys.clone());
+    for (k, _) in inserted.iter() {
+        assert!(c.contains(k));
+    }
+
+    let mut take_all = c.take_multiple(&mut all_keys);
+
+    // Test that input keys contain original input keys minus some removed
+    // keys.
+    let mut inserted_keys: Vec<u16> =
+        inserted.iter().map(|(k, _)| k.clone()).collect();
+    inserted_keys.sort();
+    for k in all_keys {
+        assert!(inserted_keys.binary_search(&k).is_ok());
+    }
+
+    // Make sure that we took all the keys that we inserted.
+    inserted.sort();
+    take_all.sort();
+    for (a, b) in inserted.iter().zip(take_all.iter()) {
+        assert_eq!(a, b);
+    }
 }

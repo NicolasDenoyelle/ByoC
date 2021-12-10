@@ -1,4 +1,4 @@
-use crate::{BuildingBlock, Get, GetMut, Ordered};
+use crate::{BuildingBlock, Get, GetMut, Ordered, Prefetch};
 use std::cmp::Eq;
 use std::ops::{Deref, DerefMut};
 use std::vec::Vec;
@@ -254,15 +254,40 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
         })
     }
 }
+
 //------------------------------------------------------------------------//
-//  Tests
+// Prefetch trait
+//------------------------------------------------------------------------//
+
+impl<'a, K: 'a + Ord, V: 'a + Ord> Prefetch<'a, K, V> for Array<(K, V)> {
+    // One pass take
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let mut ret = Vec::with_capacity(keys.len());
+        keys.sort();
+        for i in (0..self.values.len()).rev() {
+            match keys.binary_search(&self.values[i].0) {
+                Ok(j) => {
+                    keys.remove(j);
+                    ret.push(self.values.swap_remove(i));
+                }
+                Err(_) => {}
+            }
+        }
+        ret
+    }
+}
+
+//------------------------------------------------------------------------//
+// Tests
 //------------------------------------------------------------------------//
 
 #[cfg(test)]
 mod tests {
     use super::Array;
     use crate::policy::tests::test_ordered;
-    use crate::tests::{test_building_block, test_get, test_get_mut};
+    use crate::tests::{
+        test_building_block, test_get, test_get_mut, test_prefetch,
+    };
 
     #[test]
     fn building_block() {
@@ -286,5 +311,12 @@ mod tests {
         test_get_mut(Array::new(0));
         test_get_mut(Array::new(10));
         test_get_mut(Array::new(100));
+    }
+
+    #[test]
+    fn prefetch() {
+        test_prefetch(Array::new(0));
+        test_prefetch(Array::new(10));
+        test_prefetch(Array::new(100));
     }
 }

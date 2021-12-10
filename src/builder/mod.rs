@@ -1,7 +1,7 @@
 mod array;
 mod associative;
 mod btree;
-mod forward;
+mod multilevel;
 mod policy;
 mod profiler;
 mod sequential;
@@ -16,7 +16,7 @@ pub mod builders {
     pub use crate::builder::array::ArrayBuilder;
     pub use crate::builder::associative::AssociativeBuilder;
     pub use crate::builder::btree::BTreeBuilder;
-    pub use crate::builder::forward::ForwardBuilder;
+    pub use crate::builder::multilevel::MultilevelBuilder;
     pub use crate::builder::policy::PolicyBuilder;
     pub use crate::builder::profiler::ProfilerBuilder;
     pub use crate::builder::sequential::SequentialBuilder;
@@ -27,7 +27,7 @@ pub mod builders {
 /// Traits enabling builders chaining capabilities.
 pub mod traits {
     use crate::builder::associative::AssociativeBuilder;
-    use crate::builder::forward::ForwardBuilder;
+    use crate::builder::multilevel::MultilevelBuilder;
     use crate::builder::policy::PolicyBuilder;
     use crate::builder::profiler::ProfilerBuilder;
     use crate::builder::sequential::SequentialBuilder;
@@ -55,14 +55,17 @@ pub mod traits {
     }
 
     /// Connection between two building blocks with a
-    /// [`Forward`](../../connector/struct.Forward.html)
+    /// [`Multilevel`](../../connector/struct.Multilevel.html)
     /// [building block](../../trait.BuildingBlock.html).
-    pub trait Forward<C, R, RB: Builder<R>>: Builder<C> {
-        fn forward(self, rbuilder: RB) -> ForwardBuilder<C, Self, R, RB>
+    pub trait Multilevel<C, R, RB: Builder<R>>: Builder<C> {
+        fn multilevel(
+            self,
+            rbuilder: RB,
+        ) -> MultilevelBuilder<C, Self, R, RB>
         where
             Self: Sized,
         {
-            ForwardBuilder::new(self, rbuilder)
+            MultilevelBuilder::new(self, rbuilder)
         }
     }
 

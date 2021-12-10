@@ -1,5 +1,5 @@
 use crate::builder::traits::{
-    Associative, Builder, Forward, Policy, Profiler,
+    Associative, Builder, Multilevel, Policy, Profiler,
 };
 use crate::concurrent::Sequential;
 use std::marker::PhantomData;
@@ -72,7 +72,7 @@ impl<C, B> Profiler<Sequential<C>> for SequentialBuilder<C, B> where
 {
 }
 
-impl<L, LB, R, RB> Forward<Sequential<L>, R, RB>
+impl<L, LB, R, RB> Multilevel<Sequential<L>, R, RB>
     for SequentialBuilder<L, LB>
 where
     LB: Builder<L>,
