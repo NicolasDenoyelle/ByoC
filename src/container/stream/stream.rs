@@ -64,7 +64,7 @@ pub struct ByteStream<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory<S>,
 {
     factory: F,
     streams: Vec<Option<IOVec<T, S>>>,
@@ -75,7 +75,7 @@ impl<T, S, F> ByteStream<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory<S>,
 {
     /// Create a new `ByteStream` building block with a set `capacity`.
     /// Key/value pairs of this building block will be stored on byte
@@ -121,7 +121,7 @@ where
     K: 'a + DeserializeOwned + Serialize + Eq,
     V: 'a + DeserializeOwned + Serialize + Ord,
     S: 'a + Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory<S>,
 {
     fn capacity(&self) -> usize {
         self.capacity
@@ -270,7 +270,7 @@ where
     K: DeserializeOwned + Serialize,
     V: DeserializeOwned + Serialize,
     S: Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory<S>,
 {
 }
 
@@ -336,7 +336,7 @@ where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
     S: Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory<S>,
 {
     /// Get value inside a `ByteStream`. The value is wrapped inside a
     /// [`StreamCell`](struct.StreamCell.html). The `StreamCell` can
@@ -395,7 +395,7 @@ where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
     S: Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory<S>,
 {
     /// Get a mutable value inside a `ByteStream`. The value is wrapped
     /// inside a [`StreamMutCell`](struct.StreamMutCell.html).
@@ -460,7 +460,7 @@ where
     K: 'a + DeserializeOwned + Serialize + Ord,
     V: 'a + DeserializeOwned + Serialize + Ord,
     S: 'a + Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory<S>,
 {
     fn prefetch(&mut self, _keys: Vec<K>) {}
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
