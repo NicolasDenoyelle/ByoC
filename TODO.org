@@ -33,3 +33,6 @@ on some predictions.
 * TODO Benchmarks:
 + Multiple distributions of keys
 + Different sizes of keys and values.
+* TODO inclusive connector building block.
+Insertions go into the last level and shallow copies of what is in the
+last level goes in the first level.
