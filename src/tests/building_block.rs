@@ -3,11 +3,13 @@ use crate::{BuildingBlock, Get, GetMut, Prefetch};
 use rand::random;
 use std::ops::{Deref, DerefMut};
 
+pub type TestElements = Vec<(u16, u32)>;
+
 pub fn rand(a: u64, b: u64) -> u64 {
     a + (random::<u64>() % (b - a))
 }
 
-fn test_push<'a, C>(c: &mut C, kv: Vec<(u16, u32)>)
+fn test_push<'a, C>(c: &mut C, kv: TestElements)
 where
     C: BuildingBlock<'a, u16, u32>,
 {
@@ -36,16 +38,16 @@ where
 
 pub fn insert<'a, C>(
     c: &mut C,
-    elements: Vec<(u16, u32)>,
-) -> (Vec<(u16, u32)>, Vec<(u16, u32)>)
+    elements: TestElements,
+) -> (TestElements, TestElements)
 where
     C: BuildingBlock<'a, u16, u32>,
 {
     let out = c.push(elements.clone());
-    let inserted: Vec<(u16, u32)> = elements
+    let inserted: TestElements = elements
         .iter()
         .filter(|e| out.iter().all(|_e| e != &_e))
-        .map(|e| e.clone())
+        .copied()
         .collect();
     (inserted, out)
 }
@@ -55,7 +57,7 @@ where
     U: Deref<Target = u32>,
     C: 'a + BuildingBlock<'a, u16, u32> + Get<u16, u32, U>,
 {
-    let elements: Vec<(u16, u32)> =
+    let elements: TestElements =
         (0u16..10u16).map(|i| (i, i as u32)).collect();
     let (elements, _) = insert(&mut c, elements);
 
@@ -69,7 +71,7 @@ where
     W: Deref<Target = u32> + DerefMut,
     C: 'a + BuildingBlock<'a, u16, u32> + GetMut<u16, u32, W>,
 {
-    let elements: Vec<(u16, u32)> =
+    let elements: TestElements =
         (0u16..10u16).map(|i| (i, i as u32)).collect();
     let (elements, _) = insert(&mut c, elements);
 
@@ -83,7 +85,7 @@ where
     }
 }
 
-fn test_flush<'a, C>(c: &mut C, elements: Vec<(u16, u32)>)
+fn test_flush<'a, C>(c: &mut C, elements: TestElements)
 where
     C: BuildingBlock<'a, u16, u32>,
 {
@@ -92,18 +94,15 @@ where
         c.flush();
     }
     assert_eq!(c.count(), 0);
-    let (inserted, _) = insert(c, elements.clone());
+    let (inserted, _) = insert(c, elements);
 
     for (k, v) in c.flush() {
-        assert!(inserted
-            .iter()
-            .find(|(_k, _v)| { _k == &k && _v == &v })
-            .is_some());
+        assert!(inserted.iter().any(|(_k, _v)| { _k == &k && _v == &v }));
     }
     assert_eq!(c.count(), 0);
 }
 
-fn test_take<'a, C>(c: &mut C, elements: Vec<(u16, u32)>)
+fn test_take<'a, C>(c: &mut C, elements: TestElements)
 where
     C: BuildingBlock<'a, u16, u32>,
 {
@@ -111,7 +110,7 @@ where
     {
         c.flush();
     }
-    let (inserted, _) = insert(c, elements.clone());
+    let (inserted, _) = insert(c, elements);
 
     let count = c.count();
     for (i, (k, v)) in inserted.iter().enumerate() {
@@ -143,18 +142,18 @@ fn test_n<'a, C>(c: &mut C, n: usize)
 where
     C: BuildingBlock<'a, u16, u32>,
 {
-    let elements: Vec<(u16, u32)> = (0..n as u64)
+    let elements: TestElements = (0..n as u64)
         .map(|i| (i as u16, rand(0u64, n as u64) as u32))
         .collect();
 
     // Push Test
     test_push(c, Vec::new());
-    if elements.len() > 0 {
+    if !elements.is_empty() {
         test_push(c, vec![elements[0]]);
         test_push(c, vec![elements[0]]);
     }
     test_push(c, elements.clone());
-    if elements.len() > 0 {
+    if !elements.is_empty() {
         test_push(c, vec![elements[0]]);
     }
     test_push(c, elements.clone());
@@ -166,10 +165,10 @@ where
     test_take(c, elements.clone());
 
     // Pop Test
-    let (inserted, _) = insert(c, elements.clone());
+    let (inserted, _) = insert(c, elements);
     test_pop(c, 0);
     test_pop(c, 1);
-    if inserted.len() > 0 {
+    if !inserted.is_empty() {
         test_pop(c, inserted.len() - 1);
         test_pop(c, 1);
     }
@@ -191,13 +190,13 @@ where
     C: BuildingBlock<'a, u16, u32> + Prefetch<'a, u16, u32>,
 {
     let n = c.capacity();
-    let elements: Vec<(u16, u32)> = (0..n as u64)
+    let elements: TestElements = (0..n as u64)
         .map(|i| (i as u16, rand(0u64, n as u64) as u32))
         .collect();
-    let (mut inserted, _) = insert(&mut c, elements.clone());
+    let (mut inserted, _) = insert(&mut c, elements);
 
     let mut all_keys: Vec<u16> =
-        inserted.iter().map(|(k, _)| k.clone()).collect();
+        inserted.iter().map(|(k, _)| *k).collect();
 
     // Make sure prefetch method keeps everything inside the container.
     c.prefetch(all_keys.clone());
@@ -210,15 +209,15 @@ where
     // Test that input keys contain original input keys minus some removed
     // keys.
     let mut inserted_keys: Vec<u16> =
-        inserted.iter().map(|(k, _)| k.clone()).collect();
-    inserted_keys.sort();
+        inserted.iter().map(|(k, _)| *k).collect();
+    inserted_keys.sort_unstable();
     for k in all_keys {
         assert!(inserted_keys.binary_search(&k).is_ok());
     }
 
     // Make sure that we took all the keys that we inserted.
-    inserted.sort();
-    take_all.sort();
+    inserted.sort_unstable();
+    take_all.sort_unstable();
     for (a, b) in inserted.iter().zip(take_all.iter()) {
         assert_eq!(a, b);
     }

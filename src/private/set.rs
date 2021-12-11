@@ -12,7 +12,7 @@ impl<T: Ord> MinSet<T> {
     pub fn new(max_len: usize) -> Self {
         MinSet {
             btree: BTreeSet::new(),
-            max_len: max_len,
+            max_len,
         }
     }
 
@@ -26,8 +26,7 @@ impl<T: Ord> MinSet<T> {
         } else {
             if self.btree.len() > self.max_len {
                 let mut btree =
-                    std::mem::replace(&mut self.btree, BTreeSet::new())
-                        .into_iter();
+                    std::mem::take(&mut self.btree).into_iter();
                 btree.next();
                 for e in btree {
                     self.btree.insert(e);

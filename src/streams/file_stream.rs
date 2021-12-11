@@ -1,13 +1,13 @@
-use crate::container::stream::Stream;
-#[cfg(feature = "tempfile")]
-use crate::container::stream::StreamFactory;
 use crate::private::lock::RWLock;
+use crate::streams::Stream;
+#[cfg(feature = "tempfile")]
+use crate::streams::StreamFactory;
 use std::fs::File;
 use std::path::PathBuf;
 #[cfg(feature = "tempfile")]
 use tempfile::NamedTempFile;
 
-/// A [`Stream`](trait.Stream.html) implementation based on a file.
+/// A [`Stream`](../trait.Stream.html) implementation based on a file.
 ///
 /// The underlying file is deleted when all the clones go out of scope.
 pub struct FileStream {
@@ -37,7 +37,7 @@ impl Drop for FileStream {
     }
 }
 
-impl crate::container::stream::Resize for FileStream {
+impl crate::streams::Resize for FileStream {
     fn resize(&mut self, size: u64) -> std::io::Result<()> {
         match self.file.set_len(size) {
             Ok(_) => Ok(()),
@@ -85,10 +85,6 @@ impl StreamFactory<FileStream> for TempFileStreamFactory {
         let rc = RWLock::new();
         rc.lock().unwrap();
 
-        FileStream {
-            file: file,
-            path: path,
-            rc: rc,
-        }
+        FileStream { file, path, rc }
     }
 }

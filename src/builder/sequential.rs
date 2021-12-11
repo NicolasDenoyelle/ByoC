@@ -1,17 +1,17 @@
 use crate::builder::traits::{
     Associative, Builder, Multilevel, Policy, Profiler,
 };
-use crate::concurrent::Sequential;
+use crate::Sequential;
 use std::marker::PhantomData;
 
-/// [Sequential](../../concurrent/struct.Sequential.html)
-/// container [builder](../traits/trait.Builder.html).
+/// `Sequential` container builder.
 ///
 /// This builder can be consumed later to wrap some containers into a
-/// [Sequential](../../concurrent/struct.Sequential.html)
+/// [`Sequential`](../../struct.Sequential.html)
 /// container.
 ///
-/// ## Examples
+/// # Examples
+///
 /// ```
 /// use cache::BuildingBlock;
 /// use cache::builder::traits::*;
@@ -39,7 +39,7 @@ where
 {
     pub fn new(builder: B) -> Self {
         SequentialBuilder {
-            builder: builder,
+            builder,
             unused: PhantomData,
         }
     }

@@ -7,8 +7,7 @@ use std::ops::{Deref, DerefMut};
 // Ordered set of references and key value map.                           //
 //------------------------------------------------------------------------//
 
-/// [`BuildingBlock`](../trait.BuildingBlock.html) with ordered keys and
-/// values.
+/// Building block with ordered keys and values.
 ///
 /// BTree is a container organized with binary tree structures for keys
 /// and values. Keys are kept in a binary tree for fast lookups.
@@ -20,15 +19,11 @@ use std::ops::{Deref, DerefMut};
 /// accessing values, even in a non exclusive way, may change their
 /// relative order and break the way values are stored in a binary tree.
 ///
-/// See
-/// [`BuildingBlock methods implementation`](struct.BTree.html#impl-BuildingBlock%3C%27a%2C%20K%2C%20V%3E)
-/// for behavior on `push()` and `pop()`.
-///
-/// ## Examples
+/// # Examples
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::container::BTree;
+/// use cache::BTree;
 ///
 /// // BTree with 3 elements capacity.
 /// let mut c = BTree::new(3);
@@ -90,11 +85,11 @@ where
     V: 'a + Ord,
 {
     fn capacity(&self) -> usize {
-        return self.capacity;
+        self.capacity
     }
 
     fn count(&self) -> usize {
-        return self.references.len();
+        self.references.len()
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
@@ -125,7 +120,7 @@ where
             if n >= self.capacity {
                 println!("Reject {:?} because capacity exceeded.", key);
                 out.push((key, value));
-            } else if let Some(_) = self.map.get(&key) {
+            } else if self.map.get(&key).is_some() {
                 println!("Reject {:?} because already stored.", key);
                 out.push((key, value))
             } else {
@@ -146,7 +141,7 @@ where
     /// the returned vector contains all the container values and
     /// the container is left empty.
     /// This building block implements the trait
-    /// [`Ordered`](../policy/trait.Ordered.html), which means that
+    /// [`Ordered`](../trait.Ordered.html), which means that
     /// the highest values are popped out. This is implemented by
     /// retrieving the last values stored in a binary tree.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
@@ -155,7 +150,7 @@ where
         for _ in 0..n {
             let k = match self.set.iter().rev().next() {
                 None => break,
-                Some((_, k)) => k.clone(),
+                Some((_, k)) => *k,
             };
 
             let n = self.references.len() - 1;
@@ -168,7 +163,7 @@ where
                 let (k_last, r_last) = {
                     let (k, r) =
                         self.references.iter().rev().next().unwrap();
-                    (k.clone(), OrdPtr::new(r))
+                    (*k, OrdPtr::new(r))
                 };
                 assert!(self.set.remove(&(r_last, k_last)));
                 self.map.insert(k_last, j);
@@ -197,7 +192,7 @@ where
                     let (k_last, r_last) = {
                         let (k, r) =
                             self.references.iter().rev().next().unwrap();
-                        (k.clone(), OrdPtr::new(r))
+                        (*k, OrdPtr::new(r))
                     };
                     assert!(self.set.remove(&(r_last, k_last)));
                     self.map.insert(k_last, i);
@@ -223,6 +218,11 @@ impl<K: Ord + Copy, V: Ord> Ordered<V> for BTree<K, V> {}
 //  GetMut trait implementation
 //------------------------------------------------------------------------//
 
+/// Cell representing a writable value inside a
+/// [`BTree`](struct.BTree.html).
+///
+/// This value inside this cell is taken out of the container and written
+/// back in it when the cell is dropped.
 pub struct BTreeCell<K: Copy + Ord, V: Ord> {
     key: K,
     value: OrdPtr<V>,
@@ -250,7 +250,7 @@ impl<K: Copy + Ord, V: Ord> Drop for BTreeCell<K, V> {
                 .set
                 .as_mut()
                 .unwrap()
-                .insert((self.value.clone(), self.key)));
+                .insert((self.value, self.key)));
         }
     }
 }
@@ -266,8 +266,8 @@ impl<K: Copy + Ord, V: Ord> GetMut<K, V, BTreeCell<K, V>> for BTree<K, V> {
                 assert!(self.set.remove(&vk));
                 let (value, key) = vk;
                 Some(BTreeCell {
-                    key: key,
-                    value: value,
+                    key,
+                    value,
                     set: &mut self.set,
                 })
             }
@@ -282,8 +282,7 @@ impl<K: Copy + Ord, V: Ord> GetMut<K, V, BTreeCell<K, V>> for BTree<K, V> {
 #[cfg(test)]
 mod tests {
     use super::BTree;
-    use crate::policy::tests::test_ordered;
-    use crate::tests::{test_building_block, test_get_mut};
+    use crate::tests::{test_building_block, test_get_mut, test_ordered};
 
     #[test]
     fn building_block() {

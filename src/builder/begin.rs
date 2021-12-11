@@ -1,21 +1,21 @@
 use crate::builder::builders::{ArrayBuilder, BTreeBuilder};
 
 #[cfg(feature = "stream")]
-use crate::builder::builders::ByteStreamBuilder;
+use crate::builder::builders::StreamBuilder;
 #[cfg(feature = "stream")]
-use crate::container::stream::{Stream, StreamFactory};
+use crate::streams::{Stream, StreamFactory};
 #[cfg(feature = "stream")]
 use serde::{de::DeserializeOwned, Serialize};
 
-/// Begin a container
-/// [builder](../traits/trait.Builder.html) chain.
+/// Begin a container builder chain.
 ///
 /// This builder can be consumed to produce a the first component
 /// of a [building block](../../trait.BuildingBlock.html) chain.
 /// In order to start the chain, you have to call one of the
 /// struct methods.
 ///
-/// ## Examples
+/// # Examples
+///
 /// ```
 /// use cache::BuildingBlock;
 /// use cache::builder::traits::*;
@@ -48,7 +48,7 @@ impl Begin {
     >(
         factory: F,
         capacity: usize,
-    ) -> ByteStreamBuilder<T, S, F> {
-        ByteStreamBuilder::new(factory, capacity)
+    ) -> StreamBuilder<T, S, F> {
+        StreamBuilder::new(factory, capacity)
     }
 }

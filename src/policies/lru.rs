@@ -1,5 +1,5 @@
-use crate::policy::timestamp::Timestamp;
-use crate::policy::{Reference, ReferenceFactory};
+use crate::policies::timestamp::Timestamp;
+use crate::policies::{Reference, ReferenceFactory};
 use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 
@@ -28,9 +28,9 @@ pub struct LRUCell<V, T: Timestamp> {
 /// ## Examples
 ///
 /// ```
-/// use cache::container::Array;
-/// use cache::policy::{Policy, LRU};
-/// use cache::policy::timestamp::Clock;
+/// use cache::{Array, Policy};
+/// use cache::policies::LRU;
+/// use cache::policies::timestamp::Clock;
 ///
 /// // let c = Policy::new(Array::new(3), LRU::<Clock>::new());
 /// ```
@@ -51,6 +51,12 @@ impl<T: Timestamp> LRU<T> {
         LRU {
             phantom: std::marker::PhantomData,
         }
+    }
+}
+
+impl<T: Timestamp> Default for LRU<T> {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -103,11 +109,11 @@ impl<V, T: Timestamp> Reference<V> for LRUCell<V, T> {
     fn unwrap(self) -> V {
         self.value
     }
-    fn get<'a>(&'a self) -> &'a V {
+    fn get(&self) -> &V {
         self.timestamp.set(T::new());
         &self.value
     }
-    fn get_mut<'a>(&'a mut self) -> &'a mut V {
+    fn get_mut(&mut self) -> &mut V {
         self.timestamp.set(T::new());
         &mut self.value
     }
@@ -116,8 +122,8 @@ impl<V, T: Timestamp> Reference<V> for LRUCell<V, T> {
 #[cfg(test)]
 mod tests {
     use super::LRUCell;
-    use crate::policy::timestamp::Counter;
-    use crate::policy::Reference;
+    use crate::policies::timestamp::Counter;
+    use crate::policies::Reference;
 
     #[test]
     fn test_lru_ref() {

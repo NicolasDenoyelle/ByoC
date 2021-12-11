@@ -1,6 +1,6 @@
-use crate::concurrent::{Sequential, SequentialCell};
 use crate::private::clone::CloneCell;
 use crate::{BuildingBlock, Concurrent, Get, GetMut, Prefetch};
+use crate::{Sequential, SequentialCell};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
@@ -10,8 +10,7 @@ use std::ops::{Deref, DerefMut};
 // Concurrent implementation of container                                 //
 //------------------------------------------------------------------------//
 
-/// Associative [`BuildingBlock`](../trait.BuildingBlock.html) wrapper with
-/// multiple sets/buckets.
+/// Associative building block wrapper with multiple sets/buckets.
 ///
 /// This building block is implemented as an array of building blocks.
 /// Keys inserted in this container must be hashable to find in which bucket
@@ -27,12 +26,11 @@ use std::ops::{Deref, DerefMut};
 /// evenly distributed across the buckets with the largest count of
 /// elements.
 ///
-/// ## Examples
+/// # Examples
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::container::Array;
-/// use cache::concurrent::Associative;
+/// use cache::{Array, Associative};
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// // Build a Array cache of 2 sets. Each set hold one element.
@@ -65,7 +63,7 @@ impl<C, H: Hasher + Clone> Associative<C, H> {
     pub fn new(sets: Vec<C>, key_hasher: H) -> Self {
         Associative {
             containers: CloneCell::new(
-                sets.into_iter().map(|c| Sequential::new(c)).collect(),
+                sets.into_iter().map(Sequential::new).collect(),
             ),
             hasher: key_hasher,
         }
@@ -92,9 +90,14 @@ where
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        let iterators: Vec<Box<dyn Iterator<Item = (K, V)> + 'a>> =
-            self.containers.iter_mut().map(|c| c.flush()).collect();
-        Box::new(iterators.into_iter().flat_map(|c| c))
+        Box::new(
+            self.containers
+                .iter_mut()
+                .map(|c| c.flush())
+                .collect::<Vec<Box<dyn Iterator<Item = (K, V)> + 'a>>>()
+                .into_iter()
+                .flatten(),
+        )
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -350,11 +353,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::Associative;
-    use crate::concurrent::tests::test_concurrent;
-    use crate::container::Array;
     use crate::tests::{
-        test_building_block, test_get, test_get_mut, test_prefetch,
+        test_building_block, test_concurrent, test_get, test_get_mut,
+        test_prefetch,
     };
+    use crate::Array;
     use std::collections::hash_map::DefaultHasher;
 
     #[test]

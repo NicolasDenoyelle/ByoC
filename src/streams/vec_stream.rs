@@ -1,8 +1,8 @@
-use crate::container::stream::{Resize, Stream, StreamFactory};
 use crate::private::clone::CloneCell;
+use crate::streams::{Resize, Stream, StreamFactory};
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 
-/// An implementation of a [`Stream`](trait.Stream.html) in a `Vec<u8>`.
+/// An implementation of a [`Stream`](../trait.Stream.html) in a `Vec<u8>`.
 pub struct VecStream {
     vec: CloneCell<Vec<u8>>,
     pos: usize,
@@ -14,6 +14,12 @@ impl VecStream {
             vec: CloneCell::new(Vec::new()),
             pos: 0usize,
         }
+    }
+}
+
+impl Default for VecStream {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -40,7 +46,7 @@ impl Read for VecStream {
         };
 
         let range = self.pos..(self.pos + len);
-        let slice = self.vec.as_slice().get(range.clone()).unwrap();
+        let slice = self.vec.as_slice().get(range).unwrap();
         buf.get_mut(0..len).unwrap().copy_from_slice(slice);
         self.pos += len;
         Ok(len)
@@ -52,16 +58,13 @@ impl Write for VecStream {
         let buf_len = buf.len();
         let vec_len = self.vec.len();
 
-        let len = if (vec_len - self.pos) < buf_len {
+        if (vec_len - self.pos) < buf_len {
             self.vec.resize(self.pos + buf_len, 0u8);
-            buf_len
-        } else {
-            buf_len
-        } as usize;
+        }
 
+        let len = buf_len as usize;
         let range = self.pos..(self.pos + len);
-        let slice =
-            self.vec.as_mut_slice().get_mut(range.clone()).unwrap();
+        let slice = self.vec.as_mut_slice().get_mut(range).unwrap();
         let buf = buf.get(0..len).unwrap();
         slice.copy_from_slice(buf);
         self.pos += len;

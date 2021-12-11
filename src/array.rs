@@ -7,24 +7,13 @@ use std::vec::Vec;
 //  Array struct
 //-------------------------------------------------------------------------
 
-/// [`BuildingBlock`](../trait.BuildingBlock.html) implementation in a
-/// array.
+/// BuildingBlock implementation in as an array of key/value pairs.
 ///
-/// Array holds values in a `Vec<(key, value)>`.   
-/// See
-/// [`BuildingBlock methods implementation`](struct.Array.html#impl-BuildingBlock%3C%27a%2C%20K%2C%20V%3E)
-/// for behavior on `push()` and `pop()`.
-///
-/// ## Safety
-///
-/// See
-/// [`Get methods implementation`](struct.Array.html#impl-Get%3CK%2C%20V%2C%20ArrayCell%3CV%3E%2C%20ArrayMutCell%3CV%3E%3E).
-///
-/// ## Examples
+/// # Examples
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::container::Array;
+/// use cache::Array;
 ///
 /// // Array with 3 elements capacity.
 /// let mut c = Array::new(3);
@@ -69,7 +58,7 @@ where
     V: 'a + Ord,
 {
     fn capacity(&self) -> usize {
-        return self.capacity;
+        self.capacity
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
@@ -81,7 +70,7 @@ where
     }
 
     fn count(&self) -> usize {
-        return self.values.len();
+        self.values.len()
     }
 
     /// Remove up to `n` values from the container.
@@ -89,7 +78,7 @@ where
     /// the returned array contains all the container values and
     /// the container is left empty.
     /// This building block implements the trait
-    /// [`Ordered`](../policy/trait.Ordered.html), which means that
+    /// [`Ordered`](../trait.Ordered.html), which means that
     /// the highest values are popped out. This is implemented by
     /// sorting the array on values and spitting it where appropriate.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
@@ -117,7 +106,7 @@ where
     fn take(&mut self, key: &K) -> Option<(K, V)> {
         match self.values.iter().enumerate().find_map(|(i, (k, _))| {
             if k == key {
-                Some(i.clone())
+                Some(i)
             } else {
                 None
             }
@@ -172,7 +161,7 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>> for Array<(K, V)> {
     /// [`ArrayCell`](struct.ArrayCell.html). The `ArrayCell` can
     /// further be dereferenced into a value reference.
     ///
-    /// ## Safety:
+    /// # Safety:
     ///
     /// Using the return value inside the `ArrayCell` is unsafe and can
     /// lead to undefined behavior. The user of this method must ensure that
@@ -180,11 +169,11 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>> for Array<(K, V)> {
     /// droped. Otherwise, the content of the `ArrayCell` might be
     /// corrupted.
     ///
-    /// ## Example:
+    /// # Example:
     ///
     /// ```
     /// use cache::{BuildingBlock, Get};
-    /// use cache::container::Array;
+    /// use cache::Array;
     ///
     /// // Make a array and populate it.
     /// let mut v = Array::new(1);
@@ -216,7 +205,7 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
     /// [`ArrayMutCell`](struct.ArrayMutCell.html). The `ArrayMutCell`
     /// can further be dereferenced into a value reference.
     ///
-    /// ## Safety:
+    /// # Safety:
     ///
     /// Using the return value inside the `ArrayMutCell` is unsafe and can
     /// lead to undefined behavior. The user of this method must ensure that
@@ -224,11 +213,11 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
     /// droped. Otherwise, the content of the `ArrayMutCell` might be
     /// corrupted.
     ///
-    /// ## Example:
+    /// # Example:
     ///
     /// ```
     /// use cache::{BuildingBlock, GetMut};
-    /// use cache::container::Array;
+    /// use cache::Array;
     ///
     /// // Make a array and populate it.
     /// let mut v = Array::new(1);
@@ -265,12 +254,9 @@ impl<'a, K: 'a + Ord, V: 'a + Ord> Prefetch<'a, K, V> for Array<(K, V)> {
         let mut ret = Vec::with_capacity(keys.len());
         keys.sort();
         for i in (0..self.values.len()).rev() {
-            match keys.binary_search(&self.values[i].0) {
-                Ok(j) => {
-                    keys.remove(j);
-                    ret.push(self.values.swap_remove(i));
-                }
-                Err(_) => {}
+            if let Ok(j) = keys.binary_search(&self.values[i].0) {
+                keys.remove(j);
+                ret.push(self.values.swap_remove(i));
             }
         }
         ret
@@ -284,9 +270,9 @@ impl<'a, K: 'a + Ord, V: 'a + Ord> Prefetch<'a, K, V> for Array<(K, V)> {
 #[cfg(test)]
 mod tests {
     use super::Array;
-    use crate::policy::tests::test_ordered;
     use crate::tests::{
-        test_building_block, test_get, test_get_mut, test_prefetch,
+        test_building_block, test_get, test_get_mut, test_ordered,
+        test_prefetch,
     };
 
     #[test]

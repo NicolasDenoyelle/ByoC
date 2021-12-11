@@ -1,28 +1,28 @@
 use crate::builder::traits::{
     Associative, Builder, Multilevel, Policy, Profiler, Sequential,
 };
-use crate::container::stream::{Stream, StreamFactory};
-use crate::container::ByteStream;
+use crate::streams::{Stream, StreamFactory};
+use crate::Stream as ByteStream;
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
-/// [ByteStream](../../container/struct.ByteStream.html)
-/// [builder](../traits/trait.Builder.html).
+/// `Stream` container builder.
 ///
 /// This builder can be consumed later to spawn a
-/// [ByteStream](../../container/struct.ByteStream.html) container.
+/// [`Stream`](../../struct.Stream.html) container.
 ///
-/// ## Examples
+/// # Examples
+///
 /// ```
 /// use cache::BuildingBlock;
 /// use cache::builder::traits::*;
-/// use cache::container::stream::vec_stream::VecStreamFactory;
-/// use cache::builder::builders::ByteStreamBuilder;
+/// use cache::streams::VecStreamFactory;
+/// use cache::builder::builders::StreamBuilder;
 ///
-/// let mut stream = ByteStreamBuilder::new(VecStreamFactory{}, 2).build();
+/// let mut stream = StreamBuilder::new(VecStreamFactory{}, 2).build();
 /// stream.push(vec![(1, 2)]);
 /// ```
-pub struct ByteStreamBuilder<T, S, F>
+pub struct StreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,
@@ -33,29 +33,29 @@ where
     unused: PhantomData<(T, S)>,
 }
 
-impl<T, S, F> ByteStreamBuilder<T, S, F>
+impl<T, S, F> StreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,
     F: StreamFactory<S> + Clone,
 {
     pub fn new(factory: F, capacity: usize) -> Self {
-        ByteStreamBuilder {
-            factory: factory,
-            capacity: capacity,
+        StreamBuilder {
+            factory,
+            capacity,
             unused: PhantomData,
         }
     }
 }
 
-impl<T, S, F> Clone for ByteStreamBuilder<T, S, F>
+impl<T, S, F> Clone for StreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,
     F: StreamFactory<S> + Clone,
 {
     fn clone(&self) -> Self {
-        ByteStreamBuilder {
+        StreamBuilder {
             factory: self.factory.clone(),
             capacity: self.capacity,
             unused: PhantomData,
@@ -63,8 +63,7 @@ where
     }
 }
 
-impl<T, S, F> Associative<ByteStream<T, S, F>>
-    for ByteStreamBuilder<T, S, F>
+impl<T, S, F> Associative<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,
@@ -72,8 +71,7 @@ where
 {
 }
 
-impl<T, S, F> Sequential<ByteStream<T, S, F>>
-    for ByteStreamBuilder<T, S, F>
+impl<T, S, F> Sequential<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,
@@ -81,7 +79,7 @@ where
 {
 }
 
-impl<T, S, F> Profiler<ByteStream<T, S, F>> for ByteStreamBuilder<T, S, F>
+impl<T, S, F> Profiler<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,
@@ -90,7 +88,7 @@ where
 }
 
 impl<T, S, F, R, RB> Multilevel<ByteStream<T, S, F>, R, RB>
-    for ByteStreamBuilder<T, S, F>
+    for StreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,
@@ -99,7 +97,7 @@ where
 {
 }
 
-impl<T, S, F> Policy<ByteStream<T, S, F>> for ByteStreamBuilder<T, S, F>
+impl<T, S, F> Policy<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,
@@ -107,7 +105,7 @@ where
 {
 }
 
-impl<T, S, F> Builder<ByteStream<T, S, F>> for ByteStreamBuilder<T, S, F>
+impl<T, S, F> Builder<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,

@@ -1,4 +1,4 @@
-use crate::policy::{Reference, ReferenceFactory};
+use crate::policies::{Reference, ReferenceFactory};
 use std::cmp::{Ord, Ordering};
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 //----------------------------------------------------------------------------//
@@ -28,8 +28,8 @@ pub struct FIFOCell<V> {
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::container::Array;
-/// use cache::policy::{Policy, FIFO};
+/// use cache::{Array, Policy};
+/// use cache::policies::FIFO;
 ///
 /// let mut c = Policy::new(Array::new(3), FIFO::new());
 /// c.push(vec![("item1",()), ("item2",()), ("item0",())]);
@@ -45,6 +45,12 @@ impl FIFO {
         FIFO {
             counter: AtomicU64::new(0),
         }
+    }
+}
+
+impl Default for FIFO {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -70,12 +76,10 @@ unsafe impl Sync for FIFO {}
 
 impl<V> Ord for FIFOCell<V> {
     fn cmp(&self, other: &Self) -> Ordering {
-        if self.counter > other.counter {
-            Ordering::Less
-        } else if self.counter < other.counter {
-            Ordering::Greater
-        } else {
-            Ordering::Equal
+        match self.counter.cmp(&other.counter) {
+            Ordering::Less => Ordering::Greater,
+            Ordering::Greater => Ordering::Less,
+            Ordering::Equal => Ordering::Equal,
         }
     }
 }
@@ -98,10 +102,10 @@ impl<V> Reference<V> for FIFOCell<V> {
     fn unwrap(self) -> V {
         self.value
     }
-    fn get<'a>(&'a self) -> &'a V {
+    fn get(&self) -> &V {
         &self.value
     }
-    fn get_mut<'a>(&'a mut self) -> &'a mut V {
+    fn get_mut(&mut self) -> &mut V {
         &mut self.value
     }
 }
@@ -122,7 +126,7 @@ mod tests {
         };
         assert!(p0 > p1);
         assert!(p1 < p0);
-        assert!(p0 == p0);
-        assert!(p1 == p1);
+        // assert!(p0 == p0);
+        // assert!(p1 == p1);
     }
 }

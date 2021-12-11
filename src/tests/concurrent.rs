@@ -36,7 +36,7 @@ where
     let mut set: Vec<(u16, u32)> =
         (0..capacity * 2).map(|i| (i as u16, i as u32)).collect();
     // The total number of elements to push in the container c.
-    let keys: Vec<u16> = set.iter().map(|(k, _)| k.clone()).collect();
+    let keys: Vec<u16> = set.iter().map(|(k, _)| *k).collect();
 
     // The base set size for each thread.
     let t_size = set.len() / num_thread as usize;

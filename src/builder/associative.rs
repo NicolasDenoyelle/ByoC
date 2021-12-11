@@ -1,16 +1,15 @@
 use crate::builder::traits::{Builder, Multilevel, Policy, Profiler};
-use crate::concurrent::Associative;
+use crate::Associative;
 use std::hash::Hasher;
 use std::marker::PhantomData;
 
-/// [Associative](../../concurrent/struct.Associative.html)
-/// container [builder](../traits/trait.Builder.html).
+/// `Associative` container builder.
 ///
 /// This builder can be consumed later to wrap some containers into an
-/// [Associative](../../concurrent/struct.Associative.html)
-/// container.
+/// [`Associative`](../../struct.Associative.html) container.
 ///
-/// ## Examples
+/// # Examples
+///
 /// ```
 /// use cache::BuildingBlock;
 /// use cache::builder::traits::*;
@@ -58,8 +57,8 @@ where
 {
     pub fn new(builder: B, n_sets: usize, key_hasher: H) -> Self {
         AssociativeBuilder {
-            builder: builder,
-            n_sets: n_sets,
+            builder,
+            n_sets,
             set_hasher: key_hasher,
             unused: PhantomData,
         }

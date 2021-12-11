@@ -1,5 +1,5 @@
-use crate::policy::timestamp::Timestamp;
-use crate::policy::{Reference, ReferenceFactory};
+use crate::policies::timestamp::Timestamp;
+use crate::policies::{Reference, ReferenceFactory};
 use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 
@@ -32,7 +32,7 @@ impl<T: Timestamp + Copy> Stats<T> {
     /// by this exponent.
     pub fn new(exponent: f32) -> Self {
         Stats {
-            exponent: exponent,
+            exponent,
             last: T::new(),
             eavg: 0f32,
         }
@@ -91,8 +91,8 @@ struct LRFUCell<V, T: Timestamp + Copy> {
 /// ## Examples
 ///
 /// ```
-/// use cache::container::Array;
-/// use cache::policy::{Policy, LRFU};
+/// use cache::{Array, Policy};
+/// use cache::policies::LRFU;
 ///
 /// // let c = Policy::new(Array::new(3), LRFU::new(2.0));
 /// ```
@@ -123,7 +123,7 @@ impl<T: Timestamp + Copy> LRFU<T> {
     /// See [`LRFU`](struct.LRFU.html)
     pub fn new(exponent: f32) -> Self {
         LRFU {
-            exponent: exponent,
+            exponent,
             phantom: std::marker::PhantomData,
         }
     }
@@ -180,13 +180,13 @@ impl<V, T: Timestamp + Copy> Ord for LRFUCell<V, T> {
 
 impl<V, T: Timestamp + Copy> PartialOrd for LRFUCell<V, T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(&other))
+        Some(self.cmp(other))
     }
 }
 
 impl<V, T: Timestamp + Copy> PartialEq for LRFUCell<V, T> {
     fn eq(&self, other: &Self) -> bool {
-        self.cmp(&other) == Ordering::Equal
+        self.cmp(other) == Ordering::Equal
     }
 }
 
@@ -196,11 +196,11 @@ impl<V, T: Timestamp + Copy> Reference<V> for LRFUCell<V, T> {
     fn unwrap(self) -> V {
         self.value
     }
-    fn get<'a>(&'a self) -> &'a V {
+    fn get(&self) -> &V {
         self.touch();
         &self.value
     }
-    fn get_mut<'a>(&'a mut self) -> &'a mut V {
+    fn get_mut(&mut self) -> &mut V {
         self.touch();
         &mut self.value
     }
@@ -209,8 +209,8 @@ impl<V, T: Timestamp + Copy> Reference<V> for LRFUCell<V, T> {
 #[cfg(test)]
 mod tests {
     use super::LRFUCell;
-    use crate::policy::timestamp::Counter;
-    use crate::policy::Reference;
+    use crate::policies::timestamp::Counter;
+    use crate::policies::Reference;
 
     #[test]
     fn test_lrfu_ref() {

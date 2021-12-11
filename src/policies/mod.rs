@@ -1,14 +1,14 @@
 /// Value ordering implementation.
 ///
 /// A reference is a value wrapper that lives in
-/// [containers](../container/index.html).
+/// [building block](../trait.BuildingBlock.html).
 /// This trait implements an ordering of victims in containers
 /// to therefore an eviction policy. It also implements access
 /// to the value it wraps.
 pub trait Reference<V>: Ord {
     fn unwrap(self) -> V;
-    fn get<'a>(&'a self) -> &'a V;
-    fn get_mut<'a>(&'a mut self) -> &'a mut V;
+    fn get(&self) -> &V;
+    fn get_mut(&mut self) -> &mut V;
 }
 
 /// Facility to wrap a value into a cache reference.
@@ -20,20 +20,15 @@ where
     fn wrap(&mut self, v: V) -> R;
 }
 
-pub mod policy;
-pub use crate::policy::policy::Policy;
 mod lrfu;
-pub use crate::policy::lrfu::LRFU;
+pub use crate::policies::lrfu::LRFU;
 mod lru;
-pub use crate::policy::lru::LRU;
+pub use crate::policies::lru::LRU;
 mod fifo;
-pub use crate::policy::fifo::FIFO;
+pub use crate::policies::fifo::FIFO;
 #[cfg(test)]
 mod default;
-/// Fixed point in time used with some cache [policies](../policy/struct.LRFU.html).
+#[cfg(test)]
+pub use crate::policies::default::{Default, DefaultCell};
+/// Fixed point in time used with some cache policies.
 pub mod timestamp;
-#[cfg(test)]
-pub use crate::policy::default::{Default, DefaultCell};
-#[cfg(test)]
-/// Public test module available only for testing containers implementation.
-pub mod tests;

@@ -8,17 +8,15 @@ use std::ops::{Deref, DerefMut};
 // Sequential wrapper implementation                                      //
 //------------------------------------------------------------------------//
 
-/// Concurrent [`BuildingBlock`](../trait.BuildingBlock.html) wrapper with
-/// a lock.
+/// Concurrent building block wrapper with a lock.
 ///
 /// Makes a container thread safe by sequentializing its access.
 ///
-/// ## Examples
+/// # Examples
 ///
 /// ```
 /// use cache::{BuildingBlock, Concurrent};
-/// use cache::container::Array;
-/// use cache::concurrent::Sequential;
+/// use cache::{Array, Sequential};
 ///
 /// // Build a concurrent Array cache.
 /// let mut c1 = Sequential::new(Array::new(1));
@@ -45,6 +43,9 @@ impl<C> Sequential<C> {
     }
 
     /// Get mutable access to a wrapped container.
+    ///
+    /// # Safety
+    ///
     /// Lock is not acquired.
     /// Therefore, the use of returned container
     /// is not thread safe. Management of thread safety
@@ -137,14 +138,14 @@ impl<C> Concurrent for Sequential<C> {
 // Get Trait Implementation                                               //
 //------------------------------------------------------------------------//
 
-/// Element from a building block wrapped in a
-/// [`Sequential`](struct.Sequential.html) building block.
+/// Element from a building block wrapped in a `Sequential` building block.
 ///
 /// This structure holds both the element and a lock on the container
 /// where the element comes from. The lock is either shared or exclusive
 /// depending on whether the element is read-only or read-write.
 ///
-/// ## Safety:
+/// # Safety:
+///
 /// While this structure will prevent unsafe access between the
 /// values and the building block containing them, if an unsafe access to
 /// the container is attempted, while values wrapped in this struct are
@@ -158,7 +159,7 @@ pub struct SequentialCell<V> {
 impl<V> SequentialCell<V> {
     pub fn new(value: V, lock: &RWLock) -> Self {
         SequentialCell {
-            value: value,
+            value,
             lock: lock.clone(),
         }
     }
@@ -255,11 +256,11 @@ where
 #[cfg(test)]
 mod tests {
     use super::Sequential;
-    use crate::concurrent::tests::test_concurrent;
-    use crate::container::Array;
     use crate::tests::{
-        test_building_block, test_get, test_get_mut, test_prefetch,
+        test_building_block, test_concurrent, test_get, test_get_mut,
+        test_prefetch,
     };
+    use crate::Array;
 
     #[test]
     fn building_block() {

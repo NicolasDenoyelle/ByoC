@@ -31,10 +31,7 @@ impl<V> InnerClone<V> {
         let rc = RWLock::new();
         // Increment reference count in the lock by one.
         rc.lock().unwrap();
-        InnerClone {
-            value: value,
-            rc: rc,
-        }
+        InnerClone { value, rc }
     }
 
     pub fn clone(&self) {
@@ -43,10 +40,8 @@ impl<V> InnerClone<V> {
 
     pub fn drop(&mut self) -> bool {
         self.rc.unlock(); // release (last?) read lock.
-        match self.rc.try_lock_mut() {
-            Ok(_) => true,
-            _ => false,
-        } // Return whether we are the only remaining clone owner.
+                          // Return whether we are the only remaining clone owner.
+        matches!(self.rc.try_lock_mut(), Ok(_))
     }
 }
 
@@ -99,9 +94,7 @@ impl<V> Clone for CloneCell<V> {
     /// copy `InnerClone=` pointer.
     fn clone(&self) -> Self {
         unsafe { (*self.ptr).clone() }
-        CloneCell {
-            ptr: self.ptr.clone(),
-        }
+        CloneCell { ptr: self.ptr }
     }
 }
 
@@ -181,7 +174,7 @@ where
     C: Concurrent,
 {
     fn clone(&self) -> Self {
-        Clone::clone(&self)
+        Clone::clone(self)
     }
 }
 

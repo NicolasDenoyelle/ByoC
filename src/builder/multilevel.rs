@@ -3,18 +3,18 @@ use crate::builder::traits::{
     Sequential,
 };
 
-use crate::connector::Multilevel;
+use crate::Multilevel;
 use std::marker::PhantomData;
 
-/// [Multilevel](../../connector/struct.Multilevel.html)
-/// container [builder](../traits/trait.Builder.html).
+/// `Multilevel` container builder.
 ///
 /// This builder can be consumed later to connect two containers together
-/// with a [Multilevel](../../connector/struct.Multilevel.html) connector.
+/// with a [`Multilevel`](../../struct.Multilevel.html) connector.
 /// It is created from two other builders that will build the left hand
 /// side of the connection and the right hand side of the connection.
 ///
-/// ## Examples
+/// # Examples
+///
 /// ```
 /// use cache::BuildingBlock;
 /// use cache::builder::traits::*;
@@ -61,8 +61,8 @@ where
 {
     pub fn new(lbuilder: LB, rbuilder: RB) -> Self {
         Self {
-            lbuilder: lbuilder,
-            rbuilder: rbuilder,
+            lbuilder,
+            rbuilder,
             unused: PhantomData,
         }
     }

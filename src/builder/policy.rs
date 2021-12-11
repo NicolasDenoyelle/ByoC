@@ -1,21 +1,22 @@
 use crate::builder::traits::{
     Associative, Builder, Multilevel, Sequential,
 };
-use crate::policy::{Policy, Reference, ReferenceFactory};
+use crate::policies::{Reference, ReferenceFactory};
+use crate::Policy;
 use std::marker::PhantomData;
 
-/// [Policy](../../policy/policy/struct.Policy.html)
-/// container [builder](../traits/trait.Builder.html).
+/// `Policy` container builder.
 ///
 /// This builder can be consumed later to wrap some containers into a
-/// [Policy](../../container/concurrent/struct.Associative.html)
+/// [`Policy`](../../struct.Policy.html)
 /// container, thus applying an eviction policy to the wrapped container.
 ///
-/// ## Examples
+/// # Examples
+///
 /// ```
 /// use cache::BuildingBlock;
 /// use cache::builder::traits::*;
-/// use cache::policy::FIFO;
+/// use cache::policies::FIFO;
 /// use cache::builder::builders::{ArrayBuilder, PolicyBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
@@ -78,8 +79,8 @@ where
 {
     pub fn new(builder: B, policy: F) -> Self {
         Self {
-            builder: builder,
-            policy: policy,
+            builder,
+            policy,
             unused: PhantomData,
         }
     }

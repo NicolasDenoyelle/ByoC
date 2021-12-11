@@ -34,7 +34,7 @@ static mut COUNTER_STATE: AtomicU64 = AtomicU64::new(0);
 /// A timestamp based on a global counter.
 ///
 /// ```
-/// use cache::policy::timestamp::{Timestamp, Counter};
+/// use cache::policies::timestamp::{Timestamp, Counter};
 ///
 /// // Counters are strictly ascending
 /// assert!(Counter::new() < Counter::new());
@@ -60,7 +60,7 @@ impl Timestamp for Counter {
     /// Convert to f32 then compute difference.
     ///
     /// ```
-    /// use cache::policy::timestamp::{Timestamp, Counter};
+    /// use cache::policies::timestamp::{Timestamp, Counter};
     ///
     /// let t0 = Counter::new();
     /// let t1 = Counter::new();
@@ -83,7 +83,7 @@ impl Timestamp for Counter {
 /// To this date the granularity of the clock is the nanosecond.
 ///
 /// ```
-/// use cache::policy::timestamp::{Timestamp, Clock};
+/// use cache::policies::timestamp::{Timestamp, Clock};
 ///    
 /// assert!(Clock::new() < Clock::new());
 /// ```
@@ -117,7 +117,7 @@ mod tests {
             let tj = T::new();
             assert!(tj >= ti);
             assert!(tj >= t0);
-            assert!(tj == tj);
+            // assert!(tj == tj);
             ti = tj;
         }
     }

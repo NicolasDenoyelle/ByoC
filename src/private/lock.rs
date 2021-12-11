@@ -64,6 +64,12 @@ pub struct RWLock {
     state: Arc<AtomicU64>,
 }
 
+impl Default for RWLock {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Drop for RWLock {
     fn drop(&mut self) {
         if thread::panicking() {
@@ -204,7 +210,7 @@ impl RWLock {
                     if nanos > 8192 {
                         thread::yield_now();
                     } else if nanos > 32 {
-                        nanos = nanos * 2;
+                        nanos *= 2;
                         thread::sleep(time::Duration::from_nanos(nanos));
                     }
                 }
@@ -245,7 +251,7 @@ impl RWLock {
                     if nanos > 8192 {
                         thread::yield_now();
                     } else if nanos > 32 {
-                        nanos = nanos * 2;
+                        nanos *= 2;
                         thread::sleep(time::Duration::from_nanos(nanos));
                     }
                 }

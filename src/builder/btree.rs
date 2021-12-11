@@ -1,16 +1,16 @@
 use crate::builder::traits::{
     Associative, Builder, Multilevel, Policy, Profiler, Sequential,
 };
-use crate::container::BTree;
+use crate::BTree;
 use std::marker::PhantomData;
 
-/// [BTree](../../container/struct.BTree.html)
-/// [builder](../traits/trait.Builder.html).
+/// `BTree` builder.
 ///
 /// This builder can be consumed later to spawn an
-/// [BTree](../../container/struct.BTree.html) container.
+/// [`BTree`](../../struct.BTree.html) container.
 ///
-/// ## Examples
+/// # Examples
+///
 /// ```
 /// use cache::BuildingBlock;
 /// use cache::builder::traits::*;
@@ -27,7 +27,7 @@ pub struct BTreeBuilder<K: Ord + Copy, V: Ord> {
 impl<K: Ord + Copy, V: Ord> BTreeBuilder<K, V> {
     pub fn new(capacity: usize) -> Self {
         BTreeBuilder {
-            capacity: capacity,
+            capacity,
             unused: PhantomData,
         }
     }

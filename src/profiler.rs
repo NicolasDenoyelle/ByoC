@@ -78,7 +78,7 @@ macro_rules! time_it {
     }};
 }
 
-/// [`BuildingBlock`](../trait.BuildingBlock.html) wrapper to collect
+/// Building block wrapper to collect
 /// access, misses, hits and statistics about methods access time.
 ///
 /// See Profiler `_stats()` methods to learn about what is counted/measured.
@@ -87,12 +87,11 @@ macro_rules! time_it {
 /// If the wrapped container implements the concurrent trait, then
 /// so does the profiler.
 ///
-/// ## Examples
+/// # Examples
 ///
 /// ```
 /// use cache::{BuildingBlock, Get};
-/// use cache::container::Array;
-/// use cache::profiler::Profiler;
+/// use cache::{Array, Profiler};
 ///
 /// // Build a cache:
 /// let c = Array::new(3);
@@ -125,85 +124,84 @@ pub struct Profiler<C> {
 }
 
 impl<C> Profiler<C> {
-    /// Wrap a [building block](../trait.BuildingBlock.html) into a
-    /// Profiler.
+    /// Wrap a building block into a `Profiler`.
     pub fn new(cache: C) -> Self {
         Profiler {
-            cache: cache,
+            cache,
             stats: CloneCell::new(Stats::new()),
         }
     }
 
     /// Get a summary of (0) the number of
-    /// [`count()`](../trait.BuildingBlock.html#tymethod.count) method call
+    /// [`count()`](trait.BuildingBlock.html#tymethod.count) method call
     /// and (1) the total time spent in milliseconds in these calls.
     pub fn count_stats(&self) -> (u64, u64) {
         self.stats.count.read()
     }
     /// Get a summary of (0) the number of
-    /// [`contain()`](../trait.BuildingBlock.html#tymethod.contain) method
+    /// [`contain()`](trait.BuildingBlock.html#tymethod.contain) method
     /// call and (1) the total time spent in milliseconds in these calls.
     pub fn contains_stats(&self) -> (u64, u64) {
         self.stats.contains.read()
     }
     /// Get a summary of (0) the number of
-    /// [`take()`](../trait.BuildingBlock.html#tymethod.take) method
+    /// [`take()`](trait.BuildingBlock.html#tymethod.take) method
     /// call and (1) the total time spent in milliseconds in these calls.
     pub fn take_stats(&self) -> (u64, u64) {
         self.stats.take.read()
     }
     /// Get a summary of (0) the number of
-    /// [`pop()`](../trait.BuildingBlock.html#tymethod.pop) method
+    /// [`pop()`](trait.BuildingBlock.html#tymethod.pop) method
     /// call and (1) the total time spent in milliseconds in these calls.
     pub fn pop_stats(&self) -> (u64, u64) {
         self.stats.pop.read()
     }
     /// Get a summary of (0) the number of
-    /// [`push()`](../trait.BuildingBlock.html#tymethod.push) method
+    /// [`push()`](trait.BuildingBlock.html#tymethod.push) method
     /// call and (1) the total time spent in milliseconds in these calls.
     pub fn push_stats(&self) -> (u64, u64) {
         self.stats.push.read()
     }
     /// Get a summary of (0) the number of
-    /// [`flush()`](../trait.BuildingBlock.html#tymethod.flush) method
+    /// [`flush()`](trait.BuildingBlock.html#tymethod.flush) method
     /// call and (1) the total time spent in milliseconds in these calls.
     pub fn flush_stats(&self) -> (u64, u64) {
         self.stats.flush.read()
     }
     /// Get a summary of (0) the number of iterations performed on an
     /// iterator obtained through
-    /// [`flush()`](../trait.BuildingBlock.html#tymethod.flush) method
+    /// [`flush()`](trait.BuildingBlock.html#tymethod.flush) method
     /// and (1) the total time spent in milliseconds on iterations.
     pub fn flush_iter_stats(&self) -> (u64, u64) {
         self.stats.flush_iter.read()
     }
     /// Get a summary of (0) the number of
-    /// [`get()`](../trait.Get.html#tymethod.get) method
+    /// [`get()`](trait.Get.html#tymethod.get) method
     /// call and (1) the total time spent in milliseconds in these calls.
     pub fn get_stats(&self) -> (u64, u64) {
         self.stats.get.read()
     }
     /// Get a summary of (0) the number of
-    /// [`get_mut()`](../trait.Get.html#tymethod.get_mut) method
+    /// [`get_mut()`](trait.Get.html#tymethod.get_mut) method
     /// call and (1) the total time spent in milliseconds in these calls.
     pub fn get_mut_stats(&self) -> (u64, u64) {
         self.stats.get_mut.read()
     }
     /// Get the total amount of time user key query was matched with a key
     /// in the container when calling
-    /// [`contains()`](../trait.BuildingBlock.html#tymethod.contains),
-    /// [`take()`](../trait.BuildingBlock.html#tymethod.take),
-    /// [`get()`](../trait.Get.html#tymethod.get) or
-    /// [`get_mut()`](../trait.Get.html#tymethod.get_mut) methods.
+    /// [`contains()`](trait.BuildingBlock.html#tymethod.contains),
+    /// [`take()`](trait.BuildingBlock.html#tymethod.take),
+    /// [`get()`](trait.Get.html#tymethod.get) or
+    /// [`get_mut()`](trait.Get.html#tymethod.get_mut) methods.
     pub fn hit_stats(&self) -> u64 {
         self.stats.hit.load(Ordering::Relaxed)
     }
     /// Get the total amount of time user key query was not matched with a
     /// key in the container when calling
-    /// [`contains()`](../trait.BuildingBlock.html#tymethod.contains),
-    /// [`take()`](../trait.BuildingBlock.html#tymethod.take),
-    /// [`get()`](../trait.Get.html#tymethod.get) or
-    /// [`get_mut()`](../trait.Get.html#tymethod.get_mut) methods.
+    /// [`contains()`](trait.BuildingBlock.html#tymethod.contains),
+    /// [`take()`](trait.BuildingBlock.html#tymethod.take),
+    /// [`get()`](trait.Get.html#tymethod.get) or
+    /// [`get_mut()`](trait.Get.html#tymethod.get_mut) methods.
     pub fn miss_stats(&self) -> u64 {
         self.stats.miss.load(Ordering::Relaxed)
     }
@@ -275,8 +273,8 @@ where
         let (time, out) = time_it!(self.cache.contains(key));
         self.stats.clone().contains.add(1, time);
         match out {
-            true => self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst),
-            false => self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst),
+            true => self.stats.hit.fetch_add(1u64, Ordering::SeqCst),
+            false => self.stats.miss.fetch_add(1u64, Ordering::SeqCst),
         };
         out
     }
@@ -285,10 +283,8 @@ where
         let (time, out) = time_it!(self.cache.take(key));
         self.stats.take.add(1, time);
         match out {
-            Some(_) => {
-                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst)
-            }
-            None => self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst),
+            Some(_) => self.stats.hit.fetch_add(1u64, Ordering::SeqCst),
+            None => self.stats.miss.fetch_add(1u64, Ordering::SeqCst),
         };
         out
     }
@@ -356,10 +352,8 @@ where
         let (time, out) = time_it!(self.cache.get(key));
         self.stats.clone().get.add(1, time);
         match out {
-            Some(_) => {
-                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst)
-            }
-            None => self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst),
+            Some(_) => self.stats.hit.fetch_add(1u64, Ordering::SeqCst),
+            None => self.stats.miss.fetch_add(1u64, Ordering::SeqCst),
         };
         out
     }
@@ -374,10 +368,8 @@ where
         let (time, out) = time_it!(self.cache.get_mut(key));
         self.stats.get_mut.add(1, time);
         match out {
-            Some(_) => {
-                self.stats.hit.fetch_add(1 as u64, Ordering::SeqCst)
-            }
-            None => self.stats.miss.fetch_add(1 as u64, Ordering::SeqCst),
+            Some(_) => self.stats.hit.fetch_add(1u64, Ordering::SeqCst),
+            None => self.stats.miss.fetch_add(1u64, Ordering::SeqCst),
         };
         out
     }

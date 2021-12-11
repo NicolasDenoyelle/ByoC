@@ -19,12 +19,11 @@ use std::ops::{Deref, DerefMut};
 /// See `BuildingBlock` and `Get` implementations details for more
 /// information on data movement implementation.
 ///
-/// ## Examples
+/// # Examples
 ///
 /// ```
 /// use cache::{BuildingBlock, GetMut};
-/// use cache::connector::Multilevel;
-/// use cache::container::Array;
+/// use cache::{Multilevel, Array};
 ///
 /// // Create cache
 /// let mut left = Array::new(2);
@@ -73,8 +72,8 @@ impl<K, V, L, R> Multilevel<K, V, L, R> {
     /// Construct a Multilevel Cache.
     pub fn new(left: L, right: R) -> Self {
         Multilevel {
-            left: left,
-            right: right,
+            left,
+            right,
             unused: PhantomData,
         }
     }
@@ -164,7 +163,7 @@ where
         let mut elements = self.left.push(elements);
         elements.append(&mut left_pop);
 
-        if elements.len() == 0 {
+        if elements.is_empty() {
             return elements;
         }
 
@@ -191,8 +190,7 @@ where
 // Get trait implementation
 //------------------------------------------------------------------------//
 
-/// Cell wrapping an element in a [`Multilevel`](struct.Multilevel.html)
-/// building block.
+/// Cell wrapping an element in a `Multilevel` building block.
 ///
 /// This cell can wrap both read-only and read-write elements.
 /// The element may come from the left or right side of the `Multilevel`
@@ -248,10 +246,7 @@ where
     unsafe fn get(&self, key: &K) -> Option<MultilevelCell<V, LU, RU>> {
         match self.left.get(key) {
             Some(x) => Some(MultilevelCell::Ltype(x)),
-            None => match self.right.get(key) {
-                None => None,
-                Some(x) => Some(MultilevelCell::Rtype(x)),
-            },
+            None => self.right.get(key).map(MultilevelCell::Rtype),
         }
     }
 }
@@ -349,7 +344,7 @@ where
         // and we have to use right.
         assert!(self.left.push(vec![(k1, v1)]).pop().is_none());
         assert!(self.right.push(vec![(k, v)]).pop().is_none());
-        return None;
+        None
     }
 }
 
@@ -376,7 +371,7 @@ where
         // Finally insert matches.
         // Reinsertion must work because we the container still has the same
         // number of elements.
-        if matches.len() > 0 {
+        if !matches.is_empty() {
             assert!(self.push(matches).pop().is_none());
         }
     }
@@ -394,11 +389,8 @@ where
 
         // Remove matches from keys before querying on the right side.
         for (k, _) in left.iter() {
-            match keys.binary_search(k) {
-                Ok(i) => {
-                    keys.remove(i);
-                }
-                Err(_) => {}
+            if let Ok(i) = keys.binary_search(k) {
+                keys.remove(i);
             }
         }
 
@@ -407,11 +399,8 @@ where
         // Remove matching keys in case these keys are used in other
         // calls to take_multiple.
         for (k, _) in right.iter() {
-            match keys.binary_search(k) {
-                Ok(i) => {
-                    keys.remove(i);
-                }
-                Err(_) => {}
+            if let Ok(i) = keys.binary_search(k) {
+                keys.remove(i);
             }
         }
 
@@ -428,10 +417,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::Multilevel;
-    use crate::container::Array;
     use crate::tests::{
         test_building_block, test_get, test_get_mut, test_prefetch,
     };
+    use crate::Array;
 
     #[test]
     fn building_block() {

@@ -21,7 +21,7 @@ pub mod builders {
     pub use crate::builder::profiler::ProfilerBuilder;
     pub use crate::builder::sequential::SequentialBuilder;
     #[cfg(feature = "stream")]
-    pub use crate::builder::stream::ByteStreamBuilder;
+    pub use crate::builder::stream::StreamBuilder;
 }
 
 /// Traits enabling builders chaining capabilities.
@@ -31,7 +31,7 @@ pub mod traits {
     use crate::builder::policy::PolicyBuilder;
     use crate::builder::profiler::ProfilerBuilder;
     use crate::builder::sequential::SequentialBuilder;
-    use crate::policy::{Reference, ReferenceFactory};
+    use crate::policies::{Reference, ReferenceFactory};
     use std::hash::Hasher;
 
     /// [Building Block](../../trait.BuildingBlock.html) building
@@ -40,7 +40,7 @@ pub mod traits {
         fn build(self) -> C;
     }
 
-    /// [`Policy`](../../policy/policy/struct.Policy.html)
+    /// [`Policy`](../../struct.Policy.html)
     /// wrapping capability.
     pub trait Policy<C>: Builder<C> {
         fn with_policy<V, R: Reference<V>, F: ReferenceFactory<V, R>>(
@@ -55,7 +55,7 @@ pub mod traits {
     }
 
     /// Connection between two building blocks with a
-    /// [`Multilevel`](../../connector/struct.Multilevel.html)
+    /// [`Multilevel`](../../struct.Multilevel.html)
     /// [building block](../../trait.BuildingBlock.html).
     pub trait Multilevel<C, R, RB: Builder<R>>: Builder<C> {
         fn multilevel(
@@ -70,7 +70,7 @@ pub mod traits {
     }
 
     /// Replicate a builder into multiple builders to later build
-    /// an [`Associative`](../../concurrent/struct.Associative.html)
+    /// an [`Associative`](../../struct.Associative.html)
     /// container.
     pub trait Associative<C>: Builder<C> + Clone {
         fn into_associative<H: Hasher + Clone>(
@@ -86,7 +86,7 @@ pub mod traits {
     }
 
     /// Wrap a container builder into a
-    /// [sequential](../../concurrent/struct.Sequential.html) building block
+    /// [sequential](../../struct.Sequential.html) building block
     /// to secure concurrent access behind a lock.
     pub trait Sequential<C>: Builder<C> {
         fn into_sequential(self) -> SequentialBuilder<C, Self>
@@ -97,7 +97,7 @@ pub mod traits {
         }
     }
 
-    /// [Profile](../../profiler/struct.Profiler.html) the preceding
+    /// [Profile](../../struct.Profiler.html) the preceding
     /// building block.
     pub trait Profiler<C>: Builder<C> {
         fn profile(self) -> ProfilerBuilder<C, Self>

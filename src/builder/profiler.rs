@@ -1,15 +1,15 @@
 use crate::builder::traits::{Associative, Builder, Multilevel};
-use crate::profiler::Profiler;
+use crate::Profiler;
 use std::marker::PhantomData;
 
-/// [Profiler](../../profiler/struct.Profiler.html)
-/// container [builder](../traits/trait.Builder.html).
+/// `Profiler` container builder.
 ///
 /// This builder can be consumed later to wrap some containers into a
-/// [Profiler](../../profiler/struct.Profiler.html)
+/// [`Profiler`](../../struct.Profiler.html)
 /// container.
 ///
-/// ## Examples
+/// # Examples
+///
 /// ```
 /// use cache::BuildingBlock;
 /// use cache::builder::traits::*;
@@ -37,7 +37,7 @@ where
 {
     pub fn new(builder: B) -> Self {
         ProfilerBuilder {
-            builder: builder,
+            builder,
             unused: PhantomData,
         }
     }

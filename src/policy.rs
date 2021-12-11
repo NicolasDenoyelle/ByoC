@@ -1,4 +1,4 @@
-use crate::policy::{Reference, ReferenceFactory};
+use crate::policies::{Reference, ReferenceFactory};
 use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered, Prefetch};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
@@ -7,20 +7,27 @@ use std::ops::{Deref, DerefMut};
 // Reference wrapper                                                      //
 //------------------------------------------------------------------------//
 
-/// Eviction policy for [`BuildingBlock`](../trait.BuildingBlock.html).
+/// Eviction policy for `Ordered` building blocks.
 ///
 /// This structure implements a wrapper around a building blocks that
 /// wraps values (from key/value pairs) into an orderable cell.
 /// As a result, when popping elements out of a building blocks
-/// implementing [`Ordered`](trait.Ordered.html) trait,
+/// implementing [`Ordered`](../trait.Ordered.html) trait,
 /// this wrapper decides which element is going to be evicted.
 ///
-/// ## Examples
+/// Users beware that accessing values wrapped into
+/// an order cell might change the order of elements in the container, and
+/// therefore, policies should not be used with containers relying on
+/// a stable order of its values. Note that containers that rely on a
+/// stable order of values should not allow access to their inner values
+/// alltogether to avoid this problem.
+///
+/// # Examples
 ///
 /// ```
 /// use cache::BuildingBlock;
-/// use cache::container::Array;
-/// use cache::policy::{Policy, FIFO};
+/// use cache::{Array, Policy};
+/// use cache::policies::FIFO;
 ///
 /// let mut c = Policy::new(Array::new(3), FIFO::new());
 /// c.push(vec![("item1",()), ("item2",()), ("item0",())]);
@@ -46,8 +53,8 @@ where
     /// Construct a new policy wrapper.
     pub fn new(container: C, factory: F) -> Self {
         Policy {
-            container: container,
-            factory: factory,
+            container,
+            factory,
             unused: PhantomData,
         }
     }
@@ -82,10 +89,7 @@ where
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
-        match self.container.take(key) {
-            None => None,
-            Some((k, r)) => Some((k, r.unwrap())),
-        }
+        self.container.take(key).map(|(k, r)| (k, r.unwrap()))
     }
 
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
@@ -168,7 +172,8 @@ where
 /// It can be dereferenced through the wrapped building block element cell
 /// to obtain original value.
 ///
-/// ## Safety:
+/// # Safety:
+///
 /// The safety of using this cell depends on the safety of using the wrapped
 /// element cell.
 pub struct PolicyCell<V, R, U>
@@ -210,13 +215,10 @@ where
     C: Get<K, R, U> + Ordered<R>,
 {
     unsafe fn get(&self, key: &K) -> Option<PolicyCell<V, R, U>> {
-        match self.container.get(key) {
-            None => None,
-            Some(x) => Some(PolicyCell {
-                item: x,
-                unused: PhantomData,
-            }),
-        }
+        self.container.get(key).map(|x| PolicyCell {
+            item: x,
+            unused: PhantomData,
+        })
     }
 }
 
@@ -229,13 +231,10 @@ where
     C: GetMut<K, R, W> + Ordered<R>,
 {
     unsafe fn get_mut(&mut self, key: &K) -> Option<PolicyCell<V, R, W>> {
-        match self.container.get_mut(key) {
-            None => None,
-            Some(x) => Some(PolicyCell {
-                item: x,
-                unused: PhantomData,
-            }),
-        }
+        self.container.get_mut(key).map(|x| PolicyCell {
+            item: x,
+            unused: PhantomData,
+        })
     }
 }
 
@@ -271,23 +270,23 @@ where
 #[cfg(test)]
 mod tests {
     use super::Policy;
-    use crate::container::Array;
-    use crate::policy::default::Default;
-    use crate::policy::tests::test_ordered;
+    use crate::policies::Default;
     use crate::tests::{
-        test_building_block, test_get, test_get_mut, test_prefetch,
+        test_building_block, test_get, test_get_mut, test_ordered,
+        test_prefetch,
     };
+    use crate::Array;
 
     #[test]
     fn building_block() {
-        for i in vec![0, 10, 100] {
+        for i in [0usize, 10usize, 100usize] {
             test_building_block(Policy::new(Array::new(i), Default {}));
         }
     }
 
     #[test]
     fn get() {
-        for i in vec![0, 10, 100] {
+        for i in [0usize, 10usize, 100usize] {
             test_get(Policy::new(Array::new(i), Default {}));
             test_get_mut(Policy::new(Array::new(i), Default {}));
         }
@@ -295,14 +294,14 @@ mod tests {
 
     #[test]
     fn prefetch() {
-        for i in vec![0, 10, 100] {
+        for i in [0usize, 10usize, 100usize] {
             test_prefetch(Policy::new(Array::new(i), Default {}));
         }
     }
 
     #[test]
     fn ordered() {
-        for i in vec![0, 10, 100] {
+        for i in [0usize, 10usize, 100usize] {
             test_ordered(Policy::new(Array::new(i), Default {}));
         }
     }

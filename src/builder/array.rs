@@ -1,14 +1,13 @@
 use crate::builder::traits::{
     Associative, Builder, Multilevel, Policy, Profiler, Sequential,
 };
-use crate::container::Array;
+use crate::Array;
 use std::marker::PhantomData;
 
-/// [Array](../../container/struct.Array.html)
-/// [builder](../traits/trait.Builder.html).
+/// `Array` builder.
 ///
 /// This builder can be consumed later to spawn an
-/// [Array](../../container/struct.Array.html) container.
+/// [`Array`](../../struct.Array.html) container.
 ///
 /// ## Examples
 /// ```
@@ -25,11 +24,11 @@ pub struct ArrayBuilder<T> {
 }
 
 impl<T> ArrayBuilder<T> {
-    /// The [Array](../../container/array/struct.Array.html) container
+    /// The [Array](../../struct.Array.html) container
     /// spawned by this builder will have a maximum `capacity`.
     pub fn new(capacity: usize) -> Self {
         ArrayBuilder {
-            capacity: capacity,
+            capacity,
             unused: PhantomData,
         }
     }

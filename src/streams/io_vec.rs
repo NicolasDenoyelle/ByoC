@@ -1,4 +1,4 @@
-use crate::container::stream::Resize;
+use crate::streams::{IOError, IOResult, Resize};
 use serde::{de::DeserializeOwned, Serialize};
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
@@ -35,7 +35,7 @@ impl IOChunk {
                 if len < size {
                     Ok(None)
                 } else {
-                    Ok(Some(IOChunk { buf: buf }))
+                    Ok(Some(IOChunk { buf }))
                 }
             }
             Err(e) => Err(IOError::ReadError(e)),
@@ -98,30 +98,6 @@ where
 }
 
 //----------------------------------------------------------------------------//
-// Error type definition
-//----------------------------------------------------------------------------//
-
-#[derive(Debug)]
-pub enum IOError {
-    /// Error returned by call to `seek()` from `std::io::Seek` trait.
-    SeekError(std::io::Error),
-    /// Error returned by call to `read()` from `std::io::Read` trait.
-    ReadError(std::io::Error),
-    /// Error returned by call to `write()` from `std::io::Write` trait.
-    WriteError(std::io::Error),
-    /// Error returned by call to `serialize()` from `bincode::serialize()`.
-    SerializeError(bincode::Error),
-    /// Error returned by call to `deserialize()` from `bincode::deserialize()`.
-    DeserializeError(bincode::Error),
-    /// Error related to some size.
-    InvalidSizeError,
-}
-
-/// Result type of [`cache::utils::io`](index.html)
-/// See [`IOError`](enum.IOError.html).
-pub type IOResult<T> = Result<T, IOError>;
-
-//----------------------------------------------------------------------------//
 //  On-disk chunk representation
 //----------------------------------------------------------------------------//
 
@@ -159,9 +135,9 @@ where
         };
 
         Ok(IOStructMut {
-            stream: stream,
-            item: item,
-            pos: pos,
+            stream,
+            item,
+            pos,
             is_written: false,
         })
     }
@@ -175,11 +151,9 @@ where
     fn drop(&mut self) {
         if self.is_written {
             // Move to chunk position.
-            if let Err(_) = self.stream.seek(SeekFrom::Start(self.pos)) {
-                panic!(
-                    "Seek error while writing back IOStructMut to stream."
-                )
-            };
+            self.stream.seek(SeekFrom::Start(self.pos)).expect(
+                "Seek error while writing back IOStructMut to stream.",
+            );
 
             // Serialize object in the stream
             if let Err(e) = bincode::serialize_into::<&mut S, T>(
@@ -225,7 +199,7 @@ pub struct IOStruct<T> {
 impl<T> IOStruct<T> {
     /// `IOStruct` constructor.
     pub fn new(item: T) -> Self {
-        IOStruct { item: item }
+        IOStruct { item }
     }
 
     pub fn unwrap(self) -> T {
@@ -262,8 +236,8 @@ where
 {
     pub fn new(stream: BufReader<T>, chunk_size: usize) -> Self {
         IOIter {
-            stream: stream,
-            chunk_size: chunk_size,
+            stream,
+            chunk_size,
             _o: PhantomData,
         }
     }
@@ -307,8 +281,8 @@ where
 {
     pub fn new(stream: BufReader<T>, chunk_size: usize) -> Self {
         IOVecIter {
-            stream: stream,
-            chunk_size: chunk_size,
+            stream,
+            chunk_size,
             _o: PhantomData,
         }
     }
@@ -353,9 +327,9 @@ where
 {
     pub fn new(stream: BufReader<T>, chunk_size: usize, pos: T) -> Self {
         IOVecIterMut {
-            stream: stream,
-            chunk_size: chunk_size,
-            pos: pos,
+            stream,
+            chunk_size,
+            pos,
             _o: PhantomData,
         }
     }
@@ -432,7 +406,7 @@ where
     pub fn new(store: T, chunk_size: usize) -> Self {
         IOVec {
             stream: store,
-            chunk_size: chunk_size,
+            chunk_size,
             _o: PhantomData,
         }
     }
@@ -452,6 +426,15 @@ where
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        let mut stream = self.stream.clone();
+
+        match stream.seek(SeekFrom::Current(0)) {
+            Err(_) => true,
+            Ok(pos) => pos == 0,
+        }
+    }
+
     /// Get read-only access to the `n`th element from the vector.
     /// If the `seek()` on the underlying stream fails,
     /// the error [`SeekError`](enum.IOError.html) is returned.
@@ -465,7 +448,7 @@ where
     /// On success, this method returns an
     /// [`IOStruct`](struct.IOStruct.html) that can be dereferenced
     /// to access the underlying item.
-    pub fn get<'a>(&'a self, n: usize) -> IOResult<Option<IOStruct<O>>> {
+    pub fn get(&self, n: usize) -> IOResult<Option<IOStruct<O>>> {
         let mut stream = self.stream.clone();
 
         if let Err(e) =
@@ -499,8 +482,8 @@ where
     /// dereferenced to access the underlying item. When this struct
     /// is destroyed, the item is written back to the stream if it has
     /// been modified.
-    pub fn get_mut<'a>(
-        &'a mut self,
+    pub fn get_mut(
+        &mut self,
         n: usize,
     ) -> IOResult<Option<IOStructMut<O, T>>> {
         let mut stream = self.stream.clone();
@@ -536,13 +519,14 @@ where
             let mut chunk = IOChunk::new(self.chunk_size);
             match chunk.serialize(&value) {
                 Err(e) => return Err(e),
-                Ok(_) => match chunk.write(&mut stream) {
-                    Err(e) => return Err(e),
-                    Ok(_) => {}
-                },
+                Ok(_) => {
+                    if let Err(e) = chunk.write(&mut stream) {
+                        return Err(e);
+                    }
+                }
             }
         }
-        return Ok(());
+        Ok(())
     }
 
     /// Remove element at position `n` and move last vector element
@@ -615,23 +599,24 @@ where
         }
 
         // Resize stream to one less chunk.
-        if let Err(_) = self.stream.resize(end - self.chunk_size as u64) {
-            // We could rewrite things how they were and return an error
-            // instead.
-            panic!("Failure to resize.");
-        };
+        //On failure: we could rewrite things how they were and return an
+        // error instead.
+        self.stream
+            .resize(end - self.chunk_size as u64)
+            .expect("Failure to resize.");
 
         Ok(item)
     }
 
     /// Build an iterator over items of this `IOVec`.
-    pub fn iter<'a>(&'a self) -> IOVecIter<O, T> {
+    pub fn iter(&self) -> IOVecIter<O, T> {
         let mut stream = self.stream.clone();
         stream.seek(SeekFrom::Start(0)).unwrap();
 
         IOVecIter::new(BufReader::new(stream), self.chunk_size)
     }
 
+    #[allow(clippy::should_implement_trait)]
     pub fn into_iter(self) -> IOIter<O, T> {
         IOIter::new(BufReader::new(self.stream), self.chunk_size)
     }
@@ -639,7 +624,7 @@ where
     /// Build an iterator over mutable items of this `IOVec`.
     /// Items modified during iteration will be written back to the
     /// vector underlying stream.
-    pub fn iter_mut<'a>(&'a mut self) -> IOVecIterMut<O, T> {
+    pub fn iter_mut(&mut self) -> IOVecIterMut<O, T> {
         let mut stream = self.stream.clone();
         stream.seek(SeekFrom::Start(0)).unwrap();
         let pos = stream.clone();
@@ -650,7 +635,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::IOVec;
-    use crate::container::stream::vec_stream::VecStream;
+    use crate::streams::vec_stream::VecStream;
 
     #[test]
     fn test_iovec() {
