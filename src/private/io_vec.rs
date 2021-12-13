@@ -635,7 +635,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::IOVec;
-    use crate::streams::vec_stream::VecStream;
+    use crate::streams::VecStream;
 
     #[test]
     fn test_iovec() {

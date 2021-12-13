@@ -230,6 +230,10 @@ mod associative;
 pub use associative::Associative;
 mod btree;
 pub use btree::{BTree, BTreeCell};
+mod compression;
+pub use compression::{
+    CompressedCell, CompressedContainer, CompressedMutCell,
+};
 mod multilevel;
 pub use multilevel::{Multilevel, MultilevelCell};
 mod policy;

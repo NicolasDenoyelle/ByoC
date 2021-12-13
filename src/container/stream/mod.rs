@@ -6,14 +6,14 @@ pub enum IOError {
     ReadError(std::io::Error),
     /// Error returned by call to `write()` from `std::io::Write` trait.
     WriteError(std::io::Error),
-    /// Error returned by lz4 encoder builder.
-    EncodeError(std::io::Error),
-    /// Error returned by lz4 decoder.
-    DecodeError(std::io::Error),
     /// Error returned by call to `serialize()` from `bincode::serialize()`.
     SerializeError(bincode::Error),
     /// Error returned by call to `deserialize()` from `bincode::deserialize()`.
     DeserializeError(bincode::Error),
+    /// Error returned by call to lz4 encode.
+    EncodeError(std::io::Error),
+    /// Error returned by call to lz4 decode.
+    DecodeError(std::io::Error),
     /// Error related to some size.
     InvalidSizeError,
 }
@@ -50,9 +50,15 @@ pub trait Stream:
 {
 }
 
-mod file_stream;
-pub use file_stream::FileStream;
-#[cfg(feature = "tempfile")]
-pub use file_stream::TempFileStreamFactory;
-mod vec_stream;
-pub use vec_stream::{VecStream, VecStreamFactory};
+/// Array implementation above a
+/// [stream](../utils/stream/trait.Stream.html) and
+/// utils for reading and writing a stream in fixed sized chunks.
+mod io_vec;
+mod stream;
+pub use crate::container::stream::stream::{
+    ByteStream, StreamCell, StreamMutCell,
+};
+/// [`Stream`](trait.Stream.html) implementation in a file.
+pub mod file_stream;
+/// In memory [`Stream`](trait.Stream.html) implementation in a Vec.
+pub mod vec_stream;
