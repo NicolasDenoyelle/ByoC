@@ -1,5 +1,5 @@
+use crate::private::io_vec::{IOStruct, IOStructMut, IOVec};
 use crate::private::set::MinSet;
-use crate::streams::io_vec::{IOStruct, IOStructMut, IOVec};
 use crate::streams::{Stream, StreamFactory};
 use crate::{BuildingBlock, Get, GetMut, Ordered, Prefetch};
 use serde::{de::DeserializeOwned, Serialize};

@@ -46,11 +46,6 @@ pub trait Stream:
 {
 }
 
-/// Array implementation above a
-/// [stream](../utils/stream/trait.Stream.html) and
-/// utils for reading and writing a stream in fixed sized chunks.
-pub mod io_vec;
-
 mod file_stream;
 pub use file_stream::FileStream;
 #[cfg(feature = "tempfile")]
