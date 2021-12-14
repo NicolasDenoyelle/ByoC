@@ -1,5 +1,5 @@
 use crate::private::ptr::OrdPtr;
-use crate::{BuildingBlock, GetMut, Ordered};
+use crate::{BuildingBlock, GetMut, Ordered, Prefetch};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::{Deref, DerefMut};
 
@@ -81,7 +81,7 @@ where
 
 impl<'a, K, V> BuildingBlock<'a, K, V> for BTree<K, V>
 where
-    K: 'a + Copy + Ord + std::fmt::Debug,
+    K: 'a + Copy + Ord,
     V: 'a + Ord,
 {
     fn capacity(&self) -> usize {
@@ -118,13 +118,10 @@ where
 
         for (key, value) in values.into_iter() {
             if n >= self.capacity {
-                println!("Reject {:?} because capacity exceeded.", key);
                 out.push((key, value));
             } else if self.map.get(&key).is_some() {
-                println!("Reject {:?} because already stored.", key);
                 out.push((key, value))
             } else {
-                println!("Insert {:?}.", key);
                 self.references.push((key, value));
                 assert!(self.map.insert(key, n).is_none());
                 assert!(self
@@ -273,6 +270,11 @@ impl<K: Copy + Ord, V: Ord> GetMut<K, V, BTreeCell<K, V>> for BTree<K, V> {
             }
         }
     }
+}
+
+impl<'a, K: 'a + Copy + Ord, V: 'a + Ord> Prefetch<'a, K, V>
+    for BTree<K, V>
+{
 }
 
 //------------------------------------------------------------------------//
