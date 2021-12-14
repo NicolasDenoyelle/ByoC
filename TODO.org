@@ -29,10 +29,12 @@ on some predictions.
 	The building block name is "policy" and goes in a different directory
 	than wrapper.
 * DEL Rename wrapper into transform
-* TODO Compresion building block.
+* DONE Compresion building block.
 * TODO Benchmarks:
 + Multiple distributions of keys
 + Different sizes of keys and values.
 * TODO inclusive connector building block.
+
 Insertions go into the last level and shallow copies of what is in the
 last level goes in the first level.
+* TODO Resizable building blocks.
