@@ -2,17 +2,27 @@ use crate::{BuildingBlock, Get, GetMut, Prefetch};
 use std::collections::LinkedList;
 use std::ops::{Deref, DerefMut};
 
+/// A list of building blocks in a building block.
+///
+/// `Batch` stores multiple building blocks of the same kind in a list.
+/// The goal of this building block is to cut the cost of accessing a
+/// building block into small pieces. Specifically, when the underlying
+/// building block is a [`Compressor`](struct.Compressor.html), only small
+/// part of a building block are decompressed into memory, thus reducing
+/// the memory footprint.
 pub struct Batch<C> {
     bb: LinkedList<C>,
 }
 
 impl<C> Batch<C> {
+    /// Build an empty batch of building blocks.
     pub fn new() -> Self {
         Batch {
             bb: LinkedList::new(),
         }
     }
 
+    /// Append a building block to the batch.
     pub fn append(mut self, c: C) -> Self {
         self.bb.push_back(c);
         self
@@ -28,7 +38,7 @@ impl<C> Default for Batch<C> {
 impl<'a, K, V, C> BuildingBlock<'a, K, V> for Batch<C>
 where
     K: 'a,
-    V: 'a,
+    V: 'a + Ord,
     C: BuildingBlock<'a, K, V>,
 {
     fn capacity(&self) -> usize {
@@ -48,35 +58,37 @@ where
     }
 
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
-        let mut out = Vec::new();
-        let mut bb = LinkedList::new();
+        let mut out = Vec::with_capacity(n * self.bb.len());
 
-        loop {
-            let n = n - out.len();
-            if n == 0 {
-                break;
-            }
-            let mut c = match self.bb.pop_back() {
-                None => break,
-                Some(c) => c,
-            };
-            out.append(&mut c.pop(n));
-            bb.push_front(c);
+        for bb in self.bb.iter_mut() {
+            out.append(&mut bb.pop(n));
         }
 
-        bb.append(&mut self.bb);
-        std::mem::swap(&mut self.bb, &mut bb);
-        out
+        let len = out.len();
+        if n > len {
+            out
+        } else {
+            out.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
+            let victims = out.split_off(len - n);
+            assert!(self.push(out).pop().is_none());
+            victims
+        }
     }
 
     fn push(&mut self, mut values: Vec<(K, V)>) -> Vec<(K, V)> {
-        for c in self.bb.iter_mut() {
+        let mut bb = LinkedList::new();
+        loop {
             if values.is_empty() {
                 break;
             }
+            let mut c = match self.bb.pop_front() {
+                None => break,
+                Some(c) => c,
+            };
             values = c.push(values);
+            bb.push_back(c);
         }
-
+        self.bb.append(&mut bb);
         values
     }
 
@@ -123,7 +135,7 @@ where
 impl<'a, K, V, C> Prefetch<'a, K, V> for Batch<C>
 where
     K: 'a,
-    V: 'a,
+    V: 'a + Ord,
     C: Prefetch<'a, K, V>,
 {
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {

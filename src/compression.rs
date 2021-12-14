@@ -8,19 +8,32 @@ use std::io::{Read, SeekFrom, Write};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
-pub struct CompressedContainer<T: Serialize + DeserializeOwned, S: Stream>
-{
+/// Building block compressing and decompressing it's whole content to
+/// perform operations.
+///
+/// This building blocks stores its elements in a serialized vector,
+/// compressed on a stream. Compression/decompression is managed with `lz4`
+/// backend. When performing read only operations, the whole content is
+/// decompressed. When performing write operations, the whole content
+/// is also compressed back to the stream after modification.
+///
+/// By itself, this building is rather performing poorly both memory and
+/// speed wise. It is supposed to be used embedded in another container
+/// such as a [`Batch`](struct.Batch.html) or an
+/// [`Associative`](struct.Associative.html) container to split the memory
+/// footprint into smaller chunks. The
+/// [builder](./builder/compression/struct.CompressorBuilder.html) of this
+/// building block will embed it into a `Batch` building block.
+pub struct Compressor<T: Serialize + DeserializeOwned, S: Stream> {
     stream: S,
     capacity: usize,
     count: CloneCell<usize>,
     unused: PhantomData<T>,
 }
 
-impl<T: Serialize + DeserializeOwned, S: Stream>
-    CompressedContainer<T, S>
-{
+impl<T: Serialize + DeserializeOwned, S: Stream> Compressor<T, S> {
     pub fn new(stream: S, capacity: usize) -> Self {
-        let mut c = CompressedContainer {
+        let mut c = Compressor {
             stream,
             capacity,
             count: CloneCell::new(0usize),
@@ -34,7 +47,7 @@ impl<T: Serialize + DeserializeOwned, S: Stream>
     }
 
     pub fn shallow_copy(&self) -> Self {
-        CompressedContainer {
+        Compressor {
             stream: self.stream.clone(),
             capacity: self.capacity,
             count: self.count.clone(),
@@ -106,8 +119,7 @@ impl<T: Serialize + DeserializeOwned, S: Stream>
 // BuildingBlock trait
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, S> BuildingBlock<'a, K, V>
-    for CompressedContainer<(K, V), S>
+impl<'a, K, V, S> BuildingBlock<'a, K, V> for Compressor<(K, V), S>
 where
     K: 'a + Serialize + DeserializeOwned + Eq,
     V: 'a + Serialize + DeserializeOwned + Ord,
@@ -207,9 +219,7 @@ where
         // Rewrite vector to stream.
         match self.write(&v) {
             Ok(_) => out,
-            Err(_) => panic!(
-                "Could not write new elements to CompressedContainer"
-            ),
+            Err(_) => panic!("Could not write new elements to Compressor"),
         }
     }
 
@@ -229,7 +239,7 @@ where
     }
 }
 
-impl<K, V, S> Ordered<V> for CompressedContainer<(K, V), S>
+impl<K, V, S> Ordered<V> for Compressor<(K, V), S>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned + Ord,
@@ -241,30 +251,46 @@ where
 // Get Trait
 //------------------------------------------------------------------------//
 
-pub struct CompressedCell<V> {
+/// Simple struct wrapping a local copy of the value in a
+/// `Compressor` building block.
+pub struct CompressorCell<V> {
     value: V,
 }
 
-impl<V: Ord> Deref for CompressedCell<V> {
+impl<V: Ord> Deref for CompressorCell<V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
         &self.value
     }
 }
 
-pub struct CompressedMutCell<K, V, S>
+/// Struct wrapping a mutable local copy of the value in a
+/// `Compressor` building block.
+///
+/// The local copy gets written back into the underlying compressed stream
+/// when this structure is dropped.
+/// The memory footprint of this the total amount of elements in the
+/// compressed stream. If you hold several cells of the same compressor,
+/// the footprint is multiplied by the amount of cells.
+///
+/// # Safety:
+///
+/// On top of the memory footprint, if multiple cells of the same
+/// `Compresssor` live and are modified in the same scope, only the last
+/// one dropped will be commited back to the compressed stream.
+pub struct CompressorMutCell<K, V, S>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
     S: Stream,
 {
-    stream: CompressedContainer<(K, V), S>,
+    stream: Compressor<(K, V), S>,
     elements: Vec<(K, V)>,
     index: usize,
     is_written: bool,
 }
 
-impl<K, V, S> Deref for CompressedMutCell<K, V, S>
+impl<K, V, S> Deref for CompressorMutCell<K, V, S>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
@@ -276,7 +302,7 @@ where
     }
 }
 
-impl<K, V, S> DerefMut for CompressedMutCell<K, V, S>
+impl<K, V, S> DerefMut for CompressorMutCell<K, V, S>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
@@ -288,7 +314,7 @@ where
     }
 }
 
-impl<K, V, S> Drop for CompressedMutCell<K, V, S>
+impl<K, V, S> Drop for CompressorMutCell<K, V, S>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
@@ -301,24 +327,23 @@ where
 
         self.stream
             .write(&self.elements)
-            .expect("Could not write new elements to CompressedContainer");
+            .expect("Could not write new elements to Compressor");
     }
 }
 
-impl<K, V, S> Get<K, V, CompressedCell<V>>
-    for CompressedContainer<(K, V), S>
+impl<K, V, S> Get<K, V, CompressorCell<V>> for Compressor<(K, V), S>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize + Ord,
     S: Stream,
 {
-    unsafe fn get(&self, key: &K) -> Option<CompressedCell<V>> {
+    unsafe fn get(&self, key: &K) -> Option<CompressorCell<V>> {
         // Read elements into memory.
         match self.read() {
             Err(_) => None,
             Ok(v) => v.into_iter().find_map(|(k, v)| {
                 if &k == key {
-                    Some(CompressedCell { value: v })
+                    Some(CompressorCell { value: v })
                 } else {
                     None
                 }
@@ -327,8 +352,8 @@ where
     }
 }
 
-impl<K, V, S> GetMut<K, V, CompressedMutCell<K, V, S>>
-    for CompressedContainer<(K, V), S>
+impl<K, V, S> GetMut<K, V, CompressorMutCell<K, V, S>>
+    for Compressor<(K, V), S>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize + Ord,
@@ -337,7 +362,7 @@ where
     unsafe fn get_mut(
         &mut self,
         key: &K,
-    ) -> Option<CompressedMutCell<K, V, S>> {
+    ) -> Option<CompressorMutCell<K, V, S>> {
         // Read elements into memory.
         let v = match self.read() {
             Err(_) => return None,
@@ -357,7 +382,7 @@ where
         };
 
         // Return cell
-        Some(CompressedMutCell {
+        Some(CompressorMutCell {
             stream: self.shallow_copy(),
             elements: v,
             index: i,
@@ -370,7 +395,7 @@ where
 // Prefetcher trait
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, S> Prefetch<'a, K, V> for CompressedContainer<(K, V), S>
+impl<'a, K, V, S> Prefetch<'a, K, V> for Compressor<(K, V), S>
 where
     K: 'a + DeserializeOwned + Serialize + Ord,
     V: 'a + DeserializeOwned + Serialize + Ord,
@@ -409,9 +434,9 @@ where
         // Rewrite vector to stream.
         match self.write(&v) {
             Ok(_) => out,
-            Err(_) => panic!(
-                "Could not write updated elements to CompressedContainer"
-            ),
+            Err(_) => {
+                panic!("Could not write updated elements to Compressor")
+            }
         }
     }
 }
@@ -422,7 +447,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::CompressedContainer;
+    use super::Compressor;
     use crate::streams::VecStream;
     use crate::tests::{
         test_building_block, test_get, test_get_mut, test_ordered,
@@ -432,32 +457,29 @@ mod tests {
     #[test]
     fn building_block() {
         for i in [0usize, 10usize, 100usize] {
-            test_building_block(CompressedContainer::new(
-                VecStream::new(),
-                i,
-            ));
+            test_building_block(Compressor::new(VecStream::new(), i));
         }
     }
 
     #[test]
     fn ordered() {
         for i in [0usize, 10usize, 100usize] {
-            test_ordered(CompressedContainer::new(VecStream::new(), i));
+            test_ordered(Compressor::new(VecStream::new(), i));
         }
     }
 
     #[test]
     fn get() {
         for i in [0usize, 10usize, 100usize] {
-            test_get(CompressedContainer::new(VecStream::new(), i));
-            test_get_mut(CompressedContainer::new(VecStream::new(), i));
+            test_get(Compressor::new(VecStream::new(), i));
+            test_get_mut(Compressor::new(VecStream::new(), i));
         }
     }
 
     #[test]
     fn prefetch() {
         for i in [0usize, 10usize, 100usize] {
-            test_prefetch(CompressedContainer::new(VecStream::new(), i));
+            test_prefetch(Compressor::new(VecStream::new(), i));
         }
     }
 }

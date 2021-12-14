@@ -1,9 +1,14 @@
 use crate::builder::traits::*;
 use crate::streams::{Stream, StreamFactory};
-use crate::{Batch, CompressedContainer};
+use crate::{Batch, Compressor};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
+/// Builder for `Compression` building block.
+///
+/// This builder will create a [`batch`](../../struct.Batch.html) of
+/// `num_batch` smaller `Compression` building blocks, each with a set
+/// `batch_capacity` on a its own stream created with `stream_factory`.
 pub struct CompressorBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
@@ -52,17 +57,17 @@ where
     }
 }
 
-impl<T, S, F> Builder<Batch<CompressedContainer<T, S>>>
+impl<T, S, F> Builder<Batch<Compressor<T, S>>>
     for CompressorBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
     S: Stream,
     F: StreamFactory<S>,
 {
-    fn build(mut self) -> Batch<CompressedContainer<T, S>> {
-        let mut b = Batch::<CompressedContainer<T, S>>::new();
+    fn build(mut self) -> Batch<Compressor<T, S>> {
+        let mut b = Batch::<Compressor<T, S>>::new();
         for _ in 0..self.num_batch {
-            b = b.append(CompressedContainer::new(
+            b = b.append(Compressor::new(
                 self.stream_factory.create(),
                 self.batch_capacity,
             ));
@@ -71,7 +76,7 @@ where
     }
 }
 
-impl<T, S, F> Associative<Batch<CompressedContainer<T, S>>>
+impl<T, S, F> Associative<Batch<Compressor<T, S>>>
     for CompressorBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
@@ -80,7 +85,7 @@ where
 {
 }
 
-impl<T, S, F> Policy<Batch<CompressedContainer<T, S>>>
+impl<T, S, F> Policy<Batch<Compressor<T, S>>>
     for CompressorBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
@@ -89,7 +94,7 @@ where
 {
 }
 
-impl<T, S, F> Profiler<Batch<CompressedContainer<T, S>>>
+impl<T, S, F> Profiler<Batch<Compressor<T, S>>>
     for CompressorBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
@@ -98,7 +103,7 @@ where
 {
 }
 
-impl<T, S, F> Sequential<Batch<CompressedContainer<T, S>>>
+impl<T, S, F> Sequential<Batch<Compressor<T, S>>>
     for CompressorBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
@@ -107,7 +112,7 @@ where
 {
 }
 
-impl<T, S, F, R, RB> Multilevel<Batch<CompressedContainer<T, S>>, R, RB>
+impl<T, S, F, R, RB> Multilevel<Batch<Compressor<T, S>>, R, RB>
     for CompressorBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,

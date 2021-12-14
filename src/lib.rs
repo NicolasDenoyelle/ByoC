@@ -235,9 +235,7 @@ pub use btree::{BTree, BTreeCell};
 #[cfg(feature = "compression")]
 mod compression;
 #[cfg(feature = "compression")]
-pub use compression::{
-    CompressedCell, CompressedContainer, CompressedMutCell,
-};
+pub use compression::{Compressor, CompressorCell, CompressorMutCell};
 mod multilevel;
 pub use multilevel::{Multilevel, MultilevelCell};
 mod policy;
