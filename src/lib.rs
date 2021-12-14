@@ -228,8 +228,14 @@ mod array;
 pub use array::{Array, ArrayCell, ArrayMutCell};
 mod associative;
 pub use associative::Associative;
+mod batch;
+pub use batch::Batch;
 mod btree;
 pub use btree::{BTree, BTreeCell};
+#[cfg(feature = "compression")]
+mod compression;
+#[cfg(feature = "compression")]
+pub use compression::{Compressor, CompressorCell, CompressorMutCell};
 mod multilevel;
 pub use multilevel::{Multilevel, MultilevelCell};
 mod policy;

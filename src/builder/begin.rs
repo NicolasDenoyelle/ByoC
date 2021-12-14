@@ -1,7 +1,8 @@
-use crate::builder::builders::{ArrayBuilder, BTreeBuilder};
-
+#[cfg(feature = "compression")]
+use crate::builder::builders::CompressorBuilder;
 #[cfg(feature = "stream")]
 use crate::builder::builders::StreamBuilder;
+use crate::builder::builders::{ArrayBuilder, BTreeBuilder};
 #[cfg(feature = "stream")]
 use crate::streams::{Stream, StreamFactory};
 #[cfg(feature = "stream")]
@@ -50,5 +51,18 @@ impl Begin {
         capacity: usize,
     ) -> StreamBuilder<T, S, F> {
         StreamBuilder::new(factory, capacity)
+    }
+
+    #[cfg(feature = "compression")]
+    pub fn compressor<
+        T: DeserializeOwned + Serialize,
+        S: Stream,
+        F: StreamFactory<S> + Clone,
+    >(
+        factory: F,
+        num_batch: usize,
+        batch_capacity: usize,
+    ) -> CompressorBuilder<T, S, F> {
+        CompressorBuilder::new(num_batch, batch_capacity, factory)
     }
 }
