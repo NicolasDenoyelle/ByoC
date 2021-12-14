@@ -1,6 +1,8 @@
 mod array;
 mod associative;
 mod btree;
+#[cfg(feature = "compression")]
+mod compression;
 mod multilevel;
 mod policy;
 mod profiler;
@@ -16,6 +18,8 @@ pub mod builders {
     pub use crate::builder::array::ArrayBuilder;
     pub use crate::builder::associative::AssociativeBuilder;
     pub use crate::builder::btree::BTreeBuilder;
+    #[cfg(feature = "compression")]
+    pub use crate::builder::compression::CompressorBuilder;
     pub use crate::builder::multilevel::MultilevelBuilder;
     pub use crate::builder::policy::PolicyBuilder;
     pub use crate::builder::profiler::ProfilerBuilder;
