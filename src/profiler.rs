@@ -145,7 +145,7 @@ macro_rules! time_it {
 /// let c = Array::new(3);
 ///
 /// // Wrap it into a profiler.
-/// let mut c = Profiler::new(c);
+/// let mut c = Profiler::new("example", c);
 ///
 /// // Populate BuildingBlock
 /// c.push(vec![("first", 0), ("second", 1)]);
@@ -153,18 +153,18 @@ macro_rules! time_it {
 ///
 /// // Check if a key is in the container.
 /// c.contains(&"first");
-/// assert_eq!(c.hit_stats(), 1);
-/// assert_eq!(c.miss_stats(), 0);
+/// assert_eq!(c.hit_stats().0, 1);
+/// assert_eq!(c.miss_stats().0, 0);
 ///
 /// // Try to take a non existing key out of the container.
 /// c.take(&"third");
-/// assert_eq!(c.hit_stats(), 1);
-/// assert_eq!(c.miss_stats(), 1);
+/// assert_eq!(c.hit_stats().0, 1);
+/// assert_eq!(c.miss_stats().0, 1);
 ///
 /// // Access a value in the container.
 /// unsafe { c.get(&"second"); }
-/// assert_eq!(c.hit_stats(), 2);
-/// assert_eq!(c.miss_stats(), 1);
+/// assert_eq!(c.hit_stats().0, 2);
+/// assert_eq!(c.miss_stats().0, 1);
 /// ```
 pub struct Profiler<C> {
     cache: C,
