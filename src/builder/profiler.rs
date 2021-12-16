@@ -28,6 +28,8 @@ where
     B: Builder<C>,
 {
     builder: B,
+    name: String,
+    file_output: Option<String>,
     unused: PhantomData<C>,
 }
 
@@ -35,11 +37,18 @@ impl<C, B> ProfilerBuilder<C, B>
 where
     B: Builder<C>,
 {
-    pub fn new(builder: B) -> Self {
+    pub fn new(name: &str, builder: B) -> Self {
         ProfilerBuilder {
             builder,
+            name: String::from(name),
+            file_output: None,
             unused: PhantomData,
         }
+    }
+
+    pub fn output_to_file(mut self, filename: &'static str) -> Self {
+        self.file_output = Some(String::from(filename));
+        self
     }
 }
 
@@ -50,6 +59,8 @@ where
     fn clone(&self) -> Self {
         ProfilerBuilder {
             builder: self.builder.clone(),
+            name: self.name.clone(),
+            file_output: self.file_output.as_ref().map(|s| s.clone()),
             unused: PhantomData,
         }
     }
@@ -73,6 +84,14 @@ where
     B: Builder<C>,
 {
     fn build(self) -> Profiler<C> {
-        Profiler::new(self.builder.build())
+        match self.file_output {
+            None => {
+                Profiler::new(self.name.as_ref(), self.builder.build())
+            }
+            Some(s) => {
+                Profiler::new(self.name.as_ref(), self.builder.build())
+                    .with_output_file(s.as_ref())
+            }
+        }
     }
 }

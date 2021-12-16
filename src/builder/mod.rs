@@ -104,11 +104,11 @@ pub mod traits {
     /// [Profile](../../struct.Profiler.html) the preceding
     /// building block.
     pub trait Profiler<C>: Builder<C> {
-        fn profile(self) -> ProfilerBuilder<C, Self>
+        fn profile(self, name: &'static str) -> ProfilerBuilder<C, Self>
         where
             Self: Sized,
         {
-            ProfilerBuilder::new(self)
+            ProfilerBuilder::new(name, self)
         }
     }
 }

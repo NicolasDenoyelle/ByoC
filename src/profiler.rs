@@ -1,5 +1,7 @@
 use crate::private::clone::CloneCell;
 use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered, Prefetch};
+use std::fs::File;
+use std::io::Write;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
@@ -44,8 +46,35 @@ struct Stats {
     pub flush_iter: MethodStats,
     pub get: MethodStats,
     pub get_mut: MethodStats,
-    pub hit: AtomicU64,
-    pub miss: AtomicU64,
+    pub hit: MethodStats,
+    pub miss: MethodStats,
+}
+
+macro_rules! print_it {
+    ($struct:ident, $field:ident, $prefix:ident, $file:ident) => {
+        let (n, time) = $struct.$field.read();
+        match $file {
+            None => {
+                println!(
+                    "{}{} {} {}",
+                    $prefix,
+                    stringify!($field),
+                    n,
+                    time,
+                );
+            }
+            Some(f) => {
+                writeln!(
+                    f,
+                    "{}{} {} {}",
+                    $prefix,
+                    stringify!($field),
+                    n,
+                    time,
+                )?;
+            }
+        }
+    };
 }
 
 impl Stats {
@@ -61,9 +90,28 @@ impl Stats {
             flush_iter: MethodStats::new(),
             get: MethodStats::new(),
             get_mut: MethodStats::new(),
-            hit: AtomicU64::new(0),
-            miss: AtomicU64::new(0),
+            hit: MethodStats::new(),
+            miss: MethodStats::new(),
         }
+    }
+
+    pub fn print(
+        &self,
+        prefix: &str,
+        file_output: &mut Option<File>,
+    ) -> std::io::Result<()> {
+        print_it!(self, count, prefix, file_output);
+        print_it!(self, contains, prefix, file_output);
+        print_it!(self, take, prefix, file_output);
+        print_it!(self, pop, prefix, file_output);
+        print_it!(self, push, prefix, file_output);
+        print_it!(self, flush, prefix, file_output);
+        print_it!(self, flush_iter, prefix, file_output);
+        print_it!(self, get, prefix, file_output);
+        print_it!(self, get_mut, prefix, file_output);
+        print_it!(self, hit, prefix, file_output);
+        print_it!(self, miss, prefix, file_output);
+        Ok(())
     }
 }
 
@@ -74,7 +122,7 @@ macro_rules! time_it {
     ($call:expr) => {{
         let t0 = Instant::now();
         let out = $call;
-        (t0.elapsed().as_millis(), out)
+        (t0.elapsed().as_nanos(), out)
     }};
 }
 
@@ -120,16 +168,36 @@ macro_rules! time_it {
 /// ```
 pub struct Profiler<C> {
     cache: C,
+    name: String,
+    file_output: Option<File>,
     stats: CloneCell<Stats>,
+}
+
+impl<C> Drop for Profiler<C> {
+    fn drop(&mut self) {
+        let mut prefix = self.name.clone();
+        prefix.push(' ');
+        self.stats
+            .print(prefix.as_str(), &mut self.file_output)
+            .unwrap();
+    }
 }
 
 impl<C> Profiler<C> {
     /// Wrap a building block into a `Profiler`.
-    pub fn new(cache: C) -> Self {
+    pub fn new(name: &str, cache: C) -> Self {
         Profiler {
             cache,
+            name: String::from(name),
+            file_output: None,
             stats: CloneCell::new(Stats::new()),
         }
+    }
+
+    pub fn with_output_file(mut self, filename: &str) -> Self {
+        let f = File::create(filename).expect("Cannot create file.");
+        self.file_output = Some(f);
+        self
     }
 
     /// Get a summary of (0) the number of
@@ -193,8 +261,8 @@ impl<C> Profiler<C> {
     /// [`take()`](trait.BuildingBlock.html#tymethod.take),
     /// [`get()`](trait.Get.html#tymethod.get) or
     /// [`get_mut()`](trait.Get.html#tymethod.get_mut) methods.
-    pub fn hit_stats(&self) -> u64 {
-        self.stats.hit.load(Ordering::Relaxed)
+    pub fn hit_stats(&self) -> (u64, u64) {
+        self.stats.hit.read()
     }
     /// Get the total amount of time user key query was not matched with a
     /// key in the container when calling
@@ -202,8 +270,8 @@ impl<C> Profiler<C> {
     /// [`take()`](trait.BuildingBlock.html#tymethod.take),
     /// [`get()`](trait.Get.html#tymethod.get) or
     /// [`get_mut()`](trait.Get.html#tymethod.get_mut) methods.
-    pub fn miss_stats(&self) -> u64 {
-        self.stats.miss.load(Ordering::Relaxed)
+    pub fn miss_stats(&self) -> (u64, u64) {
+        self.stats.miss.read()
     }
 
     /// Get the total time spent in methods call so far.
@@ -273,8 +341,8 @@ where
         let (time, out) = time_it!(self.cache.contains(key));
         self.stats.clone().contains.add(1, time);
         match out {
-            true => self.stats.hit.fetch_add(1u64, Ordering::SeqCst),
-            false => self.stats.miss.fetch_add(1u64, Ordering::SeqCst),
+            true => self.stats.clone().hit.add(1, time),
+            false => self.stats.clone().miss.add(1, time),
         };
         out
     }
@@ -283,8 +351,8 @@ where
         let (time, out) = time_it!(self.cache.take(key));
         self.stats.take.add(1, time);
         match out {
-            Some(_) => self.stats.hit.fetch_add(1u64, Ordering::SeqCst),
-            None => self.stats.miss.fetch_add(1u64, Ordering::SeqCst),
+            Some(_) => self.stats.clone().hit.add(1, time),
+            None => self.stats.clone().miss.add(1, time),
         };
         out
     }
@@ -334,6 +402,11 @@ where
     fn clone(&self) -> Self {
         Profiler {
             cache: Concurrent::clone(&self.cache),
+            name: self.name.clone(),
+            file_output: self
+                .file_output
+                .as_ref()
+                .map(|f| f.try_clone().unwrap()),
             stats: self.stats.clone(),
         }
     }
@@ -352,8 +425,8 @@ where
         let (time, out) = time_it!(self.cache.get(key));
         self.stats.clone().get.add(1, time);
         match out {
-            Some(_) => self.stats.hit.fetch_add(1u64, Ordering::SeqCst),
-            None => self.stats.miss.fetch_add(1u64, Ordering::SeqCst),
+            Some(_) => self.stats.clone().hit.add(1, time),
+            None => self.stats.clone().miss.add(1, time),
         };
         out
     }
@@ -368,8 +441,8 @@ where
         let (time, out) = time_it!(self.cache.get_mut(key));
         self.stats.get_mut.add(1, time);
         match out {
-            Some(_) => self.stats.hit.fetch_add(1u64, Ordering::SeqCst),
-            None => self.stats.miss.fetch_add(1u64, Ordering::SeqCst),
+            Some(_) => self.stats.clone().hit.add(1, time),
+            None => self.stats.clone().miss.add(1, time),
         };
         out
     }
@@ -393,10 +466,10 @@ where
         let n = keys.len();
         let (time, out) = time_it!(self.cache.take_multiple(keys));
         self.stats.take.add(n, time);
-        let hits = out.len() as u64;
-        let misses = n as u64 - hits;
-        self.stats.hit.fetch_add(hits, Ordering::SeqCst);
-        self.stats.miss.fetch_add(misses, Ordering::SeqCst);
+        let hits = out.len();
+        let misses = n - hits;
+        self.stats.hit.add(hits, time);
+        self.stats.miss.add(misses, time);
         out
     }
 }
