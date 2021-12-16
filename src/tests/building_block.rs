@@ -3,7 +3,10 @@ use crate::{BuildingBlock, Get, GetMut, Prefetch};
 use rand::random;
 use std::ops::{Deref, DerefMut};
 
-pub type TestElements = Vec<(u16, u32)>;
+pub type TestKey = u16;
+pub type TestValue = u32;
+pub type TestElement = (TestKey, TestValue);
+pub type TestElements = Vec<TestElement>;
 
 pub fn rand(a: u64, b: u64) -> u64 {
     a + (random::<u64>() % (b - a))
@@ -11,7 +14,7 @@ pub fn rand(a: u64, b: u64) -> u64 {
 
 fn test_push<'a, C>(c: &mut C, kv: TestElements)
 where
-    C: BuildingBlock<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>,
 {
     let num_before_insertion = c.count();
     let max_capacity = c.capacity();
@@ -41,7 +44,7 @@ pub fn insert<'a, C>(
     elements: TestElements,
 ) -> (TestElements, TestElements)
 where
-    C: BuildingBlock<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>,
 {
     let out = c.push(elements.clone());
     let inserted: TestElements = elements
@@ -54,11 +57,13 @@ where
 
 pub fn test_get<'a, C, U>(mut c: C)
 where
-    U: Deref<Target = u32>,
-    C: 'a + BuildingBlock<'a, u16, u32> + Get<u16, u32, U>,
+    U: Deref<Target = TestValue>,
+    C: 'a
+        + BuildingBlock<'a, TestKey, TestValue>
+        + Get<TestKey, TestValue, U>,
 {
     let elements: TestElements =
-        (0u16..10u16).map(|i| (i, i as u32)).collect();
+        (0u16..10u16).map(|i| (i, i as TestValue)).collect();
     let (elements, _) = insert(&mut c, elements);
 
     for (k, _) in elements.iter() {
@@ -68,11 +73,13 @@ where
 
 pub fn test_get_mut<'a, C, W>(mut c: C)
 where
-    W: Deref<Target = u32> + DerefMut,
-    C: 'a + BuildingBlock<'a, u16, u32> + GetMut<u16, u32, W>,
+    W: Deref<Target = TestValue> + DerefMut,
+    C: 'a
+        + BuildingBlock<'a, TestKey, TestValue>
+        + GetMut<TestKey, TestValue, W>,
 {
     let elements: TestElements =
-        (0u16..10u16).map(|i| (i, i as u32)).collect();
+        (0u16..10u16).map(|i| (i, i as TestValue)).collect();
     let (elements, _) = insert(&mut c, elements);
 
     for (k, _) in elements.iter() {
@@ -81,13 +88,16 @@ where
     }
 
     for (k, v) in elements.iter() {
-        assert_eq!(*unsafe { c.get_mut(k).unwrap() } as u32, *v + 1u32);
+        assert_eq!(
+            *unsafe { c.get_mut(k).unwrap() } as TestValue,
+            *v + 1u32
+        );
     }
 }
 
 fn test_flush<'a, C>(c: &mut C, elements: TestElements)
 where
-    C: BuildingBlock<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>,
 {
     #[allow(unused_must_use)]
     {
@@ -104,7 +114,7 @@ where
 
 fn test_take<'a, C>(c: &mut C, elements: TestElements)
 where
-    C: BuildingBlock<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>,
 {
     #[allow(unused_must_use)]
     {
@@ -125,7 +135,7 @@ where
 
 fn test_pop<'a, C>(c: &mut C, n: usize)
 where
-    C: BuildingBlock<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>,
 {
     let count = c.count();
     let popped = c.pop(n);
@@ -140,10 +150,10 @@ where
 
 fn test_n<'a, C>(c: &mut C, n: usize)
 where
-    C: BuildingBlock<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>,
 {
     let elements: TestElements = (0..n as u64)
-        .map(|i| (i as u16, rand(0u64, n as u64) as u32))
+        .map(|i| (i as TestKey, rand(0u64, n as u64) as TestValue))
         .collect();
 
     // Push Test
@@ -176,7 +186,7 @@ where
 
 pub fn test_building_block<'a, C>(mut c: C)
 where
-    C: BuildingBlock<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>,
 {
     let capacity = c.capacity();
     test_n(&mut c, 0);
@@ -187,15 +197,16 @@ where
 
 pub fn test_prefetch<'a, C>(mut c: C)
 where
-    C: BuildingBlock<'a, u16, u32> + Prefetch<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>
+        + Prefetch<'a, TestKey, TestValue>,
 {
     let n = c.capacity();
     let elements: TestElements = (0..n as u64)
-        .map(|i| (i as u16, rand(0u64, n as u64) as u32))
+        .map(|i| (i as TestKey, rand(0u64, n as u64) as TestValue))
         .collect();
     let (mut inserted, _) = insert(&mut c, elements);
 
-    let mut all_keys: Vec<u16> =
+    let mut all_keys: Vec<TestKey> =
         inserted.iter().map(|(k, _)| *k).collect();
 
     // Make sure prefetch method keeps everything inside the container.
@@ -208,7 +219,7 @@ where
 
     // Test that input keys contain original input keys minus some removed
     // keys.
-    let mut inserted_keys: Vec<u16> =
+    let mut inserted_keys: Vec<TestKey> =
         inserted.iter().map(|(k, _)| *k).collect();
     inserted_keys.sort_unstable();
     for k in all_keys {

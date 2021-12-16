@@ -1,9 +1,9 @@
-use crate::tests::{insert, rand, TestElements};
+use crate::tests::{insert, rand, TestElements, TestKey, TestValue};
 use crate::BuildingBlock;
 
 fn test_pop<'a, C>(c: &mut C, n: usize, victims: TestElements)
 where
-    C: BuildingBlock<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>,
 {
     let popped = c.pop(n);
 
@@ -17,10 +17,10 @@ where
 
 fn test_n<'a, C>(c: &mut C, n: usize)
 where
-    C: BuildingBlock<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>,
 {
     let elements: TestElements = (0..n as u64)
-        .map(|i| (i as u16, rand(0u64, n as u64) as u32))
+        .map(|i| (i as TestKey, rand(0u64, n as u64) as TestValue))
         .collect();
 
     let (mut victims, _) = insert(c, elements);
@@ -35,7 +35,7 @@ where
 
 pub fn test_ordered<'a, C>(mut c: C)
 where
-    C: BuildingBlock<'a, u16, u32>,
+    C: BuildingBlock<'a, TestKey, TestValue>,
 {
     let capacity = c.capacity();
     test_n(&mut c, 0);

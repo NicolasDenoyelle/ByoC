@@ -1,13 +1,14 @@
+use crate::tests::{TestElement, TestKey, TestValue};
 use crate::{BuildingBlock, Concurrent};
 use std::{sync::mpsc::channel, thread};
 
 fn test_after_push<C>(
     c: C,
     count: usize,
-    keys: Vec<u16>,
-    popped_keys: Vec<u16>,
+    keys: Vec<TestKey>,
+    popped_keys: Vec<TestKey>,
 ) where
-    C: 'static + BuildingBlock<'static, u16, u32> + Concurrent,
+    C: 'static + BuildingBlock<'static, TestKey, TestValue> + Concurrent,
 {
     // Test container count is the incremented count.
     assert!(c.count() == count);
@@ -30,13 +31,14 @@ fn test_after_push<C>(
 
 fn push_concurrent<C>(c: C, num_thread: u8)
 where
-    C: 'static + BuildingBlock<'static, u16, u32> + Concurrent,
+    C: 'static + BuildingBlock<'static, TestKey, TestValue> + Concurrent,
 {
     let capacity = c.capacity();
-    let mut set: Vec<(u16, u32)> =
-        (0..capacity * 2).map(|i| (i as u16, i as u32)).collect();
+    let mut set: Vec<TestElement> = (0..capacity * 2)
+        .map(|i| (i as TestKey, i as TestValue))
+        .collect();
     // The total number of elements to push in the container c.
-    let keys: Vec<u16> = set.iter().map(|(k, _)| *k).collect();
+    let keys: Vec<TestKey> = set.iter().map(|(k, _)| *k).collect();
 
     // The base set size for each thread.
     let t_size = set.len() / num_thread as usize;
@@ -83,7 +85,7 @@ where
 
 pub fn test_concurrent<C>(c: C, num_thread: u8)
 where
-    C: 'static + BuildingBlock<'static, u16, u32> + Concurrent,
+    C: 'static + BuildingBlock<'static, TestKey, TestValue> + Concurrent,
 {
     push_concurrent(c, num_thread);
 }
