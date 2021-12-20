@@ -78,9 +78,13 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressor<T, S> {
         };
 
         // Deserialize bytes into an element.
-        match bincode::deserialize_from(bytes.as_slice()) {
-            Ok(t) => Ok(t),
-            Err(e) => Err(IOError::DeserializeError(e)),
+        if !bytes.is_empty() {
+            match bincode::deserialize_from(bytes.as_slice()) {
+                Ok(t) => Ok(t),
+                Err(e) => Err(IOError::DeserializeError(e)),
+            }
+        } else {
+            Ok(Vec::new())
         }
     }
 
@@ -95,6 +99,10 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressor<T, S> {
 
         // Rewind stream
         if let Err(e) = stream.seek(SeekFrom::Start(0u64)) {
+            return Err(IOError::SeekError(e));
+        }
+        // Resize to zero if content is shorter than previous content.
+        if let Err(e) = stream.resize(0u64) {
             return Err(IOError::SeekError(e));
         }
 
