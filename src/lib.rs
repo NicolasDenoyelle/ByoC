@@ -243,7 +243,7 @@ pub use multilevel::{Multilevel, MultilevelCell};
 mod policy;
 pub use policy::Policy;
 mod profiler;
-pub use profiler::Profiler;
+pub use profiler::{Profiler, ProfilerOutputKind};
 mod sequential;
 pub use sequential::{Sequential, SequentialCell};
 #[cfg(feature = "stream")]

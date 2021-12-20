@@ -50,30 +50,25 @@ struct Stats {
     pub miss: MethodStats,
 }
 
-macro_rules! print_it {
-    ($struct:ident, $field:ident, $prefix:ident, $file:ident) => {
+macro_rules! write_it {
+    ($struct:expr, $field:ident, $prefix:ident, $file:ident) => {
         let (n, time) = $struct.$field.read();
-        match $file {
-            None => {
-                println!(
-                    "{}{} {} {}",
-                    $prefix,
-                    stringify!($field),
-                    n,
-                    time,
-                );
-            }
-            Some(f) => {
-                writeln!(
-                    f,
-                    "{}{} {} {}",
-                    $prefix,
-                    stringify!($field),
-                    n,
-                    time,
-                )?;
-            }
-        }
+        writeln!(
+            $file,
+            "{}{} {} {}",
+            $prefix,
+            stringify!($field),
+            n,
+            time,
+        )
+        .unwrap();
+    };
+}
+
+macro_rules! print_it {
+    ($struct:expr, $field:ident, $prefix:ident) => {
+        let (n, time) = $struct.$field.read();
+        println!("{}{} {} {}", $prefix, stringify!($field), n, time);
     };
 }
 
@@ -94,25 +89,6 @@ impl Stats {
             miss: MethodStats::new(),
         }
     }
-
-    pub fn print(
-        &self,
-        prefix: &str,
-        file_output: &mut Option<File>,
-    ) -> std::io::Result<()> {
-        print_it!(self, count, prefix, file_output);
-        print_it!(self, contains, prefix, file_output);
-        print_it!(self, take, prefix, file_output);
-        print_it!(self, pop, prefix, file_output);
-        print_it!(self, push, prefix, file_output);
-        print_it!(self, flush, prefix, file_output);
-        print_it!(self, flush_iter, prefix, file_output);
-        print_it!(self, get, prefix, file_output);
-        print_it!(self, get_mut, prefix, file_output);
-        print_it!(self, hit, prefix, file_output);
-        print_it!(self, miss, prefix, file_output);
-        Ok(())
-    }
 }
 
 /// Time a function call and return `(time, output)`
@@ -124,6 +100,18 @@ macro_rules! time_it {
         let out = $call;
         (t0.elapsed().as_nanos(), out)
     }};
+}
+
+/// Possible ways of printing output stats when a `Profiler` container
+/// is dropped.
+#[derive(Clone)]
+pub enum ProfilerOutputKind {
+    /// No output is printed.
+    None,
+    /// Output is printed to stdout.
+    Stdout,
+    /// Output is printed to a file of the given name.
+    File(String),
 }
 
 /// Building block wrapper to collect
@@ -169,7 +157,7 @@ macro_rules! time_it {
 pub struct Profiler<C> {
     cache: C,
     name: String,
-    file_output: Option<File>,
+    output: ProfilerOutputKind,
     stats: CloneCell<Stats>,
 }
 
@@ -177,27 +165,56 @@ impl<C> Drop for Profiler<C> {
     fn drop(&mut self) {
         let mut prefix = self.name.clone();
         prefix.push(' ');
-        self.stats
-            .print(prefix.as_str(), &mut self.file_output)
-            .unwrap();
+
+        match &self.output {
+            ProfilerOutputKind::None => {}
+            ProfilerOutputKind::Stdout => {
+                print_it!(self.stats, count, prefix);
+                print_it!(self.stats, contains, prefix);
+                print_it!(self.stats, take, prefix);
+                print_it!(self.stats, pop, prefix);
+                print_it!(self.stats, push, prefix);
+                print_it!(self.stats, flush, prefix);
+                print_it!(self.stats, flush_iter, prefix);
+                print_it!(self.stats, get, prefix);
+                print_it!(self.stats, get_mut, prefix);
+                print_it!(self.stats, hit, prefix);
+                print_it!(self.stats, miss, prefix);
+            }
+            ProfilerOutputKind::File(s) => match File::create(s) {
+                Ok(mut f) => {
+                    write_it!(self.stats, count, prefix, f);
+                    write_it!(self.stats, contains, prefix, f);
+                    write_it!(self.stats, take, prefix, f);
+                    write_it!(self.stats, pop, prefix, f);
+                    write_it!(self.stats, push, prefix, f);
+                    write_it!(self.stats, flush, prefix, f);
+                    write_it!(self.stats, flush_iter, prefix, f);
+                    write_it!(self.stats, get, prefix, f);
+                    write_it!(self.stats, get_mut, prefix, f);
+                    write_it!(self.stats, hit, prefix, f);
+                    write_it!(self.stats, miss, prefix, f);
+                }
+                Err(e) => {
+                    println!(
+                        "Failed to open file for writing: {}.\n{:?}",
+                        s, e
+                    )
+                }
+            },
+        }
     }
 }
 
 impl<C> Profiler<C> {
     /// Wrap a building block into a `Profiler`.
-    pub fn new(name: &str, cache: C) -> Self {
+    pub fn new(name: &str, output: ProfilerOutputKind, cache: C) -> Self {
         Profiler {
             cache,
             name: String::from(name),
-            file_output: None,
+            output: output,
             stats: CloneCell::new(Stats::new()),
         }
-    }
-
-    pub fn with_output_file(mut self, filename: &str) -> Self {
-        let f = File::create(filename).expect("Cannot create file.");
-        self.file_output = Some(f);
-        self
     }
 
     /// Get a summary of (0) the number of
@@ -403,10 +420,7 @@ where
         Profiler {
             cache: Concurrent::clone(&self.cache),
             name: self.name.clone(),
-            file_output: self
-                .file_output
-                .as_ref()
-                .map(|f| f.try_clone().unwrap()),
+            output: self.output.clone(),
             stats: self.stats.clone(),
         }
     }

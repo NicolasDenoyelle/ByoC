@@ -36,6 +36,7 @@ pub mod traits {
     use crate::builder::profiler::ProfilerBuilder;
     use crate::builder::sequential::SequentialBuilder;
     use crate::policies::{Reference, ReferenceFactory};
+    use crate::ProfilerOutputKind;
     use std::hash::Hasher;
 
     /// [Building Block](../../trait.BuildingBlock.html) building
@@ -104,11 +105,15 @@ pub mod traits {
     /// [Profile](../../struct.Profiler.html) the preceding
     /// building block.
     pub trait Profiler<C>: Builder<C> {
-        fn profile(self, name: &'static str) -> ProfilerBuilder<C, Self>
+        fn profile(
+            self,
+            name: &str,
+            output: ProfilerOutputKind,
+        ) -> ProfilerBuilder<C, Self>
         where
             Self: Sized,
         {
-            ProfilerBuilder::new(name, self)
+            ProfilerBuilder::new(name, output, self)
         }
     }
 }

@@ -1,5 +1,5 @@
 use crate::builder::traits::{Associative, Builder, Multilevel};
-use crate::Profiler;
+use crate::{Profiler, ProfilerOutputKind};
 use std::marker::PhantomData;
 
 /// `Profiler` container builder.
@@ -29,7 +29,7 @@ where
 {
     builder: B,
     name: String,
-    file_output: Option<String>,
+    output: ProfilerOutputKind,
     unused: PhantomData<C>,
 }
 
@@ -37,18 +37,17 @@ impl<C, B> ProfilerBuilder<C, B>
 where
     B: Builder<C>,
 {
-    pub fn new(name: &str, builder: B) -> Self {
+    pub fn new(
+        name: &str,
+        output: ProfilerOutputKind,
+        builder: B,
+    ) -> Self {
         ProfilerBuilder {
             builder,
             name: String::from(name),
-            file_output: None,
+            output,
             unused: PhantomData,
         }
-    }
-
-    pub fn output_to_file(mut self, filename: &'static str) -> Self {
-        self.file_output = Some(String::from(filename));
-        self
     }
 }
 
@@ -60,7 +59,7 @@ where
         ProfilerBuilder {
             builder: self.builder.clone(),
             name: self.name.clone(),
-            file_output: self.file_output.as_ref().map(|s| s.clone()),
+            output: self.output.clone(),
             unused: PhantomData,
         }
     }
@@ -84,14 +83,10 @@ where
     B: Builder<C>,
 {
     fn build(self) -> Profiler<C> {
-        match self.file_output {
-            None => {
-                Profiler::new(self.name.as_ref(), self.builder.build())
-            }
-            Some(s) => {
-                Profiler::new(self.name.as_ref(), self.builder.build())
-                    .with_output_file(s.as_ref())
-            }
-        }
+        Profiler::new(
+            self.name.as_ref(),
+            self.output,
+            self.builder.build(),
+        )
     }
 }
