@@ -138,14 +138,14 @@ macro_rules! time_it {
 /// # Examples
 ///
 /// ```
-/// use cache::{BuildingBlock, Get};
-/// use cache::{Array, Profiler};
+/// use byoc::{BuildingBlock, Get};
+/// use byoc::{Array, Profiler, ProfilerOutputKind};
 ///
 /// // Build a cache:
 /// let c = Array::new(3);
 ///
 /// // Wrap it into a profiler.
-/// let mut c = Profiler::new("example", c);
+/// let mut c = Profiler::new("example", ProfilerOutputKind::None, c);
 ///
 /// // Populate BuildingBlock
 /// c.push(vec![("first", 0), ("second", 1)]);

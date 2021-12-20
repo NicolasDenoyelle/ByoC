@@ -18,7 +18,7 @@ pub enum IOError {
     InvalidSizeError,
 }
 
-/// Result type of [`cache::utils::io`](index.html)
+/// Result type of [`byoc::utils::io`](index.html)
 /// See [`IOError`](enum.IOError.html).
 pub type IOResult<T> = Result<T, IOError>;
 

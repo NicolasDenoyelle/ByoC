@@ -1,3 +1,5 @@
+#![doc = include_str!("../README.md")]
+
 use std::ops::{Deref, DerefMut};
 /// This is the main abstraction: the Building block interface for
 /// key/value storage.
@@ -200,9 +202,9 @@ pub mod streams;
 ///
 /// Without the builder pattern, such container would be built as follow:
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::{Array, BTree, Multilevel, Sequential, Policy};
-/// use cache::policies::{LRU, timestamp::Clock};
+/// use byoc::BuildingBlock;
+/// use byoc::{Array, BTree, Multilevel, Sequential, Policy};
+/// use byoc::policies::{LRU, timestamp::Clock};
 ///
 /// let array = Array::new(10000);
 /// let btree = BTree::new(1000000);
@@ -214,10 +216,10 @@ pub mod streams;
 ///
 /// With a builder pattern, the same code becomes:
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::policies::{LRU, timestamp::Clock};
-/// use cache::builder::traits::*;
-/// use cache::builder::Begin;
+/// use byoc::BuildingBlock;
+/// use byoc::policies::{LRU, timestamp::Clock};
+/// use byoc::builder::traits::*;
+/// use byoc::builder::Begin;
 ///
 /// let mut container = Begin::array(10000).multilevel(Begin::btree(1000000)).with_policy(LRU::<Clock>::new()).into_sequential().build();
 /// container.push(vec![(1,2)]);

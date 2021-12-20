@@ -22,8 +22,8 @@ use std::ops::{Deref, DerefMut};
 /// # Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::BTree;
+/// use byoc::BuildingBlock;
+/// use byoc::BTree;
 ///
 /// // BTree with 3 elements capacity.
 /// let mut c = BTree::new(3);

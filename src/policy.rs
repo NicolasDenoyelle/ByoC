@@ -25,9 +25,9 @@ use std::ops::{Deref, DerefMut};
 /// # Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::{Array, Policy};
-/// use cache::policies::FIFO;
+/// use byoc::BuildingBlock;
+/// use byoc::{Array, Policy};
+/// use byoc::policies::FIFO;
 ///
 /// let mut c = Policy::new(Array::new(3), FIFO::new());
 /// c.push(vec![("item1",()), ("item2",()), ("item0",())]);

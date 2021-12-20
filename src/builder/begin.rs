@@ -18,9 +18,9 @@ use serde::{de::DeserializeOwned, Serialize};
 /// # Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::builder::traits::*;
-/// use cache::builder::Begin;
+/// use byoc::BuildingBlock;
+/// use byoc::builder::traits::*;
+/// use byoc::builder::Begin;
 ///
 /// // Build a multi-layer concurrent cache where the first layer stores
 /// // up to two elements in an `Array` type container and the second layer

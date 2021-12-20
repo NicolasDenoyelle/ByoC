@@ -11,9 +11,9 @@ use std::marker::PhantomData;
 /// # Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::builder::traits::*;
-/// use cache::builder::builders::{ArrayBuilder, AssociativeBuilder};
+/// use byoc::BuildingBlock;
+/// use byoc::builder::traits::*;
+/// use byoc::builder::builders::{ArrayBuilder, AssociativeBuilder};
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// let array_builder = ArrayBuilder::new(2);

@@ -29,8 +29,8 @@ use std::ops::{Deref, DerefMut};
 /// # Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::{Array, Associative};
+/// use byoc::BuildingBlock;
+/// use byoc::{Array, Associative};
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// // Build a Array cache of 2 sets. Each set hold one element.

@@ -12,8 +12,8 @@ use std::vec::Vec;
 /// # Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::Array;
+/// use byoc::BuildingBlock;
+/// use byoc::Array;
 ///
 /// // Array with 3 elements capacity.
 /// let mut c = Array::new(3);
@@ -172,8 +172,8 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>> for Array<(K, V)> {
     /// # Example:
     ///
     /// ```
-    /// use cache::{BuildingBlock, Get};
-    /// use cache::Array;
+    /// use byoc::{BuildingBlock, Get};
+    /// use byoc::Array;
     ///
     /// // Make a array and populate it.
     /// let mut v = Array::new(1);
@@ -216,8 +216,8 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
     /// # Example:
     ///
     /// ```
-    /// use cache::{BuildingBlock, GetMut};
-    /// use cache::Array;
+    /// use byoc::{BuildingBlock, GetMut};
+    /// use byoc::Array;
     ///
     /// // Make a array and populate it.
     /// let mut v = Array::new(1);

@@ -11,9 +11,9 @@ use std::marker::PhantomData;
 ///
 /// ## Examples
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::builder::traits::*;
-/// use cache::builder::builders::ArrayBuilder;
+/// use byoc::BuildingBlock;
+/// use byoc::builder::traits::*;
+/// use byoc::builder::builders::ArrayBuilder;
 ///
 /// let mut array = ArrayBuilder::new(2).build();
 /// array.push(vec![(1, 2)]);

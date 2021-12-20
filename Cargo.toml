@@ -1,8 +1,17 @@
 [package]
-name = "cache"
+name = "byoc"
 version = "0.1.0"
 authors = ["ndenoyelle <ndenoyelle@anl.gov>"]
+repository = "https://github.com/NicolasDenoyelle/ByoC"
+description = "A library to build and benchmark key value store containers."
+readme = "README.md"
+license-file = "LICENSE.txt"
+keywords = [ "key value store", "cache", "map", "LRFU" ]
 edition = "2021"
+publish = false
+
+[badges]
+maintenance = { status = "experimental" }
 
 [dependencies]
 tempfile = { version = "3.2.0", optional = true }

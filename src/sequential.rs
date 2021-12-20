@@ -15,8 +15,8 @@ use std::ops::{Deref, DerefMut};
 /// # Examples
 ///
 /// ```
-/// use cache::{BuildingBlock, Concurrent};
-/// use cache::{Array, Sequential};
+/// use byoc::{BuildingBlock, Concurrent};
+/// use byoc::{Array, Sequential};
 ///
 /// // Build a concurrent Array cache.
 /// let mut c1 = Sequential::new(Array::new(1));

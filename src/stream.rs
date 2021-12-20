@@ -37,9 +37,9 @@ use std::ops::{Deref, DerefMut};
 /// # Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::Stream;
-/// use cache::streams::VecStreamFactory;
+/// use byoc::BuildingBlock;
+/// use byoc::Stream;
+/// use byoc::streams::VecStreamFactory;
 ///
 /// // Array with 3 elements capacity.
 /// let mut c = Stream::new(VecStreamFactory{}, 3);
@@ -352,9 +352,9 @@ where
     /// # Example:
     ///
     /// ```
-    /// use cache::{BuildingBlock, Get};
-    /// use cache::Stream;
-    /// use cache::streams::VecStreamFactory;
+    /// use byoc::{BuildingBlock, Get};
+    /// use byoc::Stream;
+    /// use byoc::streams::VecStreamFactory;
     ///
     /// // Make a stream and populate it.
     /// // Array with 3 elements capacity.
@@ -413,9 +413,9 @@ where
     /// # Example:
     ///
     /// ```
-    /// use cache::{BuildingBlock, Get, GetMut};
-    /// use cache::Stream;
-    /// use cache::streams::VecStreamFactory;
+    /// use byoc::{BuildingBlock, Get, GetMut};
+    /// use byoc::Stream;
+    /// use byoc::streams::VecStreamFactory;
     ///
     /// // Make a stream and populate it.
     /// let mut c = Stream::new(VecStreamFactory{}, 1);

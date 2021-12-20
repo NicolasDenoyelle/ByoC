@@ -64,7 +64,7 @@ impl<V> InnerClone<V> {
 /// ## Example
 ///
 /// ```ignore
-/// use cache::utils::clone::CloneCell;
+/// use byoc::utils::clone::CloneCell;
 ///
 /// let mut v = CloneCell::new(4u32);
 /// assert!(*v == 4u32);

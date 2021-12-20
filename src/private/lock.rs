@@ -33,7 +33,7 @@ pub enum LockError<T> {
 /// ## Examples
 ///
 /// ```ignore
-/// use cache::lock::RWLock;
+/// use byoc::lock::RWLock;
 /// let lock = RWLock::new();
 ///
 /// // exclusive lock
@@ -320,7 +320,7 @@ impl RWLock {
 /// # Examples
 ///
 /// ```ignore
-/// use cache::lock::{RWLock, RWLockGuard};
+/// use byoc::lock::{RWLock, RWLockGuard};
 /// let lock = RWLock::new();
 /// lock.lock_mut();
 ///

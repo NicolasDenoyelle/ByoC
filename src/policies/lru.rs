@@ -28,9 +28,9 @@ pub struct LRUCell<V, T: Timestamp> {
 /// ## Examples
 ///
 /// ```
-/// use cache::{Array, Policy};
-/// use cache::policies::LRU;
-/// use cache::policies::timestamp::Clock;
+/// use byoc::{Array, Policy};
+/// use byoc::policies::LRU;
+/// use byoc::policies::timestamp::Clock;
 ///
 /// // let c = Policy::new(Array::new(3), LRU::<Clock>::new());
 /// ```

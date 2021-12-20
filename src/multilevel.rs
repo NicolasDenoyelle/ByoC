@@ -22,8 +22,8 @@ use std::ops::{Deref, DerefMut};
 /// # Examples
 ///
 /// ```
-/// use cache::{BuildingBlock, GetMut};
-/// use cache::{Multilevel, Array};
+/// use byoc::{BuildingBlock, GetMut};
+/// use byoc::{Multilevel, Array};
 ///
 /// // Create cache
 /// let mut left = Array::new(2);

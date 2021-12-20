@@ -16,9 +16,9 @@ use std::marker::PhantomData;
 /// # Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::builder::traits::*;
-/// use cache::builder::builders::{ArrayBuilder, BTreeBuilder, MultilevelBuilder};
+/// use byoc::BuildingBlock;
+/// use byoc::builder::traits::*;
+/// use byoc::builder::builders::{ArrayBuilder, BTreeBuilder, MultilevelBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
 /// let btree_builder = BTreeBuilder::new(2);

@@ -10,8 +10,8 @@ use std::cmp::Ord;
 /// ## Examples
 ///
 /// ```
-/// use cache::container::Array;
-/// use cache::policies::{Policy, Default};
+/// use byoc::container::Array;
+/// use byoc::policies::{Policy, Default};
 ///
 /// let c = Policy::new(Array::new(3), Default::new());
 /// c.push(vec!["item1", "item2", "item0"]);

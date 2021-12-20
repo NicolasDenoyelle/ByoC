@@ -91,8 +91,8 @@ struct LRFUCell<V, T: Timestamp + Copy> {
 /// ## Examples
 ///
 /// ```
-/// use cache::{Array, Policy};
-/// use cache::policies::LRFU;
+/// use byoc::{Array, Policy};
+/// use byoc::policies::LRFU;
 ///
 /// // let c = Policy::new(Array::new(3), LRFU::new(2.0));
 /// ```

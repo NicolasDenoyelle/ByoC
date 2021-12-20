@@ -14,10 +14,10 @@ use std::marker::PhantomData;
 /// # Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::builder::traits::*;
-/// use cache::streams::VecStreamFactory;
-/// use cache::builder::builders::StreamBuilder;
+/// use byoc::BuildingBlock;
+/// use byoc::builder::traits::*;
+/// use byoc::streams::VecStreamFactory;
+/// use byoc::builder::builders::StreamBuilder;
 ///
 /// let mut stream = StreamBuilder::new(VecStreamFactory{}, 2).build();
 /// stream.push(vec![(1, 2)]);

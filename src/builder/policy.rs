@@ -14,10 +14,10 @@ use std::marker::PhantomData;
 /// # Examples
 ///
 /// ```
-/// use cache::BuildingBlock;
-/// use cache::builder::traits::*;
-/// use cache::policies::FIFO;
-/// use cache::builder::builders::{ArrayBuilder, PolicyBuilder};
+/// use byoc::BuildingBlock;
+/// use byoc::builder::traits::*;
+/// use byoc::policies::FIFO;
+/// use byoc::builder::builders::{ArrayBuilder, PolicyBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
 /// let mut container = PolicyBuilder::new(array_builder, FIFO::new()).build();
