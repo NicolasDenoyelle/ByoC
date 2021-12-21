@@ -65,8 +65,10 @@ where
     }
 }
 
-impl<C, B> Associative<Profiler<C>> for ProfilerBuilder<C, B> where
-    B: Builder<C> + Clone
+impl<C, B, H: std::hash::Hasher + Clone> Associative<Profiler<C>, H>
+    for ProfilerBuilder<C, B>
+where
+    B: Builder<C> + Clone,
 {
 }
 

@@ -57,8 +57,10 @@ where
     }
 }
 
-impl<C, B> Associative<Sequential<C>> for SequentialBuilder<C, B> where
-    B: Builder<C> + Clone
+impl<C, B, H: std::hash::Hasher + Clone> Associative<Sequential<C>, H>
+    for SequentialBuilder<C, B>
+where
+    B: Builder<C> + Clone,
 {
 }
 

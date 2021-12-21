@@ -84,7 +84,8 @@ where
 {
 }
 
-impl<K, V, L, LB, R, RB> Associative<Multilevel<K, V, L, R>>
+impl<K, V, L, LB, R, RB, H: std::hash::Hasher + Clone>
+    Associative<Multilevel<K, V, L, R>, H>
     for MultilevelBuilder<L, LB, R, RB>
 where
     LB: Builder<L> + Clone,

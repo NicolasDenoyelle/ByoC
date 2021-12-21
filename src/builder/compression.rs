@@ -67,7 +67,7 @@ where
     fn build(mut self) -> Batch<Compressor<T, S>> {
         let mut b = Batch::<Compressor<T, S>>::new();
         for _ in 0..self.num_batch {
-            b = b.append(Compressor::new(
+            b.append(Compressor::new(
                 self.stream_factory.create(),
                 self.batch_capacity,
             ));
@@ -76,8 +76,8 @@ where
     }
 }
 
-impl<T, S, F> Associative<Batch<Compressor<T, S>>>
-    for CompressorBuilder<T, S, F>
+impl<T, S, F, H: std::hash::Hasher + Clone>
+    Associative<Batch<Compressor<T, S>>, H> for CompressorBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
     S: Stream,

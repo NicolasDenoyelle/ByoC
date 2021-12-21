@@ -63,7 +63,8 @@ where
     }
 }
 
-impl<T, S, F> Associative<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
+impl<T, S, F, H: std::hash::Hasher + Clone>
+    Associative<ByteStream<T, S, F>, H> for StreamBuilder<T, S, F>
 where
     T: DeserializeOwned + Serialize,
     S: Stream,

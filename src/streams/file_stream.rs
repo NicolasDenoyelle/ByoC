@@ -30,9 +30,13 @@ impl Clone for FileStream {
 impl Drop for FileStream {
     fn drop(&mut self) {
         self.rc.unlock();
+        #[allow(unused_must_use)]
         match self.rc.try_lock_mut() {
             Err(_) => {}
-            Ok(_) => std::fs::remove_file(&self.path).unwrap(),
+            // Try to remove file. File might be already cleaned up by the OS.
+            Ok(_) => {
+                std::fs::remove_file(&self.path);
+            }
         }
     }
 }

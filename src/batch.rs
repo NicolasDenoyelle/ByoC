@@ -23,9 +23,16 @@ impl<C> Batch<C> {
     }
 
     /// Append a building block to the batch.
-    pub fn append(mut self, c: C) -> Self {
+    pub fn append(&mut self, c: C) {
         self.bb.push_back(c);
-        self
+    }
+}
+
+impl<T, const N: usize> From<[T; N]> for Batch<T> {
+    fn from(arr: [T; N]) -> Self {
+        Batch {
+            bb: LinkedList::from(arr),
+        }
     }
 }
 
@@ -165,70 +172,40 @@ mod tests {
     #[test]
     fn building_block() {
         test_building_block(Batch::<Array<(u16, u32)>>::new());
-        test_building_block(Batch::new().append(Array::new(0)));
-        test_building_block(
-            Batch::new().append(Array::new(0)).append(Array::new(0)),
-        );
-        test_building_block(
-            Batch::new().append(Array::new(0)).append(Array::new(10)),
-        );
-        test_building_block(
-            Batch::new().append(Array::new(10)).append(Array::new(0)),
-        );
-        test_building_block(
-            Batch::new().append(Array::new(10)).append(Array::new(10)),
-        );
+        test_building_block(Batch::from([Array::new(0)]));
+        test_building_block(Batch::from([Array::new(0), Array::new(0)]));
+        test_building_block(Batch::from([Array::new(0), Array::new(10)]));
+        test_building_block(Batch::from([Array::new(10), Array::new(0)]));
+        test_building_block(Batch::from([Array::new(10), Array::new(10)]));
     }
 
     #[test]
     fn get() {
         test_get(Batch::<Array<(u16, u32)>>::new());
-        test_get(Batch::new().append(Array::new(0)));
-        test_get(Batch::new().append(Array::new(0)).append(Array::new(0)));
-        test_get(
-            Batch::new().append(Array::new(0)).append(Array::new(10)),
-        );
-        test_get(
-            Batch::new().append(Array::new(10)).append(Array::new(0)),
-        );
-        test_get(
-            Batch::new().append(Array::new(10)).append(Array::new(10)),
-        );
+        test_get(Batch::from([Array::new(0)]));
+        test_get(Batch::from([Array::new(0), Array::new(0)]));
+        test_get(Batch::from([Array::new(0), Array::new(10)]));
+        test_get(Batch::from([Array::new(10), Array::new(0)]));
+        test_get(Batch::from([Array::new(10), Array::new(10)]));
     }
 
     #[test]
     fn get_mut() {
         test_get_mut(Batch::<Array<(u16, u32)>>::new());
-        test_get_mut(Batch::new().append(Array::new(0)));
-        test_get_mut(
-            Batch::new().append(Array::new(0)).append(Array::new(0)),
-        );
-        test_get_mut(
-            Batch::new().append(Array::new(0)).append(Array::new(10)),
-        );
-        test_get_mut(
-            Batch::new().append(Array::new(10)).append(Array::new(0)),
-        );
-        test_get_mut(
-            Batch::new().append(Array::new(10)).append(Array::new(10)),
-        );
+        test_get_mut(Batch::from([Array::new(0)]));
+        test_get_mut(Batch::from([Array::new(0), Array::new(0)]));
+        test_get_mut(Batch::from([Array::new(0), Array::new(10)]));
+        test_get_mut(Batch::from([Array::new(10), Array::new(0)]));
+        test_get_mut(Batch::from([Array::new(10), Array::new(10)]));
     }
 
     #[test]
     fn prefetch() {
         test_prefetch(Batch::<Array<(u16, u32)>>::new());
-        test_prefetch(Batch::new().append(Array::new(0)));
-        test_prefetch(
-            Batch::new().append(Array::new(0)).append(Array::new(0)),
-        );
-        test_prefetch(
-            Batch::new().append(Array::new(0)).append(Array::new(10)),
-        );
-        test_prefetch(
-            Batch::new().append(Array::new(10)).append(Array::new(0)),
-        );
-        test_prefetch(
-            Batch::new().append(Array::new(10)).append(Array::new(10)),
-        );
+        test_prefetch(Batch::from([Array::new(0)]));
+        test_prefetch(Batch::from([Array::new(0), Array::new(0)]));
+        test_prefetch(Batch::from([Array::new(0), Array::new(10)]));
+        test_prefetch(Batch::from([Array::new(10), Array::new(0)]));
+        test_prefetch(Batch::from([Array::new(10), Array::new(10)]));
     }
 }

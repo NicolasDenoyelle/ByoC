@@ -34,7 +34,7 @@ use std::ops::{Deref, DerefMut};
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// // Build a Array cache of 2 sets. Each set hold one element.
-/// let mut c = Associative::new(vec![Array::new(2), Array::new(2)],
+/// let mut c = Associative::new([Array::new(2), Array::new(2)],
 ///                              DefaultHasher::new());
 ///
 /// // BuildingBlock as room for first and second element and returns None.
@@ -50,21 +50,19 @@ use std::ops::{Deref, DerefMut};
 ///       }
 /// }
 ///```
-pub struct Associative<C, H: Hasher + Clone> {
-    containers: CloneCell<Vec<Sequential<C>>>,
+pub struct Associative<C, H: Hasher + Clone, const N: usize> {
+    containers: CloneCell<[Sequential<C>; N]>,
     hasher: H,
 }
 
-impl<C, H: Hasher + Clone> Associative<C, H> {
+impl<C, H: Hasher + Clone, const N: usize> Associative<C, H, N> {
     /// Construct a new associative container.
     ///
     /// This function builds an associative container using other
     /// containers as sets.
-    pub fn new(sets: Vec<C>, key_hasher: H) -> Self {
+    pub fn new(sets: [C; N], key_hasher: H) -> Self {
         Associative {
-            containers: CloneCell::new(
-                sets.into_iter().map(Sequential::new).collect(),
-            ),
+            containers: CloneCell::new(sets.map(Sequential::new)),
             hasher: key_hasher,
         }
     }
@@ -78,7 +76,8 @@ impl<C, H: Hasher + Clone> Associative<C, H> {
     }
 }
 
-impl<'a, K, V, C, H> BuildingBlock<'a, K, V> for Associative<C, H>
+impl<'a, K, V, C, H, const N: usize> BuildingBlock<'a, K, V>
+    for Associative<C, H, N>
 where
     K: 'a + Clone + Hash,
     V: 'a + Ord,
@@ -244,11 +243,19 @@ where
     }
 }
 
-unsafe impl<C, H: Hasher + Clone> Send for Associative<C, H> {}
+unsafe impl<C, H: Hasher + Clone, const N: usize> Send
+    for Associative<C, H, N>
+{
+}
 
-unsafe impl<C, H: Hasher + Clone> Sync for Associative<C, H> {}
+unsafe impl<C, H: Hasher + Clone, const N: usize> Sync
+    for Associative<C, H, N>
+{
+}
 
-impl<C, H: Hasher + Clone> Concurrent for Associative<C, H> {
+impl<C, H: Hasher + Clone, const N: usize> Concurrent
+    for Associative<C, H, N>
+{
     fn clone(&self) -> Self {
         Associative {
             containers: self.containers.clone(),
@@ -261,7 +268,8 @@ impl<C, H: Hasher + Clone> Concurrent for Associative<C, H> {
 // Get Trait Implementation                                               //
 //------------------------------------------------------------------------//
 
-impl<K, V, U, C, H> Get<K, V, SequentialCell<U>> for Associative<C, H>
+impl<K, V, U, C, H, const N: usize> Get<K, V, SequentialCell<U>>
+    for Associative<C, H, N>
 where
     K: Hash + Clone,
     U: Deref<Target = V>,
@@ -274,7 +282,8 @@ where
     }
 }
 
-impl<K, V, W, C, H> GetMut<K, V, SequentialCell<W>> for Associative<C, H>
+impl<K, V, W, C, H, const N: usize> GetMut<K, V, SequentialCell<W>>
+    for Associative<C, H, N>
 where
     K: Hash + Clone,
     W: DerefMut<Target = V>,
@@ -291,7 +300,8 @@ where
 // Prefetch Trait Implementation
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, H, C> Prefetch<'a, K, V> for Associative<C, H>
+impl<'a, K, V, H, C, const N: usize> Prefetch<'a, K, V>
+    for Associative<C, H, N>
 where
     K: 'a + Clone + Hash,
     V: 'a + Ord,
@@ -360,50 +370,48 @@ mod tests {
     use crate::Array;
     use std::collections::hash_map::DefaultHasher;
 
+    macro_rules! array {
+        ($x: expr, $n: literal) => {
+            [(); $n].map(|_| $x)
+        };
+    }
+
     #[test]
     fn building_block() {
-        let mut containers = Vec::new();
-        for _ in 0..10 {
-            containers.push(Array::new(5));
-        }
         test_building_block(Associative::new(
-            containers,
+            array![Array::new(5), 10],
             DefaultHasher::new(),
         ));
     }
 
     #[test]
     fn concurrent() {
-        let mut containers = Vec::new();
-        for _ in 0..30 {
-            containers.push(Array::new(30));
-        }
         test_concurrent(
-            Associative::new(containers, DefaultHasher::new()),
+            Associative::new(
+                array![Array::new(30), 30],
+                DefaultHasher::new(),
+            ),
             64,
         );
     }
 
     #[test]
     fn get() {
-        let mut containers = Vec::new();
-        for _ in 0..10 {
-            containers.push(Array::new(5));
-        }
-        test_get(Associative::new(containers, DefaultHasher::new()));
-        let mut containers = Vec::new();
-        for _ in 0..10 {
-            containers.push(Array::new(5));
-        }
-        test_get_mut(Associative::new(containers, DefaultHasher::new()));
+        test_get(Associative::new(
+            array![Array::new(5), 10],
+            DefaultHasher::new(),
+        ));
+        test_get_mut(Associative::new(
+            array![Array::new(5), 10],
+            DefaultHasher::new(),
+        ));
     }
 
     #[test]
     fn prefetch() {
-        let mut containers = Vec::new();
-        for _ in 0..10 {
-            containers.push(Array::new(5));
-        }
-        test_prefetch(Associative::new(containers, DefaultHasher::new()));
+        test_prefetch(Associative::new(
+            array![Array::new(5), 10],
+            DefaultHasher::new(),
+        ));
     }
 }

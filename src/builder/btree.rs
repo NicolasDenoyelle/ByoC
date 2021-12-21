@@ -42,8 +42,8 @@ impl<K: Ord + Copy, V: Ord> Clone for BTreeBuilder<K, V> {
     }
 }
 
-impl<K: Ord + Copy, V: Ord> Associative<BTree<K, V>>
-    for BTreeBuilder<K, V>
+impl<K: Ord + Copy, V: Ord, H: std::hash::Hasher + Clone>
+    Associative<BTree<K, V>, H> for BTreeBuilder<K, V>
 {
 }
 

@@ -44,7 +44,10 @@ impl<T> Clone for ArrayBuilder<T> {
 }
 
 impl<T> Policy<Array<T>> for ArrayBuilder<T> {}
-impl<T> Associative<Array<T>> for ArrayBuilder<T> {}
+impl<T, H: std::hash::Hasher + Clone> Associative<Array<T>, H>
+    for ArrayBuilder<T>
+{
+}
 impl<T> Sequential<Array<T>> for ArrayBuilder<T> {}
 impl<T> Profiler<Array<T>> for ArrayBuilder<T> {}
 

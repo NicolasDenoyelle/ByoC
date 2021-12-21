@@ -53,8 +53,8 @@ where
     }
 }
 
-impl<C, V, R, F, B> Associative<Policy<C, V, R, F>>
-    for PolicyBuilder<C, V, R, F, B>
+impl<C, V, R, F, B, H: std::hash::Hasher + Clone>
+    Associative<Policy<C, V, R, F>, H> for PolicyBuilder<C, V, R, F, B>
 where
     B: Builder<C> + Clone,
     R: Reference<V>,

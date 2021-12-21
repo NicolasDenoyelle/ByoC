@@ -77,16 +77,17 @@ pub mod traits {
     /// Replicate a builder into multiple builders to later build
     /// an [`Associative`](../../struct.Associative.html)
     /// container.
-    pub trait Associative<C>: Builder<C> + Clone {
-        fn into_associative<H: Hasher + Clone>(
+    pub trait Associative<C, H: Hasher + Clone>:
+        Builder<C> + Clone
+    {
+        fn into_associative<const N: usize>(
             self,
-            n_sets: usize,
             key_hasher: H,
-        ) -> AssociativeBuilder<C, H, Self>
+        ) -> AssociativeBuilder<C, H, Self, N>
         where
             Self: Sized,
         {
-            AssociativeBuilder::new(self, n_sets, key_hasher)
+            AssociativeBuilder::new(self, key_hasher)
         }
     }
 

@@ -79,6 +79,16 @@ impl<K, V, L, R> Multilevel<K, V, L, R> {
     }
 }
 
+impl<K, V, L, R> From<(L, R)> for Multilevel<K, V, L, R> {
+    fn from(lr: (L, R)) -> Self {
+        Multilevel {
+            left: lr.0,
+            right: lr.1,
+            unused: PhantomData,
+        }
+    }
+}
+
 impl<'a, K, V, L, R> BuildingBlock<'a, K, V> for Multilevel<K, V, L, R>
 where
     K: 'a,
