@@ -1,4 +1,4 @@
-use crate::private::clone::CloneCell;
+cuse crate::private::clone::CloneCell;
 use crate::private::set::MinSet;
 use crate::streams::{IOError, IOResult, Stream};
 use crate::{BuildingBlock, Get, GetMut, Ordered, Prefetch};
@@ -70,7 +70,8 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressor<T, S> {
         };
 
         // Decode the whole stream
-        let mut bytes = Vec::<u8>::new();
+        let mut bytes: Vec<u8> = Vec::new();
+
         match decoder.read_to_end(&mut bytes) {
             Ok(_) => {}
             Err(e) => return Err(IOError::DecodeError(e)),
@@ -83,9 +84,14 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressor<T, S> {
         }
     }
 
-    pub fn write(&mut self, val: &[T]) -> IOResult<usize> {
+    pub fn write(&mut self, val: &[T]) -> IOResult<()> {
         let mut stream = self.stream.clone();
         let n = val.len();
+
+        // Resize to zero if content is shorter than previous content.
+        if let Err(e) = stream.resize(0u64) {
+            return Err(IOError::SeekError(e));
+        }
 
         // Rewind stream
         if let Err(e) = stream.seek(SeekFrom::Start(0u64)) {
@@ -105,13 +111,25 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressor<T, S> {
         };
 
         // Write to stream.
-        match encoder.write(bytes.as_mut_slice()) {
-            Err(e) => Err(IOError::WriteError(e)),
-            Ok(s) => {
-                *self.count = n;
-                Ok(s)
-            }
+        if let Err(e) = encoder.write(bytes.as_mut_slice()) {
+            return Err(IOError::WriteError(e));
         }
+
+        // Finish encoding
+        let mut w = match encoder.finish() {
+            (_, Err(e)) => {
+                return Err(IOError::EncodeError(e));
+            }
+            (w, Ok(_)) => w,
+        };
+
+        // Flush for next operation.
+        if let Err(e) = w.flush() {
+            return Err(IOError::EncodeError(e));
+        }
+
+        *self.count = n;
+        Ok(())
     }
 }
 
