@@ -25,7 +25,10 @@ use serde::{de::DeserializeOwned, Serialize};
 /// // Build a multi-layer concurrent cache where the first layer stores
 /// // up to two elements in an `Array` type container and the second layer
 /// // stores up to four elements into a `BTree` type container.
-/// let mut container = Begin::array(2).multilevel(Begin::btree(4)).into_sequential().build();
+/// let mut container = Begin::array(2)
+///     .multilevel(Begin::btree(4))
+///     .into_sequential()
+///     .build();
 /// container.push(vec![(1, 2)]);
 /// ```
 pub struct Begin {}

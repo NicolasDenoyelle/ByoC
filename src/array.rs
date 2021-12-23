@@ -20,7 +20,9 @@ use std::vec::Vec;
 ///
 /// // BuildingBlock as room for 3 elements and returns an empty array.
 /// // No element is rejected.
-/// assert!(c.push(vec![("first", 4), ("second", 2), ("third", 3)]).pop().is_none());
+/// assert!(c.push(vec![("first", 4),
+///                     ("second", 2),
+///                     ("third", 3)]).pop().is_none());
 ///
 /// // Array is full and pops extra inserted value (all values here).
 /// let (key, _) = c.push(vec![("fourth", 12)]).pop().unwrap();

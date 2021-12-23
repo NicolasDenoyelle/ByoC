@@ -18,16 +18,21 @@ use std::marker::PhantomData;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::traits::*;
-/// use byoc::builder::builders::{ArrayBuilder, BTreeBuilder, MultilevelBuilder};
+/// use byoc::builder::builders::{
+///     ArrayBuilder, BTreeBuilder, MultilevelBuilder
+/// };
 ///
 /// let array_builder = ArrayBuilder::new(2);
 /// let btree_builder = BTreeBuilder::new(2);
-/// let multilevel_builder = MultilevelBuilder::new(array_builder, btree_builder);
+/// let multilevel_builder =
+///     MultilevelBuilder::new(array_builder, btree_builder);
 /// let mut container = multilevel_builder.build();
 /// container.push(vec![(1, 2)]);
 ///
 /// // You can also chain calls.
-/// let mut container = ArrayBuilder::new(2).multilevel(BTreeBuilder::new(2)).build();
+/// let mut container = ArrayBuilder::new(2)
+///     .multilevel(BTreeBuilder::new(2))
+///     .build();
 /// container.push(vec![(1, 2)]);
 /// ```
 pub struct MultilevelBuilder<L, LB, R, RB>

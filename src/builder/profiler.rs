@@ -16,11 +16,16 @@ use std::marker::PhantomData;
 /// use byoc::builder::builders::{ArrayBuilder, ProfilerBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
-/// let mut container = ProfilerBuilder::new("example", ProfilerOutputKind::None, array_builder).build();
+/// let mut container =
+///     ProfilerBuilder::new("example",
+///                          ProfilerOutputKind::None,
+///                          array_builder).build();
 /// container.push(vec![(1, 2)]);
 ///
 /// // You can also chain calls:
-/// let mut container = ArrayBuilder::new(2).profile("example_builder", ProfilerOutputKind::None).build();
+/// let mut container = ArrayBuilder::new(2)
+///     .profile("example_builder", ProfilerOutputKind::None)
+///     .build();
 /// container.push(vec![(1, 2)]);
 /// ```
 pub struct ProfilerBuilder<C, B>

@@ -20,11 +20,13 @@ use std::marker::PhantomData;
 /// use byoc::builder::builders::{ArrayBuilder, PolicyBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
-/// let mut container = PolicyBuilder::new(array_builder, FIFO::new()).build();
+/// let mut container =
+///     PolicyBuilder::new(array_builder, FIFO::new()).build();
 /// container.push(vec![(1, 2)]);
 ///
 /// // You can also chain calls:
-/// let mut container = ArrayBuilder::new(2).with_policy(FIFO::new()).build();
+/// let mut container =
+///    ArrayBuilder::new(2).with_policy(FIFO::new()).build();
 /// container.push(vec![(1, 2)]);
 /// ```
 pub struct PolicyBuilder<C, V, R, F, B>
