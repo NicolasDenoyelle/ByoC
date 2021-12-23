@@ -1,13 +1,89 @@
-use crate::private::clone::CloneCell;
+use crate::private::bits::log2;
 use crate::{BuildingBlock, Concurrent, Get, GetMut, Prefetch};
-use crate::{Sequential, SequentialCell};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
 
+/// Hasher wrapper that returns a subset of the hash bits shifted to the
+/// right.
+///
+/// The purpose of this structure is to concatenate multiple layer of
+/// [`Associative`](struct.Associative.html) building block with one
+/// different hasher but different hashes on each level.
+/// See how to instanciate such a structure in
+/// [builder examples](builder/associative/struct.AssociativeBuilder.html).
+///
+/// This hasher can be used to create another `MultisetHasher` returning a
+/// disjoint set of bits compared to the first one from the hash bits.
+/// See [`next()`](struct.MultisetHasher.html#tymethod.next) method.
+pub struct MultisetHasher<H: Hasher> {
+    hasher: H,
+    mask: u64,
+    rshift: u8,
+    nbits: u8,
+}
+
+impl<H: Hasher> Hasher for MultisetHasher<H> {
+    fn finish(&self) -> u64 {
+        let h = self.hasher.finish();
+        (h & self.mask) >> self.rshift
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        self.hasher.write(bytes);
+    }
+}
+
+impl<H: Hasher + Clone> Clone for MultisetHasher<H> {
+    fn clone(&self) -> Self {
+        MultisetHasher {
+            hasher: self.hasher.clone(),
+            mask: self.mask,
+            rshift: self.rshift,
+            nbits: self.nbits,
+        }
+    }
+}
+
+impl<H: Hasher + Clone> MultisetHasher<H> {
+    /// Create a new multiset hasher from another hasher
+    /// that returns hash with a maximum value of at least nsets.
+    pub fn new(hasher: H, nsets: usize) -> Self {
+        let nbits = log2(nsets as u64) + 1;
+        MultisetHasher {
+            hasher: hasher.clone(),
+            mask: (!0u64) >> ((64u8 - nbits) as u64),
+            rshift: 0u8,
+            nbits,
+        }
+    }
+
+    /// Create a new multiset hasher that uses a disjoint set of bits
+    /// of the hash value generated this hasher, located on the left
+    /// of the set of bits used by this hasher.
+    /// If there is not enough bits available to count up to `nsets`,
+    /// an error is returned instead.
+    pub fn next(&self, nsets: usize) -> Result<Self, ()> {
+        let nbits = log2(nsets as u64) + 1;
+        let rshift = self.nbits + self.rshift;
+
+        if rshift + nbits > 64u8 {
+            return Err(());
+        }
+
+        let mask = ((!0u64) >> ((64u8 - nbits) as u64)) << rshift;
+        Ok(MultisetHasher {
+            hasher: self.hasher.clone(),
+            mask,
+            rshift,
+            nbits,
+        })
+    }
+}
+
 //------------------------------------------------------------------------//
-// Concurrent implementation of container                                 //
+// Associative container
 //------------------------------------------------------------------------//
 
 /// Associative building block wrapper with multiple sets/buckets.
@@ -51,7 +127,7 @@ use std::ops::{Deref, DerefMut};
 /// }
 ///```
 pub struct Associative<C, H: Hasher + Clone, const N: usize> {
-    containers: CloneCell<[Sequential<C>; N]>,
+    containers: [C; N],
     hasher: H,
 }
 
@@ -62,7 +138,7 @@ impl<C, H: Hasher + Clone, const N: usize> Associative<C, H, N> {
     /// containers as sets.
     pub fn new(sets: [C; N], key_hasher: H) -> Self {
         Associative {
-            containers: CloneCell::new(sets.map(Sequential::new)),
+            containers: sets,
             hasher: key_hasher,
         }
     }
@@ -72,7 +148,7 @@ impl<C, H: Hasher + Clone, const N: usize> Associative<C, H, N> {
         let mut hasher = self.hasher.clone();
         key.hash(&mut hasher);
         let i = hasher.finish();
-        usize::from((i % (n_sets as u64)) as u16)
+        (i % (n_sets as u64)) as usize
     }
 }
 
@@ -129,14 +205,12 @@ where
         victims.reserve(n);
 
         let n_sets = self.containers.len();
+
         // Collect all buckets element count.
         // We acquire exclusive lock on buckets in the process.
         let mut counts = Vec::<(usize, usize)>::with_capacity(n_sets + 1);
         for i in 0..n_sets {
-            let n = match self.containers[i].lock_mut() {
-                Ok(_) => unsafe { self.containers[i].deref_mut().count() },
-                Err(_) => 0usize,
-            };
+            let n = self.containers[i].count();
             counts.push((n, i));
         }
 
@@ -146,15 +220,7 @@ where
         // Then we pop everything.
         if total_count <= n {
             for (_, i) in counts.into_iter() {
-                unsafe {
-                    victims.append(
-                        &mut self.containers[i]
-                            .deref_mut()
-                            .flush()
-                            .collect(),
-                    )
-                }
-                self.containers[i].unlock();
+                victims.append(&mut self.containers[i].flush().collect())
             }
             return victims;
         }
@@ -182,7 +248,6 @@ where
                     counts.push((bucket_count, bucket_i));
                     break;
                 } else {
-                    self.containers[bucket_i].unlock();
                     total_count -= bucket_count;
                 }
             }
@@ -205,14 +270,9 @@ where
             let pop_count =
                 std::cmp::min(count - target_count, n - popped);
             if pop_count > 0 {
-                unsafe {
-                    victims.append(
-                        &mut self.containers[i].deref_mut().pop(pop_count),
-                    );
-                }
+                victims.append(&mut self.containers[i].pop(pop_count));
                 popped += pop_count;
             }
-            self.containers[i].unlock();
         }
 
         victims
@@ -243,22 +303,27 @@ where
     }
 }
 
-unsafe impl<C, H: Hasher + Clone, const N: usize> Send
+unsafe impl<C: Send, H: Hasher + Clone, const N: usize> Send
     for Associative<C, H, N>
 {
 }
 
-unsafe impl<C, H: Hasher + Clone, const N: usize> Sync
+unsafe impl<C: Sync, H: Hasher + Clone, const N: usize> Sync
     for Associative<C, H, N>
 {
 }
 
-impl<C, H: Hasher + Clone, const N: usize> Concurrent
+impl<C: Concurrent, H: Hasher + Clone, const N: usize> Concurrent
     for Associative<C, H, N>
 {
     fn clone(&self) -> Self {
+        let mut array = [0; N];
+        for i in 0..N {
+            array[i] = i;
+        }
         Associative {
-            containers: self.containers.clone(),
+            containers: array
+                .map(|i| Concurrent::clone(&self.containers[i])),
             hasher: self.hasher.clone(),
         }
     }
@@ -268,21 +333,20 @@ impl<C, H: Hasher + Clone, const N: usize> Concurrent
 // Get Trait Implementation                                               //
 //------------------------------------------------------------------------//
 
-impl<K, V, U, C, H, const N: usize> Get<K, V, SequentialCell<U>>
-    for Associative<C, H, N>
+impl<K, V, U, C, H, const N: usize> Get<K, V, U> for Associative<C, H, N>
 where
     K: Hash + Clone,
     U: Deref<Target = V>,
     H: Hasher + Clone,
     C: Get<K, V, U>,
 {
-    unsafe fn get(&self, key: &K) -> Option<SequentialCell<U>> {
+    unsafe fn get(&self, key: &K) -> Option<U> {
         let i = self.set(key.clone());
         self.containers[i].get(key)
     }
 }
 
-impl<K, V, W, C, H, const N: usize> GetMut<K, V, SequentialCell<W>>
+impl<K, V, W, C, H, const N: usize> GetMut<K, V, W>
     for Associative<C, H, N>
 where
     K: Hash + Clone,
@@ -290,7 +354,7 @@ where
     H: Hasher + Clone,
     C: GetMut<K, V, W>,
 {
-    unsafe fn get_mut(&mut self, key: &K) -> Option<SequentialCell<W>> {
+    unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
         let i = self.set(key.clone());
         self.containers[i].get_mut(key)
     }
@@ -319,7 +383,7 @@ where
             set_keys[self.set(k.clone())].push(k);
         }
 
-        for c in self.containers.deref_mut().iter_mut().rev() {
+        for c in self.containers.iter_mut().rev() {
             c.prefetch(set_keys.pop().unwrap());
         }
     }
@@ -338,11 +402,8 @@ where
         }
 
         // Take from each bucket.
-        for (c, keys) in self
-            .containers
-            .deref_mut()
-            .iter_mut()
-            .zip(set_keys.iter_mut())
+        for (c, keys) in
+            self.containers.iter_mut().zip(set_keys.iter_mut())
         {
             ret.append(&mut c.take_multiple(keys));
         }
@@ -362,18 +423,39 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::Associative;
-    use crate::tests::{
-        test_building_block, test_concurrent, test_get, test_get_mut,
-        test_prefetch,
-    };
-    use crate::Array;
-    use std::collections::hash_map::DefaultHasher;
-
     macro_rules! array {
         ($x: expr, $n: literal) => {
             [(); $n].map(|_| $x)
         };
+    }
+
+    use super::{Associative, MultisetHasher};
+    use crate::tests::{
+        test_building_block, test_concurrent, test_get, test_get_mut,
+        test_prefetch,
+    };
+    use crate::{Array, Sequential};
+    use std::collections::hash_map::DefaultHasher;
+
+    #[test]
+    fn multiset_hasher() {
+        let mut h = MultisetHasher::new(DefaultHasher::new(), 1);
+        for i in 1..64 {
+            h = h.next(1).unwrap();
+            assert_eq!(h.nbits, 1);
+            assert_eq!(h.rshift, i);
+            assert_eq!(h.mask >> h.rshift, 1);
+        }
+        assert!(h.next(1).is_err());
+
+        let mut h = MultisetHasher::new(DefaultHasher::new(), 7);
+        for i in 1..21 {
+            h = h.next(7).unwrap();
+            assert_eq!(h.nbits, 3);
+            assert_eq!(h.rshift, i * 3);
+            assert_eq!(h.mask >> h.rshift, 7);
+        }
+        assert!(h.next(7).is_err());
     }
 
     #[test]
@@ -388,7 +470,7 @@ mod tests {
     fn concurrent() {
         test_concurrent(
             Associative::new(
-                array![Array::new(30), 30],
+                array![Sequential::new(Array::new(30)), 30],
                 DefaultHasher::new(),
             ),
             64,

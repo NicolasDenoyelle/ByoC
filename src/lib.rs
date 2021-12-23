@@ -229,7 +229,7 @@ pub mod builder;
 mod array;
 pub use array::{Array, ArrayCell, ArrayMutCell};
 mod associative;
-pub use associative::Associative;
+pub use associative::{Associative, MultisetHasher};
 mod batch;
 pub use batch::Batch;
 mod btree;
