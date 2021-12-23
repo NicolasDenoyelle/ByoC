@@ -1,3 +1,4 @@
+use crate::private::bits::log2;
 use crate::private::io_vec::{IOStruct, IOStructMut, IOVec};
 use crate::private::set::MinSet;
 use crate::streams::{Stream, StreamFactory};
@@ -101,17 +102,7 @@ where
     /// The power of two is the size of the chunk that will hold the
     /// serialized value of the `size` provided as input.
     fn chunk_size(mut size: usize) -> (usize, usize) {
-        let mut i = 0usize;
-
-        loop {
-            let s = size << 1usize;
-            if (s >> 1usize) == size {
-                size = s;
-                i += 1;
-            } else {
-                break;
-            }
-        }
+        let i = log2(size as u64);
         (i, 1usize + (!0usize >> i))
     }
 }

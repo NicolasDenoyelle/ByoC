@@ -1,3 +1,5 @@
+/// Utils for bit calculation
+pub mod bits;
 /// Utils for obtaining multiple writable shallow copies of a resource.
 pub mod clone;
 #[cfg(feature = "stream")]
