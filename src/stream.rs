@@ -101,8 +101,9 @@ where
     /// starting from the left and associated power of two.
     /// The power of two is the size of the chunk that will hold the
     /// serialized value of the `size` provided as input.
-    fn chunk_size(mut size: usize) -> (usize, usize) {
-        let i = log2(size as u64);
+    fn chunk_size(size: usize) -> (usize, usize) {
+        let i = log2(size as u64) + 1;
+        let i = std::mem::size_of::<usize>() * 8 - i as usize;
         (i, 1usize + (!0usize >> i))
     }
 }
