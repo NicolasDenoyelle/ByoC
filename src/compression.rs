@@ -1,4 +1,4 @@
-cuse crate::private::clone::CloneCell;
+use crate::private::clone::CloneCell;
 use crate::private::set::MinSet;
 use crate::streams::{IOError, IOResult, Stream};
 use crate::{BuildingBlock, Get, GetMut, Ordered, Prefetch};
