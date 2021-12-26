@@ -1,7 +1,8 @@
-use crate::private::ptr::OrdPtr;
 use crate::{BuildingBlock, GetMut, Ordered, Prefetch};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::{Deref, DerefMut};
+use std::ptr::NonNull;
+use std::rc::Rc;
 
 //------------------------------------------------------------------------//
 // Ordered set of references and key value map.                           //
@@ -57,9 +58,9 @@ where
     // BuildingBlock capacity
     capacity: usize,
     // Sparse vector of references.
-    references: Vec<(K, V)>,
+    references: Vec<(K, Rc<V>)>,
     // Ordered set of references. Used for eviction.
-    set: BTreeSet<(OrdPtr<V>, K)>,
+    set: BTreeSet<(Rc<V>, K)>,
     // Map of references keys and index.
     map: BTreeMap<K, usize>,
 }
@@ -98,6 +99,9 @@ where
         Box::new(
             self.references
                 .drain(..)
+                .map(|(k, v)| {
+                    (k, Rc::try_unwrap(v).map_err(|_| panic!("")).unwrap())
+                })
                 .collect::<Vec<(K, V)>>()
                 .into_iter(),
         )
@@ -122,11 +126,11 @@ where
             } else if self.map.get(&key).is_some() {
                 out.push((key, value))
             } else {
+                let value = Rc::new(value);
+                let _value = Rc::clone(&value);
                 self.references.push((key, value));
                 assert!(self.map.insert(key, n).is_none());
-                assert!(self
-                    .set
-                    .insert((OrdPtr::new(&self.references[n].1), key)));
+                assert!(self.set.insert((_value, key)));
                 n += 1;
             }
         }
@@ -154,25 +158,26 @@ where
             let j = self.map.remove(&k).unwrap();
             assert!(self
                 .set
-                .remove(&(OrdPtr::new(&self.references[j].1), k)));
+                .remove(&(Rc::clone(&self.references[j].1), k)));
 
-            let e = if j != n {
-                let (k_last, r_last) = {
-                    let (k, r) =
-                        self.references.iter().rev().next().unwrap();
-                    (*k, OrdPtr::new(r))
-                };
-                assert!(self.set.remove(&(r_last, k_last)));
-                self.map.insert(k_last, j);
-                let ret = self.references.swap_remove(j);
-                assert!(self
-                    .set
-                    .insert((OrdPtr::new(&self.references[j].1), k_last)));
-                ret
-            } else {
-                self.references.swap_remove(j)
-            };
-            ret.push(e);
+            // If we don't remove the last element, we need to update the
+            // position of the element it is swapped with.
+            if j != n {
+                let (k, _) = self
+                    .references
+                    .iter()
+                    .rev()
+                    .map(|(k, r)| (*k, Rc::clone(r)))
+                    .next()
+                    .unwrap();
+                self.map.insert(k, j);
+            }
+
+            let (k, r) = self.references.swap_remove(j);
+            ret.push((
+                k,
+                Rc::try_unwrap(r).map_err(|_| panic!("")).unwrap(),
+            ));
         }
         ret
     }
@@ -184,25 +189,22 @@ where
                 let n = self.references.len() - 1;
                 assert!(self
                     .set
-                    .remove(&(OrdPtr::new(&self.references[i].1), *key)));
+                    .remove(&(Rc::clone(&self.references[i].1), *key)));
                 if i != n {
-                    let (k_last, r_last) = {
-                        let (k, r) =
-                            self.references.iter().rev().next().unwrap();
-                        (*k, OrdPtr::new(r))
-                    };
-                    assert!(self.set.remove(&(r_last, k_last)));
-                    self.map.insert(k_last, i);
-                    let (key, reference) = self.references.swap_remove(i);
-                    assert!(self.set.insert((
-                        OrdPtr::new(&self.references[i].1),
-                        k_last
-                    )));
-                    Some((key, reference))
-                } else {
-                    let (key, reference) = self.references.swap_remove(i);
-                    Some((key, reference))
+                    let (k, _) = self
+                        .references
+                        .iter()
+                        .rev()
+                        .map(|(k, r)| (*k, Rc::clone(r)))
+                        .next()
+                        .unwrap();
+                    self.map.insert(k, i);
                 }
+                let (k, r) = self.references.swap_remove(i);
+                Some((
+                    k,
+                    Rc::try_unwrap(r).map_err(|_| panic!("")).unwrap(),
+                ))
             }
         }
     }
@@ -221,54 +223,37 @@ impl<K: Ord + Copy, V: Ord> Ordered<V> for BTree<K, V> {}
 /// This value inside this cell is taken out of the container and written
 /// back in it when the cell is dropped.
 pub struct BTreeCell<K: Copy + Ord, V: Ord> {
-    key: K,
-    value: OrdPtr<V>,
-    // Where to reinsert element on drop.
-    set: *mut BTreeSet<(OrdPtr<V>, K)>,
+    kv: Option<(K, V)>,
+    set: NonNull<BTree<K, V>>,
 }
 
 impl<K: Copy + Ord, V: Ord> Deref for BTreeCell<K, V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
-        self.value.deref()
+        &self.kv.as_ref().unwrap().1
     }
 }
 
 impl<K: Copy + Ord, V: Ord> DerefMut for BTreeCell<K, V> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.value.deref_mut()
+        &mut self.kv.as_mut().unwrap().1
     }
 }
 
 impl<K: Copy + Ord, V: Ord> Drop for BTreeCell<K, V> {
     fn drop(&mut self) {
-        unsafe {
-            assert!(self
-                .set
-                .as_mut()
-                .unwrap()
-                .insert((self.value, self.key)));
-        }
+        let set = unsafe { self.set.as_mut() };
+        let kv = self.kv.take().unwrap();
+        assert!(set.push(vec![kv]).pop().is_none());
     }
 }
 
 impl<K: Copy + Ord, V: Ord> GetMut<K, V, BTreeCell<K, V>> for BTree<K, V> {
     unsafe fn get_mut(&mut self, key: &K) -> Option<BTreeCell<K, V>> {
-        match self.map.get(key) {
-            None => None,
-            Some(i) => {
-                let (_, value) = self.references.get(*i).unwrap();
-                let value = OrdPtr::new(value);
-                let vk = (value, *key);
-                assert!(self.set.remove(&vk));
-                let (value, key) = vk;
-                Some(BTreeCell {
-                    key,
-                    value,
-                    set: &mut self.set,
-                })
-            }
-        }
+        self.take(key).map(|(key, value)| BTreeCell {
+                kv: Some((key, value)),
+                set: NonNull::new(self).unwrap(),
+            })
     }
 }
 
