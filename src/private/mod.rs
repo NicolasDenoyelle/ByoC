@@ -9,8 +9,6 @@ pub mod clone;
 pub mod io_vec;
 /// Library custom read/write lock.
 pub mod lock;
-/// Utils for ordering pointers of orderable elements.
-pub mod ptr;
 #[cfg(feature = "stream")]
 /// Utils for extracting n min elements.
 pub mod set;

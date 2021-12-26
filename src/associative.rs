@@ -52,13 +52,14 @@ impl<H: Hasher + Clone> MultisetHasher<H> {
     pub fn new(hasher: H, nsets: usize) -> Self {
         let nbits = log2(nsets as u64) + 1;
         MultisetHasher {
-            hasher: hasher.clone(),
+            hasher,
             mask: (!0u64) >> ((64u8 - nbits) as u64),
             rshift: 0u8,
             nbits,
         }
     }
 
+    #[allow(clippy::result_unit_err)]
     /// Create a new multiset hasher that uses a disjoint set of bits
     /// of the hash value generated this hasher, located on the left
     /// of the set of bits used by this hasher.
@@ -318,8 +319,8 @@ impl<C: Concurrent, H: Hasher + Clone, const N: usize> Concurrent
 {
     fn clone(&self) -> Self {
         let mut array = [0; N];
-        for i in 0..N {
-            array[i] = i;
+        for (i, item) in array.iter_mut().enumerate() {
+            *item = i;
         }
         Associative {
             containers: array

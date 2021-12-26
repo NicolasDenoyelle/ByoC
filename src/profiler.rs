@@ -212,7 +212,7 @@ impl<C> Profiler<C> {
         Profiler {
             cache,
             name: String::from(name),
-            output: output,
+            output,
             stats: CloneCell::new(Stats::new()),
         }
     }
