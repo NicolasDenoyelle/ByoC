@@ -1,0 +1,48 @@
+[package]
+name = "byoc_benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+byoc = { path = "..", optional = true, features = [ "compression" ] }
+clap = { version = "2.34.0", default-features = false }
+rand = "0.8.3"
+# rand_distr = { version = "0.4.2", optional = true }
+
+[[bin]]
+name = "array"
+required-features = [ "byoc" ]
+bench = false
+
+[[bin]]
+name = "associative"
+required-features = [ "byoc" ]
+bench = false
+
+[[bin]]
+name = "btree"
+required-features = [ "byoc" ]
+bench = false
+
+[[bin]]
+name = "batch"
+required-features = [ "byoc" ]
+bench = false
+
+[[bin]]
+name = "policy"
+required-features = [ "byoc" ]
+bench = false
+
+[[bin]]
+name = "compression"
+required-features = [ "byoc" ]
+bench = false
+
+[[bin]]
+name = "stream"
+required-features = [ "byoc" ]
+bench = false
+
+[features]
+default = [ "byoc" ]
