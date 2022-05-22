@@ -1,0 +1,17 @@
+repos:
+-   repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.2.0  # Use the ref you want to point at
+    hooks:
+    -   id: check-toml
+    -   id: check-yaml
+    -   id: check-case-conflict
+    -   id: check-merge-conflict
+
+-   repo: https://github.com/doublify/pre-commit-rust
+    rev: v1.0
+    hooks:
+    -   id: fmt
+    -   id: cargo-check
+        args: [--offline, --all-targets, --all-features]
+    -   id: clippy
+        args: [--fix]
