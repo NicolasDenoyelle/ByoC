@@ -171,7 +171,7 @@ pub trait Prefetch<'a, K: 'a, V: 'a>: BuildingBlock<'a, K, V> {
     /// BuildingBlock implementer should make sure to implement this method
     /// if it can be faster than the default implementation.
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
-        keys.iter().map(|k| self.take(k)).flatten().collect()
+        keys.iter().filter_map(|k| self.take(k)).collect()
     }
 }
 

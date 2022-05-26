@@ -14,4 +14,4 @@ repos:
     -   id: cargo-check
         args: [--offline, --all-targets, --all-features]
     -   id: clippy
-        args: [--fix]
+        args: [--fix, --allow-staged, --allow-dirty]

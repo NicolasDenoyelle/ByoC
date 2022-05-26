@@ -4,6 +4,7 @@ use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
+use std::vec::Vec;
 
 /// Hasher wrapper that returns a subset of the hash bits shifted to the
 /// right.
@@ -111,7 +112,7 @@ impl<H: Hasher + Clone> MultisetHasher<H> {
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// // Build a Array cache of 2 sets. Each set hold one element.
-/// let mut c = Associative::new([Array::new(2), Array::new(2)],
+/// let mut c = Associative::new(vec![Array::new(2), Array::new(2)],
 ///                              DefaultHasher::new());
 ///
 /// // BuildingBlock as room for first and second element and returns None.
@@ -127,17 +128,17 @@ impl<H: Hasher + Clone> MultisetHasher<H> {
 ///       }
 /// }
 ///```
-pub struct Associative<C, H: Hasher + Clone, const N: usize> {
-    containers: [C; N],
+pub struct Associative<C, H: Hasher + Clone> {
+    containers: Vec<C>,
     hasher: H,
 }
 
-impl<C, H: Hasher + Clone, const N: usize> Associative<C, H, N> {
+impl<C, H: Hasher + Clone> Associative<C, H> {
     /// Construct a new associative container.
     ///
     /// This function builds an associative container using other
     /// containers as sets.
-    pub fn new(sets: [C; N], key_hasher: H) -> Self {
+    pub fn new(sets: Vec<C>, key_hasher: H) -> Self {
         Associative {
             containers: sets,
             hasher: key_hasher,
@@ -153,8 +154,7 @@ impl<C, H: Hasher + Clone, const N: usize> Associative<C, H, N> {
     }
 }
 
-impl<'a, K, V, C, H, const N: usize> BuildingBlock<'a, K, V>
-    for Associative<C, H, N>
+impl<'a, K, V, C, H> BuildingBlock<'a, K, V> for Associative<C, H>
 where
     K: 'a + Clone + Hash,
     V: 'a + Ord,
@@ -304,27 +304,18 @@ where
     }
 }
 
-unsafe impl<C: Send, H: Hasher + Clone, const N: usize> Send
-    for Associative<C, H, N>
-{
-}
+unsafe impl<C: Send, H: Hasher + Clone> Send for Associative<C, H> {}
 
-unsafe impl<C: Sync, H: Hasher + Clone, const N: usize> Sync
-    for Associative<C, H, N>
-{
-}
+unsafe impl<C: Sync, H: Hasher + Clone> Sync for Associative<C, H> {}
 
-impl<C: Concurrent, H: Hasher + Clone, const N: usize> Concurrent
-    for Associative<C, H, N>
-{
+impl<C: Concurrent, H: Hasher + Clone> Concurrent for Associative<C, H> {
     fn clone(&self) -> Self {
-        let mut array = [0; N];
-        for (i, item) in array.iter_mut().enumerate() {
-            *item = i;
-        }
         Associative {
-            containers: array
-                .map(|i| Concurrent::clone(&self.containers[i])),
+            containers: self
+                .containers
+                .iter()
+                .map(|c| Concurrent::clone(c))
+                .collect(),
             hasher: self.hasher.clone(),
         }
     }
@@ -334,7 +325,7 @@ impl<C: Concurrent, H: Hasher + Clone, const N: usize> Concurrent
 // Get Trait Implementation                                               //
 //------------------------------------------------------------------------//
 
-impl<K, V, U, C, H, const N: usize> Get<K, V, U> for Associative<C, H, N>
+impl<K, V, U, C, H> Get<K, V, U> for Associative<C, H>
 where
     K: Hash + Clone,
     U: Deref<Target = V>,
@@ -347,8 +338,7 @@ where
     }
 }
 
-impl<K, V, W, C, H, const N: usize> GetMut<K, V, W>
-    for Associative<C, H, N>
+impl<K, V, W, C, H> GetMut<K, V, W> for Associative<C, H>
 where
     K: Hash + Clone,
     W: DerefMut<Target = V>,
@@ -365,8 +355,7 @@ where
 // Prefetch Trait Implementation
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, H, C, const N: usize> Prefetch<'a, K, V>
-    for Associative<C, H, N>
+impl<'a, K, V, H, C> Prefetch<'a, K, V> for Associative<C, H>
 where
     K: 'a + Clone + Hash,
     V: 'a + Ord,
@@ -424,12 +413,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    macro_rules! array {
-        ($x: expr, $n: literal) => {
-            [(); $n].map(|_| $x)
-        };
-    }
-
     use super::{Associative, MultisetHasher};
     use crate::tests::{
         test_building_block, test_concurrent, test_get, test_get_mut,
@@ -462,7 +445,7 @@ mod tests {
     #[test]
     fn building_block() {
         test_building_block(Associative::new(
-            array![Array::new(5), 10],
+            vec![Array::new(5); 10],
             DefaultHasher::new(),
         ));
     }
@@ -471,7 +454,7 @@ mod tests {
     fn concurrent() {
         test_concurrent(
             Associative::new(
-                array![Sequential::new(Array::new(30)), 30],
+                vec![Sequential::new(Array::new(30)); 30],
                 DefaultHasher::new(),
             ),
             64,
@@ -481,11 +464,11 @@ mod tests {
     #[test]
     fn get() {
         test_get(Associative::new(
-            array![Array::new(5), 10],
+            vec![Array::new(5); 10],
             DefaultHasher::new(),
         ));
         test_get_mut(Associative::new(
-            array![Array::new(5), 10],
+            vec![Array::new(5); 10],
             DefaultHasher::new(),
         ));
     }
@@ -493,7 +476,7 @@ mod tests {
     #[test]
     fn prefetch() {
         test_prefetch(Associative::new(
-            array![Array::new(5), 10],
+            vec![Array::new(5); 10],
             DefaultHasher::new(),
         ));
     }

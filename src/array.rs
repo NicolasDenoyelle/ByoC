@@ -50,6 +50,15 @@ impl<T> Array<T> {
     }
 }
 
+impl<T: Clone> Clone for Array<T> {
+    fn clone(&self) -> Self {
+        Array {
+            capacity: self.capacity,
+            values: self.values.clone(),
+        }
+    }
+}
+
 //------------------------------------------------------------------------//
 // BuildingBlock implementation
 //------------------------------------------------------------------------//

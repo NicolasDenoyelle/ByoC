@@ -18,13 +18,13 @@ use std::marker::PhantomData;
 ///
 /// let array_builder = ArrayBuilder::new(2);
 /// let mut container =
-///     AssociativeBuilder::<_,_,_,2>::new(array_builder,
-///                                        DefaultHasher::new()).build();
+///     AssociativeBuilder::<_,_,_>::new(array_builder,
+///                                      DefaultHasher::new(), 2).build();
 /// container.push(vec![(1, 2)]);
 ///
 /// // You can also chain calls:
 /// let mut container = ArrayBuilder::new(2)
-///     .into_associative::<2>(DefaultHasher::new())
+///     .into_associative(DefaultHasher::new(), 2)
 ///     .build();
 /// container.push(vec![(1, 2)]);
 ///
@@ -37,12 +37,12 @@ use std::marker::PhantomData;
 /// // to find the group of array containers and a second time to find the
 /// // right array container.
 /// let mut container = ArrayBuilder::new(2)
-///     .into_associative::<2>(DefaultHasher::new())
-///     .add_layer::<2>()
+///     .into_associative(DefaultHasher::new(), 2)
+///     .add_layer(2)
 ///     .build();
 /// container.push(vec![(1, 2)]);
 /// ```
-pub struct AssociativeBuilder<C, H, B, const N: usize>
+pub struct AssociativeBuilder<C, H, B>
 where
     H: Hasher + Clone,
     B: Builder<C> + Clone,
@@ -52,7 +52,7 @@ where
     unused: PhantomData<C>,
 }
 
-impl<C, H, B, const N: usize> Clone for AssociativeBuilder<C, H, B, N>
+impl<C, H, B> Clone for AssociativeBuilder<C, H, B>
 where
     H: Hasher + Clone,
     B: Builder<C> + Clone,
@@ -66,24 +66,25 @@ where
     }
 }
 
-impl<C, H, B, const N: usize> AssociativeBuilder<C, H, B, N>
+impl<C, H, B> AssociativeBuilder<C, H, B>
 where
     H: Hasher + Clone,
     B: Builder<C> + Clone,
 {
-    pub fn new(builder: B, key_hasher: H) -> Self {
+    pub fn new(builder: B, key_hasher: H, num_sets: usize) -> Self {
         AssociativeBuilder {
             builder,
-            set_hasher: MultisetHasher::new(key_hasher, N),
+            set_hasher: MultisetHasher::new(key_hasher, num_sets),
             unused: PhantomData,
         }
     }
 
-    pub fn add_layer<const M: usize>(
+    pub fn add_layer(
         self,
-    ) -> AssociativeBuilder<Associative<C, MultisetHasher<H>, N>, H, Self, M>
+        num_keys: usize,
+    ) -> AssociativeBuilder<Associative<C, MultisetHasher<H>>, H, Self>
     {
-        let hasher = self.set_hasher.next(M).expect(
+        let hasher = self.set_hasher.next(num_keys).expect(
             "Too many and/or too large associative layers stacked.",
         );
         AssociativeBuilder {
@@ -94,26 +95,24 @@ where
     }
 }
 
-impl<C, H, B, const N: usize> Policy<Associative<C, MultisetHasher<H>, N>>
-    for AssociativeBuilder<C, H, B, N>
+impl<C, H, B> Policy<Associative<C, MultisetHasher<H>>>
+    for AssociativeBuilder<C, H, B>
 where
     B: Builder<C> + Clone,
     H: Hasher + Clone,
 {
 }
 
-impl<C, H, B, const N: usize>
-    Profiler<Associative<C, MultisetHasher<H>, N>>
-    for AssociativeBuilder<C, H, B, N>
+impl<C, H, B> Profiler<Associative<C, MultisetHasher<H>>>
+    for AssociativeBuilder<C, H, B>
 where
     B: Builder<C> + Clone,
     H: Hasher + Clone,
 {
 }
 
-impl<L, H, LB, R, RB, const N: usize>
-    Multilevel<Associative<L, MultisetHasher<H>, N>, R, RB>
-    for AssociativeBuilder<L, H, LB, N>
+impl<L, H, LB, R, RB> Multilevel<Associative<L, MultisetHasher<H>>, R, RB>
+    for AssociativeBuilder<L, H, LB>
 where
     LB: Builder<L> + Clone,
     H: Hasher + Clone,
@@ -121,21 +120,15 @@ where
 {
 }
 
-macro_rules! array {
-    ($x: expr, $n: ident) => {
-        [(); $n].map(|_| $x)
-    };
-}
-
-impl<C, H, B, const N: usize> Builder<Associative<C, MultisetHasher<H>, N>>
-    for AssociativeBuilder<C, H, B, N>
+impl<C, H, B> Builder<Associative<C, MultisetHasher<H>>>
+    for AssociativeBuilder<C, H, B>
 where
     B: Builder<C> + Clone,
     H: Hasher + Clone,
 {
-    fn build(self) -> Associative<C, MultisetHasher<H>, N> {
+    fn build(self) -> Associative<C, MultisetHasher<H>> {
         Associative::new(
-            array![self.builder.clone().build(), N],
+            vec![self.builder.clone().build()],
             self.set_hasher,
         )
     }

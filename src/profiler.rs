@@ -349,7 +349,7 @@ where
     }
 
     fn count(&self) -> usize {
-        let (time, count) = time_it!(self.count());
+        let (time, count) = time_it!(self.cache.count());
         self.stats.clone().count.add(1, time);
         count
     }

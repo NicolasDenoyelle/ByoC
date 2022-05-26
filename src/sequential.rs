@@ -32,6 +32,15 @@ pub struct Sequential<C> {
     lock: RWLock,
 }
 
+impl<C: Clone> Clone for Sequential<C> {
+    fn clone(&self) -> Self {
+        Sequential {
+            container: CloneCell::new((*self.container).clone()),
+            lock: RWLock::new(),
+        }
+    }
+}
+
 impl<C> Sequential<C> {
     /// Construct a new concurrent container wrapping an existing
     /// `container`.

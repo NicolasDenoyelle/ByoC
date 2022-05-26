@@ -80,14 +80,15 @@ pub mod traits {
     pub trait Associative<C, H: Hasher + Clone>:
         Builder<C> + Clone
     {
-        fn into_associative<const N: usize>(
+        fn into_associative(
             self,
             key_hasher: H,
-        ) -> AssociativeBuilder<C, H, Self, N>
+            num_keys: usize,
+        ) -> AssociativeBuilder<C, H, Self>
         where
             Self: Sized,
         {
-            AssociativeBuilder::new(self, key_hasher)
+            AssociativeBuilder::new(self, key_hasher, num_keys)
         }
     }
 
