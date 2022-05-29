@@ -1,5 +1,5 @@
 use crate::private::bits::log2;
-use crate::private::io_vec::{IOStruct, IOStructMut, IOVec};
+use crate::private::io_vec::{IOStructMut, IOVec};
 use crate::private::set::MinSet;
 use crate::streams::{Stream, StreamFactory};
 use crate::{BuildingBlock, Get, GetMut, Ordered, Prefetch};
@@ -273,14 +273,14 @@ where
 ///
 /// `StreamCell` can be dereferenced into the actual value inside the
 /// stream.
-pub struct StreamCell<K, V> {
-    item: IOStruct<(K, V)>,
+pub struct StreamCell<V> {
+    item: V,
 }
 
-impl<K, V> Deref for StreamCell<K, V> {
+impl<V> Deref for StreamCell<V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
-        &self.item.deref().1
+        &self.item
     }
 }
 
@@ -322,7 +322,7 @@ where
     }
 }
 
-impl<K, V, F, S> Get<K, V, StreamCell<K, V>> for ByteStream<(K, V), S, F>
+impl<K, V, F, S> Get<K, V, StreamCell<V>> for ByteStream<(K, V), S, F>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
@@ -363,14 +363,14 @@ where
     /// // Val is not updated to the content of the stream.
     /// assert!(*v == 1);
     /// ```
-    unsafe fn get(&self, key: &K) -> Option<StreamCell<K, V>> {
+    unsafe fn get(&self, key: &K) -> Option<StreamCell<V>> {
         self.streams
             .iter()
             .filter_map(|s| s.as_ref())
             .find_map(|s| {
                 s.iter().find_map(|item| {
-                    let (k, _) = &*item;
-                    if k == key {
+                    let (k, item) = item.unwrap();
+                    if &k == key {
                         Some(StreamCell { item })
                     } else {
                         None
