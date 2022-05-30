@@ -2,7 +2,9 @@ use crate::private::lock::RWLock;
 use crate::streams::Stream;
 #[cfg(feature = "tempfile")]
 use crate::streams::StreamFactory;
+use std::convert::Into;
 use std::fs::File;
+use std::fs::OpenOptions;
 use std::path::PathBuf;
 #[cfg(feature = "tempfile")]
 use tempfile::NamedTempFile;
@@ -14,6 +16,26 @@ pub struct FileStream {
     file: File,
     path: PathBuf,
     rc: RWLock,
+}
+
+impl FileStream {
+    fn new(file: File, path: PathBuf) -> Self {
+        let rc = RWLock::new();
+        rc.lock().unwrap();
+        FileStream { file, path, rc }
+    }
+}
+
+impl Into<FileStream> for String {
+    fn into(self) -> FileStream {
+        let path = PathBuf::from(self.clone());
+        let file = OpenOptions::new()
+            .append(true)
+            .create(true)
+            .open(self)
+            .unwrap();
+        FileStream::new(file, path)
+    }
 }
 
 impl Clone for FileStream {
@@ -86,9 +108,6 @@ impl StreamFactory<FileStream> for TempFileStreamFactory {
             NamedTempFile::new().expect("Temporary file creation failed.");
         let path = named_tmpfile.path().to_path_buf();
         let file = named_tmpfile.into_file();
-        let rc = RWLock::new();
-        rc.lock().unwrap();
-
-        FileStream { file, path, rc }
+        FileStream::new(file, path)
     }
 }
