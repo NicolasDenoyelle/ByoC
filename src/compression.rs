@@ -24,14 +24,16 @@ use std::ops::{Deref, DerefMut};
 /// footprint into smaller chunks. The
 /// [builder](./builder/compression/struct.CompressorBuilder.html) of this
 /// building block will embed it into a `Batch` building block.
-pub struct Compressor<T: Serialize + DeserializeOwned, S: Stream> {
+pub struct Compressor<'a, T: Serialize + DeserializeOwned, S: Stream<'a>> {
     stream: S,
     capacity: usize,
     count: CloneCell<usize>,
-    unused: PhantomData<T>,
+    unused: PhantomData<&'a T>,
 }
 
-impl<T: Serialize + DeserializeOwned, S: Stream> Compressor<T, S> {
+impl<'a, T: Serialize + DeserializeOwned, S: Stream<'a>>
+    Compressor<'a, T, S>
+{
     pub fn new(stream: S, capacity: usize) -> Self {
         let mut c = Compressor {
             stream,
@@ -145,11 +147,11 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressor<T, S> {
 // BuildingBlock trait
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, S> BuildingBlock<'a, K, V> for Compressor<(K, V), S>
+impl<'a, K, V, S> BuildingBlock<'a, K, V> for Compressor<'a, (K, V), S>
 where
     K: 'a + Serialize + DeserializeOwned + Eq,
     V: 'a + Serialize + DeserializeOwned + Ord,
-    S: Stream,
+    S: Stream<'a>,
 {
     fn capacity(&self) -> usize {
         self.capacity
@@ -265,11 +267,11 @@ where
     }
 }
 
-impl<K, V, S> Ordered<V> for Compressor<(K, V), S>
+impl<'a, K, V, S> Ordered<V> for Compressor<'a, (K, V), S>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned + Ord,
-    S: Stream,
+    S: Stream<'a>,
 {
 }
 
@@ -283,7 +285,7 @@ pub struct CompressorCell<V> {
     value: V,
 }
 
-impl<V: Ord> Deref for CompressorCell<V> {
+impl<'a, V: Ord> Deref for CompressorCell<V> {
     type Target = V;
     fn deref(&self) -> &Self::Target {
         &self.value
@@ -304,23 +306,23 @@ impl<V: Ord> Deref for CompressorCell<V> {
 /// On top of the memory footprint, if multiple cells of the same
 /// `Compresssor` live and are modified in the same scope, only the last
 /// one dropped will be commited back to the compressed stream.
-pub struct CompressorMutCell<K, V, S>
+pub struct CompressorMutCell<'a, K, V, S>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
 {
-    stream: Compressor<(K, V), S>,
+    stream: Compressor<'a, (K, V), S>,
     elements: Vec<(K, V)>,
     index: usize,
     is_written: bool,
 }
 
-impl<K, V, S> Deref for CompressorMutCell<K, V, S>
+impl<'a, K, V, S> Deref for CompressorMutCell<'a, K, V, S>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
 {
     type Target = V;
     fn deref(&self) -> &Self::Target {
@@ -328,11 +330,11 @@ where
     }
 }
 
-impl<K, V, S> DerefMut for CompressorMutCell<K, V, S>
+impl<'a, K, V, S> DerefMut for CompressorMutCell<'a, K, V, S>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.is_written = true;
@@ -340,11 +342,11 @@ where
     }
 }
 
-impl<K, V, S> Drop for CompressorMutCell<K, V, S>
+impl<'a, K, V, S> Drop for CompressorMutCell<'a, K, V, S>
 where
     K: Serialize + DeserializeOwned,
     V: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
 {
     fn drop(&mut self) {
         if !self.is_written {
@@ -357,11 +359,12 @@ where
     }
 }
 
-impl<K, V, S> Get<K, V, CompressorCell<V>> for Compressor<(K, V), S>
+impl<'a, K, V, S> Get<K, V, CompressorCell<V>>
+    for Compressor<'a, (K, V), S>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize + Ord,
-    S: Stream,
+    S: Stream<'a>,
 {
     unsafe fn get(&self, key: &K) -> Option<CompressorCell<V>> {
         // Read elements into memory.
@@ -378,17 +381,17 @@ where
     }
 }
 
-impl<K, V, S> GetMut<K, V, CompressorMutCell<K, V, S>>
-    for Compressor<(K, V), S>
+impl<'a, K, V, S> GetMut<K, V, CompressorMutCell<'a, K, V, S>>
+    for Compressor<'a, (K, V), S>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize + Ord,
-    S: Stream,
+    S: Stream<'a>,
 {
     unsafe fn get_mut(
         &mut self,
         key: &K,
-    ) -> Option<CompressorMutCell<K, V, S>> {
+    ) -> Option<CompressorMutCell<'a, K, V, S>> {
         // Read elements into memory.
         let v = match self.read() {
             Err(_) => return None,
@@ -421,11 +424,11 @@ where
 // Prefetcher trait
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, S> Prefetch<'a, K, V> for Compressor<(K, V), S>
+impl<'a, K, V, S> Prefetch<'a, K, V> for Compressor<'a, (K, V), S>
 where
     K: 'a + DeserializeOwned + Serialize + Ord,
     V: 'a + DeserializeOwned + Serialize + Ord,
-    S: 'a + Stream,
+    S: Stream<'a>,
 {
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
         let mut out = Vec::with_capacity(keys.len());

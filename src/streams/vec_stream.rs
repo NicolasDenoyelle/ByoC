@@ -1,5 +1,5 @@
 use crate::private::clone::CloneCell;
-use crate::streams::{Resize, Stream, StreamFactory};
+use crate::streams::{Resize, Stream, StreamBase, StreamFactory};
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 
 /// An implementation of a [`Stream`](../trait.Stream.html) in a `Vec<u8>`.
@@ -106,7 +106,12 @@ impl Resize for VecStream {
     }
 }
 
-impl Stream for VecStream {}
+impl<'a> StreamBase<'a> for VecStream {
+    fn box_clone(&self) -> Box<dyn StreamBase<'a> + 'a> {
+        Box::new(self.clone())
+    }
+}
+impl<'a> Stream<'a> for VecStream {}
 
 /// A Factory yielding [`VecStream`](struct.VecStream.html) streams.
 #[derive(Clone)]

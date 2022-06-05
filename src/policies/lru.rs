@@ -1,5 +1,7 @@
 use crate::policies::timestamp::Timestamp;
 use crate::policies::{Reference, ReferenceFactory};
+#[cfg(feature = "stream")]
+use serde::{Deserialize, Serialize};
 use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 
@@ -8,6 +10,7 @@ use std::cmp::{Ord, Ordering};
 ///
 /// See /// See [`LRU`](struct.LRU.html)
 #[derive(Debug)]
+#[cfg_attr(feature = "stream", derive(Serialize, Deserialize))]
 pub struct LRUCell<V, T: Timestamp> {
     value: V,
     /// Last access time.

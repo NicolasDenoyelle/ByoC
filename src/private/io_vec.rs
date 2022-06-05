@@ -276,7 +276,7 @@ where
 
 impl<O, T> IOVecIter<O, T>
 where
-    O: DeserializeOwned + Serialize,
+    O: DeserializeOwned,
     T: Read + Seek,
 {
     pub fn new(stream: BufReader<T>, chunk_size: usize) -> Self {

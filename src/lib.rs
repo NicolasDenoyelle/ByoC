@@ -62,6 +62,32 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
 }
 
+impl<'a, K: 'a, V: 'a> BuildingBlock<'a, K, V>
+    for Box<dyn BuildingBlock<'a, K, V> + 'a>
+{
+    fn capacity(&self) -> usize {
+        (**self).capacity()
+    }
+    fn count(&self) -> usize {
+        (**self).count()
+    }
+    fn contains(&self, key: &K) -> bool {
+        (**self).contains(key)
+    }
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
+        (**self).take(key)
+    }
+    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+        (**self).pop(n)
+    }
+    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
+        (**self).push(values)
+    }
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        (**self).flush()
+    }
+}
+
 /// This is a companion trait for
 /// [`BuildingBlock`](trait.BuildingBlock.html)
 /// trait to have access to values inside of a building block.
@@ -225,6 +251,8 @@ pub mod streams;
 /// container.push(vec![(1,2)]);
 /// ```
 pub mod builder;
+#[cfg(feature = "config")]
+pub mod config;
 
 mod array;
 pub use array::{Array, ArrayCell, ArrayMutCell};

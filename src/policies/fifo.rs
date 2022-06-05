@@ -1,6 +1,9 @@
 use crate::policies::{Reference, ReferenceFactory};
+#[cfg(feature = "stream")]
+use serde::{Deserialize, Serialize};
 use std::cmp::{Ord, Ordering};
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
+
 //----------------------------------------------------------------------------//
 // FIFO eviction policy                                                       //
 //----------------------------------------------------------------------------//
@@ -8,6 +11,7 @@ use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 /// Implementation of [`Reference`](trait.Reference.html) with
 /// a First In First Out eviction policy.
 #[derive(Debug)]
+#[cfg_attr(feature = "stream", derive(Serialize, Deserialize))]
 pub struct FIFOCell<V> {
     value: V,
     counter: u64,

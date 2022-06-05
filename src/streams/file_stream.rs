@@ -1,8 +1,7 @@
 use crate::private::lock::RWLock;
-use crate::streams::Stream;
 #[cfg(feature = "tempfile")]
 use crate::streams::StreamFactory;
-use std::convert::Into;
+use crate::streams::{Stream, StreamBase};
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::path::PathBuf;
@@ -26,13 +25,13 @@ impl FileStream {
     }
 }
 
-impl Into<FileStream> for String {
-    fn into(self) -> FileStream {
-        let path = PathBuf::from(self.clone());
+impl From<&String> for FileStream {
+    fn from(s: &String) -> FileStream {
+        let path = PathBuf::from(s.clone());
         let file = OpenOptions::new()
             .append(true)
             .create(true)
-            .open(self)
+            .open(s)
             .unwrap();
         FileStream::new(file, path)
     }
@@ -94,7 +93,12 @@ impl std::io::Seek for FileStream {
     }
 }
 
-impl Stream for FileStream {}
+impl<'a> StreamBase<'a> for FileStream {
+    fn box_clone(&self) -> Box<dyn StreamBase<'a> + 'a> {
+        Box::new(self.clone())
+    }
+}
+impl<'a> Stream<'a> for FileStream {}
 
 /// Factory to spawn temporary file streams.
 #[cfg(feature = "tempfile")]

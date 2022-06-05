@@ -41,14 +41,41 @@ pub trait StreamFactory<S> {
 }
 
 /// Combination of traits to work with streams of bytes.
-///
-/// The clone trait must clone into a resource that represent the
-/// same stream in the same manner
-/// as [File::try_clone()](std::fs::File::try_clone).
-pub trait Stream:
-    std::io::Read + std::io::Write + std::io::Seek + Resize + Clone
+pub trait StreamBase<'a>:
+    std::io::Read + std::io::Write + std::io::Seek + Resize
 {
+    /// The `box_clone()` method must clone into a handle on the
+    /// same stream in the same manner as
+    /// [File::try_clone()](std::fs::File::try_clone).
+    /// The return type is boxed to allow streams to be object safe.
+    fn box_clone(&self) -> Box<dyn StreamBase<'a> + 'a>;
 }
+
+/// The `clone()` method must clone into a handle on the
+/// same stream in the same manner as
+/// [File::try_clone()](std::fs::File::try_clone).
+/// The return type is boxed to allow streams to be object safe.
+pub trait Stream<'a>: StreamBase<'a> + Clone {}
+
+impl<'a> StreamBase<'a> for Box<dyn StreamBase<'a> + 'a> {
+    fn box_clone(&self) -> Box<dyn StreamBase<'a> + 'a> {
+        (**self).box_clone()
+    }
+}
+
+impl<'a> Clone for Box<dyn StreamBase<'a> + 'a> {
+    fn clone(&self) -> Self {
+        (**self).box_clone()
+    }
+}
+
+impl<'a> Resize for Box<dyn StreamBase<'a> + 'a> {
+    fn resize(&mut self, size: u64) -> std::io::Result<()> {
+        (**self).resize(size)
+    }
+}
+
+impl<'a> Stream<'a> for Box<dyn StreamBase<'a> + 'a> {}
 
 mod file_stream;
 pub use file_stream::FileStream;

@@ -33,7 +33,7 @@ use serde::{de::DeserializeOwned, Serialize};
 /// ```
 pub struct Begin {}
 
-impl Begin {
+impl<'a> Begin {
     pub fn array<T>(capacity: usize) -> ArrayBuilder<T> {
         ArrayBuilder::new(capacity)
     }
@@ -47,25 +47,25 @@ impl Begin {
     #[cfg(feature = "stream")]
     pub fn byte_stream<
         T: DeserializeOwned + Serialize,
-        S: Stream,
+        S: Stream<'a>,
         F: StreamFactory<S> + Clone,
     >(
         factory: F,
         capacity: usize,
-    ) -> StreamBuilder<T, S, F> {
+    ) -> StreamBuilder<'a, T, S, F> {
         StreamBuilder::new(factory, capacity)
     }
 
     #[cfg(feature = "compression")]
     pub fn compressor<
         T: DeserializeOwned + Serialize,
-        S: Stream,
+        S: Stream<'a>,
         F: StreamFactory<S> + Clone,
     >(
         factory: F,
         num_batch: usize,
         batch_capacity: usize,
-    ) -> CompressorBuilder<T, S, F> {
+    ) -> CompressorBuilder<'a, T, S, F> {
         CompressorBuilder::new(num_batch, batch_capacity, factory)
     }
 }
