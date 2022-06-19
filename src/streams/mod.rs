@@ -26,7 +26,7 @@ pub type IOResult<T> = Result<T, IOError>;
 ///
 /// If the stream is extended, the part of the stream beyond
 /// current stream size is filled with 0s.
-/// If the stream is shrinked, it is truncated from the end of it.
+/// If the stream is shrunk, it is truncated from the end of it.
 ///
 /// # Arguments
 ///

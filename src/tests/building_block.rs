@@ -25,7 +25,7 @@ where
 
     // There is less elements not inserted than elements to insert.
     assert!(num_extra <= num_insertion);
-    // The count in countainer does not exceed capacity.
+    // The count in container does not exceed capacity.
     assert!(num_inserted + num_before_insertion <= max_capacity);
     // The count is updated correctly.
     assert_eq!(c.count(), num_inserted + num_before_insertion);

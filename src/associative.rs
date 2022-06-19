@@ -12,7 +12,7 @@ use std::vec::Vec;
 /// The purpose of this structure is to concatenate multiple layer of
 /// [`Associative`](struct.Associative.html) building block with one
 /// different hasher but different hashes on each level.
-/// See how to instanciate such a structure in
+/// See how to instantiate such a structure in
 /// [builder examples](builder/associative/struct.AssociativeBuilder.html).
 ///
 /// This hasher can be used to create another `MultisetHasher` returning a
@@ -283,7 +283,7 @@ where
     /// store all the values, some values are returned.
     /// If a bucket where a value is assign is full, the associated
     /// input key/value pair will be returned, even though this
-    /// `Associative` bulding block is not at capacity.
+    /// `Associative` building block is not at capacity.
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = elements.len();
         let n_sets = self.containers.len();

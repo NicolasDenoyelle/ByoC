@@ -102,10 +102,10 @@ where
 //----------------------------------------------------------------------------//
 
 /// RAII structure wrapping an item read from a stream
-/// that will be writen back to the stream at the destruction time.
+/// that will be written back to the stream at the destruction time.
 ///
 /// The item is written at its initial position in the stream and writing
-/// will occure only if `deref_mut()` method from `DerefMut` trait is
+/// will occur only if `deref_mut()` method from `DerefMut` trait is
 /// invoked.
 pub struct IOStructMut<T, S>
 where
@@ -190,7 +190,7 @@ where
 }
 
 /// RAII structure wrapping an item read from a stream.
-/// The item will not be writen back to the stream.
+/// The item will not be written back to the stream.
 #[derive(Eq, Ord, PartialEq, PartialOrd)]
 pub struct IOStruct<T> {
     item: T,

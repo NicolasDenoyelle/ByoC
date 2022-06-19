@@ -29,7 +29,7 @@ on some predictions.
 	The building block name is "policy" and goes in a different directory
 	than wrapper.
 * DEL Rename wrapper into transform
-* DONE Compresion building block.
+* DONE Compression building block.
 * TODO Benchmarks:
 + Multiple distributions of keys
 + Different sizes of keys and values.

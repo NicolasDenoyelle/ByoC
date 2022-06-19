@@ -20,7 +20,7 @@ use std::ops::{Deref, DerefMut};
 /// therefore, policies should not be used with containers relying on
 /// a stable order of its values. Note that containers that rely on a
 /// stable order of values should not allow access to their inner values
-/// alltogether to avoid this problem.
+/// altogether to avoid this problem.
 ///
 /// # Examples
 ///

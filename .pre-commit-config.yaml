@@ -15,3 +15,9 @@ repos:
         args: [--offline, --all-targets, --all-features]
     -   id: clippy
         args: [--fix, --allow-staged, --allow-dirty]
+
+-   repo: https://github.com/crate-ci/typos
+    rev: v1.10.1
+    hooks:
+      - id: typos
+        args: [--write-changes]

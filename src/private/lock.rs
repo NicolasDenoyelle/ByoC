@@ -102,7 +102,7 @@ impl RWLock {
     /// , if a thread is currently performing an operation on the lock,
     /// or if a thread owning a clone of this lock panicked.
     /// Call [`unlock()`](struct.RWLock.html#method.unlock) to
-    /// unlock after succesfull `try_lock()`.
+    /// unlock after successful `try_lock()`.
     pub fn try_lock(&self) -> Result<(), TryLockError<()>> {
         let count = self.state.load(Ordering::SeqCst);
         if (count & POISONED) != 0 {
@@ -152,7 +152,7 @@ impl RWLock {
     /// a thread is currently performing an operation on the lock or
     /// if a thread owning a clone of this lock panicked.
     /// Call [`unlock()`](struct.RWLock.html#method.unlock) to unlock
-    /// after succesfull `try_lock_mut()`.
+    /// after successful `try_lock_mut()`.
     pub fn try_lock_mut(&self) -> Result<(), TryLockError<()>> {
         let count = self.state.load(Ordering::SeqCst);
         if (count & POISONED) != 0 {
@@ -172,7 +172,7 @@ impl RWLock {
         }
     }
 
-    // /// Try to acquire exlusive access to the lock.
+    // /// Try to acquire exclusive access to the lock.
     // /// If lock is acquired, return input value wrapped around a
     // /// [`RWLockGuard`](struct.RWLockGuard.html) such that when this
     // /// value goes out of scope, the lock is released.
@@ -197,7 +197,7 @@ impl RWLock {
 
     /// Hang until shared access to the lock is granted.
     /// Call [`unlock()`](struct.RWLock.html#method.unlock) to
-    /// unlock after succesfull `lock()`.
+    /// unlock after successful `lock()`.
     pub fn lock(&self) -> Result<(), LockError<()>> {
         let mut nanos: u64 = 1;
         loop {
@@ -238,7 +238,7 @@ impl RWLock {
 
     /// Hang until exclusive access to the lock is granted.
     /// Call [`unlock()`](struct.RWLock.html#method.unlock) to
-    /// unlock after succesfull `lock_mut()`.
+    /// unlock after successful `lock_mut()`.
     pub fn lock_mut(&self) -> Result<(), LockError<()>> {
         let mut nanos: u64 = 1;
         loop {

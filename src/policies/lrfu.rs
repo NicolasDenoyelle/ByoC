@@ -12,9 +12,9 @@ use std::cmp::{Ord, Ordering};
 /// time difference between accesses.
 /// The exponential average can grant either higher or lower weight to
 /// recent touches than older ones while time differences grants higher
-/// weight to unfrequent touches, thus increasing the likelyhood of
+/// weight to unfrequent touches, thus increasing the likelihood of
 /// eviction for unfrequently touched element even if they have been
-/// frequently touched long ago, and decreasing the likelyhood of eviction
+/// frequently touched long ago, and decreasing the likelihood of eviction
 /// for recently inserted elements.
 #[derive(Clone, Debug, Copy)]
 pub struct Stats<T: Timestamp + Copy> {
@@ -75,7 +75,7 @@ struct LRFUCell<V, T: Timestamp + Copy> {
 /// `LRFU` wraps values into cells implementing LRFU ordering policy.
 /// It tries to keep in cache frequently used elements while giving a chance
 /// to recently added but not frequently used elements to stay in the cache.
-/// When a cache lookup occures the state of the cell is updated
+/// When a cache lookup occurs the state of the cell is updated
 /// according to the number of times it is accessed and the timestamp of
 /// accesses.
 ///

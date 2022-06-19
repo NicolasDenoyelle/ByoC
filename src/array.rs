@@ -177,7 +177,7 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>> for Array<(K, V)> {
     /// Using the return value inside the `ArrayCell` is unsafe and can
     /// lead to undefined behavior. The user of this method must ensure that
     /// the Array container is not modified until the `ArrayCell` is
-    /// droped. Otherwise, the content of the `ArrayCell` might be
+    /// dropped. Otherwise, the content of the `ArrayCell` might be
     /// corrupted.
     ///
     /// # Example:
@@ -221,7 +221,7 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
     /// Using the return value inside the `ArrayMutCell` is unsafe and can
     /// lead to undefined behavior. The user of this method must ensure that
     /// the Array container is not modified until the `ArrayMutCell` is
-    /// droped. Otherwise, the content of the `ArrayMutCell` might be
+    /// dropped. Otherwise, the content of the `ArrayMutCell` might be
     /// corrupted.
     ///
     /// # Example:

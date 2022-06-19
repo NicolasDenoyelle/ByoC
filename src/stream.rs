@@ -337,7 +337,7 @@ where
     ///
     /// The return value inside the `StreamCell` is a copy of
     /// the value inside the stream. Ideally, the stream should not
-    /// be updated or disapear while the returned `StreamCell` is still
+    /// be updated or disappear while the returned `StreamCell` is still
     /// in use. If the stream is modified, the value inside the `StreamCell`
     /// may no longer accurately represent the value inside the stream.
     ///
@@ -398,7 +398,7 @@ where
     /// The return value inside the `StreamMutCell` is a copy of
     /// the value inside the stream. If the value is modified, it is
     /// written back to the stream at the same position.
-    /// The stream should not be updated or disapear while the
+    /// The stream should not be updated or disappear while the
     /// returned `StreamMutCell` is still in use. If the latter happens,
     /// all the subsequent uses of this container are undefined behavior.
     ///

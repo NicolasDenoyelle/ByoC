@@ -52,7 +52,7 @@ impl<V> InnerClone<V> {
 /// CloneCell is a generic wrapper to break the mutability rules.
 /// CloneCell stores a raw pointer to its content and copies the pointer
 /// on call to `clone()`. CloneCell keeps track of the count of clones
-/// inside a [RWLock](../lock/struct.RWLock.html) and destroyes its content
+/// inside a [RWLock](../lock/struct.RWLock.html) and destroys its content
 /// when all the clones have gone out of scope.
 /// CloneCell implements the
 /// [BuildingBlocks](../../trait.BuildingBlock.html) when it wraps a
