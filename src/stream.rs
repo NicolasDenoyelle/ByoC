@@ -4,6 +4,7 @@ use crate::private::set::MinSet;
 use crate::streams::{Stream, StreamFactory};
 use crate::{BuildingBlock, Get, GetMut, Ordered, Prefetch};
 use serde::{de::DeserializeOwned, Serialize};
+use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
 
 //------------------------------------------------------------------------//
@@ -61,21 +62,22 @@ use std::ops::{Deref, DerefMut};
 /// let (key, value) = c.pop(1).pop().unwrap();
 /// assert_eq!(key, 2);
 /// ```
-pub struct ByteStream<T, S, F>
+pub struct ByteStream<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
     factory: F,
     streams: Vec<Option<IOVec<T, S>>>,
     capacity: usize,
+    unused: PhantomData<&'a S>,
 }
 
-impl<T, S, F> ByteStream<T, S, F>
+impl<'a, T, S, F> ByteStream<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
     /// Create a new `Stream` building block with a set `capacity`.
@@ -94,6 +96,7 @@ where
             factory,
             streams,
             capacity,
+            unused: PhantomData,
         }
     }
 
@@ -108,11 +111,12 @@ where
     }
 }
 
-impl<'a, K, V, S, F> BuildingBlock<'a, K, V> for ByteStream<(K, V), S, F>
+impl<'a, K, V, S, F> BuildingBlock<'a, K, V>
+    for ByteStream<'a, (K, V), S, F>
 where
     K: 'a + DeserializeOwned + Serialize + Eq,
     V: 'a + DeserializeOwned + Serialize + Ord,
-    S: 'a + Stream,
+    S: 'a + Stream<'a>,
     F: StreamFactory<S>,
 {
     fn capacity(&self) -> usize {
@@ -256,11 +260,11 @@ where
     }
 }
 
-impl<K, V: Ord, S, F> Ordered<V> for ByteStream<(K, V), S, F>
+impl<'a, K, V: Ord, S, F> Ordered<V> for ByteStream<'a, (K, V), S, F>
 where
     K: DeserializeOwned + Serialize,
     V: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
 }
@@ -290,20 +294,21 @@ impl<V> Deref for StreamCell<V> {
 /// stream. If the value inside a `StreamMutCell` is modified via a call
 /// to `deref_mut()`, then the key/value pair is written back to the
 /// stream it comes from when the `StreamMutCell` is destroyed.
-pub struct StreamMutCell<K, V, S>
+pub struct StreamMutCell<'a, K, V, S>
 where
     K: Serialize,
     V: Serialize,
-    S: Stream,
+    S: Stream<'a>,
 {
     item: IOStructMut<(K, V), S>,
+    unused: PhantomData<&'a S>,
 }
 
-impl<K, V, S> Deref for StreamMutCell<K, V, S>
+impl<'a, K, V, S> Deref for StreamMutCell<'a, K, V, S>
 where
     K: Serialize,
     V: Serialize,
-    S: Stream,
+    S: Stream<'a>,
 {
     type Target = V;
     fn deref(&self) -> &Self::Target {
@@ -311,22 +316,23 @@ where
     }
 }
 
-impl<K, V, S> DerefMut for StreamMutCell<K, V, S>
+impl<'a, K, V, S> DerefMut for StreamMutCell<'a, K, V, S>
 where
     K: Serialize,
     V: Serialize,
-    S: Stream,
+    S: Stream<'a>,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.item.deref_mut().1
     }
 }
 
-impl<K, V, F, S> Get<K, V, StreamCell<V>> for ByteStream<(K, V), S, F>
+impl<'a, K, V, F, S> Get<K, V, StreamCell<V>>
+    for ByteStream<'a, (K, V), S, F>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
     /// Get value inside a `Stream`. The value is wrapped inside a
@@ -380,12 +386,12 @@ where
     }
 }
 
-impl<K, V, F, S> GetMut<K, V, StreamMutCell<K, V, S>>
-    for ByteStream<(K, V), S, F>
+impl<'a, K, V, F, S> GetMut<K, V, StreamMutCell<'a, K, V, S>>
+    for ByteStream<'a, (K, V), S, F>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
     /// Get a mutable value inside a `Stream`. The value is wrapped
@@ -425,7 +431,7 @@ where
     unsafe fn get_mut(
         &mut self,
         key: &K,
-    ) -> Option<StreamMutCell<K, V, S>> {
+    ) -> Option<StreamMutCell<'a, K, V, S>> {
         self.streams
             .iter_mut()
             .filter_map(|s| s.as_mut())
@@ -433,7 +439,10 @@ where
                 s.iter_mut().find_map(|item| {
                     let (k, _) = &*item;
                     if k == key {
-                        Some(StreamMutCell { item })
+                        Some(StreamMutCell {
+                            item,
+                            unused: PhantomData,
+                        })
                     } else {
                         None
                     }
@@ -446,11 +455,11 @@ where
 // Prefetch Trait Implementation
 //------------------------------------------------------------------------//
 
-impl<'a, K, V, S, F> Prefetch<'a, K, V> for ByteStream<(K, V), S, F>
+impl<'a, K, V, S, F> Prefetch<'a, K, V> for ByteStream<'a, (K, V), S, F>
 where
     K: 'a + DeserializeOwned + Serialize + Ord,
     V: 'a + DeserializeOwned + Serialize + Ord,
-    S: 'a + Stream,
+    S: 'a + Stream<'a>,
     F: StreamFactory<S>,
 {
     fn prefetch(&mut self, _keys: Vec<K>) {}

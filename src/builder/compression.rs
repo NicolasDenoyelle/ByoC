@@ -9,22 +9,22 @@ use std::marker::PhantomData;
 /// This builder will create a [`batch`](../../struct.Batch.html) of
 /// `num_batch` smaller `Compression` building blocks, each with a set
 /// `batch_capacity` on a its own stream created with `stream_factory`.
-pub struct CompressorBuilder<T, S, F>
+pub struct CompressorBuilder<'a, T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
     num_batch: usize,
     batch_capacity: usize,
     stream_factory: F,
-    unused: PhantomData<(T, S)>,
+    unused: PhantomData<&'a (T, S)>,
 }
 
-impl<T, S, F> CompressorBuilder<T, S, F>
+impl<'a, T, S, F> CompressorBuilder<'a, T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
     pub fn new(
@@ -41,10 +41,10 @@ where
     }
 }
 
-impl<T, S, F> Clone for CompressorBuilder<T, S, F>
+impl<'a, T, S, F> Clone for CompressorBuilder<'a, T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
 {
     fn clone(&self) -> Self {
@@ -57,15 +57,15 @@ where
     }
 }
 
-impl<T, S, F> Builder<Batch<Compressor<T, S>>>
-    for CompressorBuilder<T, S, F>
+impl<'a, T, S, F> Builder<Batch<Compressor<'a, T, S>>>
+    for CompressorBuilder<'a, T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
-    fn build(mut self) -> Batch<Compressor<T, S>> {
-        let mut b = Batch::<Compressor<T, S>>::new();
+    fn build(mut self) -> Batch<Compressor<'a, T, S>> {
+        let mut b = Batch::<Compressor<'a, T, S>>::new();
         for _ in 0..self.num_batch {
             b.append(Compressor::new(
                 self.stream_factory.create(),
@@ -76,47 +76,48 @@ where
     }
 }
 
-impl<T, S, F, H: std::hash::Hasher + Clone>
-    Associative<Batch<Compressor<T, S>>, H> for CompressorBuilder<T, S, F>
+impl<'a, T, S, F, H: std::hash::Hasher + Clone>
+    Associative<Batch<Compressor<'a, T, S>>, H>
+    for CompressorBuilder<'a, T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
 {
 }
 
-impl<T, S, F> Policy<Batch<Compressor<T, S>>>
-    for CompressorBuilder<T, S, F>
+impl<'a, T, S, F> Policy<Batch<Compressor<'a, T, S>>>
+    for CompressorBuilder<'a, T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
 }
 
-impl<T, S, F> Profiler<Batch<Compressor<T, S>>>
-    for CompressorBuilder<T, S, F>
+impl<'a, T, S, F> Profiler<Batch<Compressor<'a, T, S>>>
+    for CompressorBuilder<'a, T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
 }
 
-impl<T, S, F> Sequential<Batch<Compressor<T, S>>>
-    for CompressorBuilder<T, S, F>
+impl<'a, T, S, F> Sequential<Batch<Compressor<'a, T, S>>>
+    for CompressorBuilder<'a, T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
 {
 }
 
-impl<T, S, F, R, RB> Multilevel<Batch<Compressor<T, S>>, R, RB>
-    for CompressorBuilder<T, S, F>
+impl<'a, T, S, F, R, RB> Multilevel<Batch<Compressor<'a, T, S>>, R, RB>
+    for CompressorBuilder<'a, T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S>,
     RB: Builder<R>,
 {

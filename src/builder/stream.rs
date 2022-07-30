@@ -22,21 +22,21 @@ use std::marker::PhantomData;
 /// let mut stream = StreamBuilder::new(VecStreamFactory{}, 2).build();
 /// stream.push(vec![(1, 2)]);
 /// ```
-pub struct StreamBuilder<T, S, F>
+pub struct StreamBuilder<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
 {
     factory: F,
     capacity: usize,
-    unused: PhantomData<(T, S)>,
+    unused: PhantomData<&'a (T, S)>,
 }
 
-impl<T, S, F> StreamBuilder<T, S, F>
+impl<'a, T, S, F> StreamBuilder<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
 {
     pub fn new(factory: F, capacity: usize) -> Self {
@@ -48,10 +48,10 @@ where
     }
 }
 
-impl<T, S, F> Clone for StreamBuilder<T, S, F>
+impl<'a, T, S, F> Clone for StreamBuilder<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
 {
     fn clone(&self) -> Self {
@@ -63,56 +63,60 @@ where
     }
 }
 
-impl<T, S, F, H: std::hash::Hasher + Clone>
-    Associative<ByteStream<T, S, F>, H> for StreamBuilder<T, S, F>
+impl<'a, T, S, F, H: std::hash::Hasher + Clone>
+    Associative<ByteStream<'a, T, S, F>, H> for StreamBuilder<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
 {
 }
 
-impl<T, S, F> Sequential<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
+impl<'a, T, S, F> Sequential<ByteStream<'a, T, S, F>>
+    for StreamBuilder<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
 {
 }
 
-impl<T, S, F> Profiler<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
+impl<'a, T, S, F> Profiler<ByteStream<'a, T, S, F>>
+    for StreamBuilder<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
 {
 }
 
-impl<T, S, F, R, RB> Multilevel<ByteStream<T, S, F>, R, RB>
-    for StreamBuilder<T, S, F>
+impl<'a, T, S, F, R, RB> Multilevel<ByteStream<'a, T, S, F>, R, RB>
+    for StreamBuilder<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
     RB: Builder<R>,
 {
 }
 
-impl<T, S, F> Policy<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
+impl<'a, T, S, F> Policy<ByteStream<'a, T, S, F>>
+    for StreamBuilder<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
 {
 }
 
-impl<T, S, F> Builder<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
+impl<'a, T, S, F> Builder<ByteStream<'a, T, S, F>>
+    for StreamBuilder<'a, T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
+    S: Stream<'a>,
     F: StreamFactory<S> + Clone,
 {
-    fn build(self) -> ByteStream<T, S, F> {
+    fn build(self) -> ByteStream<'a, T, S, F> {
         ByteStream::new(self.factory, self.capacity)
     }
 }
