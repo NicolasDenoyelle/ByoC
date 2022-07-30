@@ -1,5 +1,7 @@
 use crate::private::clone::CloneCell;
 use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered, Prefetch};
+#[cfg(feature = "serde")]
+use serde::Deserialize;
 use std::fs::File;
 use std::io::Write;
 use std::ops::{Deref, DerefMut};
@@ -105,6 +107,11 @@ macro_rules! time_it {
 /// Possible ways of printing output stats when a `Profiler` container
 /// is dropped.
 #[derive(Clone)]
+#[cfg_attr(
+    feature = "serde",
+    derive(Deserialize),
+    serde(tag = "kind", content = "filename")
+)]
 pub enum ProfilerOutputKind {
     /// No output is printed.
     None,

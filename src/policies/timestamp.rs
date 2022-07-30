@@ -1,3 +1,5 @@
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 
@@ -40,6 +42,7 @@ static mut COUNTER_STATE: AtomicU64 = AtomicU64::new(0);
 /// assert!(Counter::new() < Counter::new());
 /// ```
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Eq, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Counter {
     value: u64,
 }

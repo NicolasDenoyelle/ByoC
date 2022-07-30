@@ -1,5 +1,7 @@
 use crate::policies::timestamp::Timestamp;
 use crate::policies::{Reference, ReferenceFactory};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 
@@ -17,6 +19,7 @@ use std::cmp::{Ord, Ordering};
 /// frequently touched long ago, and decreasing the likelihood of eviction
 /// for recently inserted elements.
 #[derive(Clone, Debug, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Stats<T: Timestamp + Copy> {
     /// Last touch timestamp
     last: T,
@@ -64,7 +67,8 @@ impl<T: Timestamp + Copy> Stats<T> {
 ///
 /// See [`LRFU`](struct.LRFU.html)
 #[derive(Debug)]
-struct LRFUCell<V, T: Timestamp + Copy> {
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct LRFUCell<V, T: Timestamp + Copy> {
     /// Reference value.
     value: V,
     stats: Cell<Stats<T>>,
