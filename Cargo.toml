@@ -32,6 +32,8 @@ toml = { version = "0.5", optional = true }
 
 [features]
 default = []
+# Enable instantiating building block containers from a configuration file.
+config = [ "toml", "serde", "serde/derive" ]
 # Enable building block implementation into a stream of bytes.
 # Converting structure to bytes requires to be able to serialize and
 # deserialize from the stream (serde + bincode).

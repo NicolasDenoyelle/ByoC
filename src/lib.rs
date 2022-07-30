@@ -15,7 +15,7 @@ pub use concurrent::Concurrent;
 mod ordered;
 pub use ordered::Ordered;
 
-/// Helpers to easily build complex building block chain.
+/// Builder pattern to build a chain of containers.
 ///
 /// Builder module provides the tool ease the process of building
 /// a complex building block chain.
@@ -57,6 +57,38 @@ pub use ordered::Ordered;
 /// container.push(vec![(1,2)]);
 /// ```
 pub mod builder;
+
+#[cfg(feature = "config")]
+/// Module to instantiate a container from a configuration file.
+///
+/// Configuration file/strings are a way to instantiate containers.
+/// They describe containers using the [`toml`](https://toml.io/en/)
+/// format.
+/// The [`config::Builder`] structure is the entry point to create a container
+/// instance from a configuration string or file.
+/// For instance, a simple [`BuildingBlock`](../trait.BuildingBlock.html) array
+/// can be built as follow:
+/// ```
+/// use byoc::BuildingBlock;
+/// use byoc::builder::traits::Builder;
+/// use byoc::config::{BuilderConfig, BuildingBlockConfig};
+///
+/// let config_str = format!("
+/// id = 'ArrayConfig'
+/// capacity = 10
+/// policy.kind = 'FIFO'
+/// ");
+/// let array: Box<dyn BuildingBlock<u64, u64>> =
+///            BuilderConfig::from_str(config_str.as_str()).unwrap().build();
+/// ```
+/// The different `*Config` structures in this module detail the different
+/// configuration formats available for various container implementations.
+///
+/// Because of the dynamic nature of configurations, container
+/// instantiated with this method are wrapped as a `dyn Trait` in a
+/// [`std::boxed::Box`]. Therefore, every layer of container in the cache will
+/// have the overhead of using dynamic dispatch and penalize deep architectures.
+pub mod config;
 
 mod array;
 pub use array::{Array, ArrayCell, ArrayMutCell};
