@@ -1,4 +1,4 @@
-use crate::private::bits::log2;
+use crate::internal::bits::log2;
 use crate::{BuildingBlock, Concurrent, Get, GetMut, Prefetch};
 use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};

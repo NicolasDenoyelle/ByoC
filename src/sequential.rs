@@ -1,5 +1,5 @@
-use crate::private::clone::CloneCell;
-use crate::private::lock::{LockError, RWLock};
+use crate::internal::lock::RWLock;
+use crate::internal::SharedPtr;
 use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered, Prefetch};
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
@@ -28,14 +28,14 @@ use std::ops::{Deref, DerefMut};
 /// assert_eq!(value, 12);
 ///```
 pub struct Sequential<C> {
-    container: CloneCell<C>,
+    container: SharedPtr<C>,
     lock: RWLock,
 }
 
 impl<C: Clone> Clone for Sequential<C> {
     fn clone(&self) -> Self {
         Sequential {
-            container: CloneCell::new((*self.container).clone()),
+            container: SharedPtr::from(self.container.as_ref().clone()),
             lock: RWLock::new(),
         }
     }
@@ -46,32 +46,32 @@ impl<C> Sequential<C> {
     /// `container`.
     pub fn new(container: C) -> Self {
         Sequential {
-            container: CloneCell::new(container),
+            container: SharedPtr::from(container),
             lock: RWLock::new(),
         }
     }
 
-    /// Get mutable access to a wrapped container.
-    ///
-    /// # Safety
-    ///
-    /// Lock is not acquired.
-    /// Therefore, the use of returned container
-    /// is not thread safe. Management of thread safety
-    /// is left to the carefull user.
-    pub unsafe fn deref_mut(&mut self) -> &mut C {
-        &mut *self.container
-    }
+    // /// Get mutable access to a wrapped container.
+    // ///
+    // /// # Safety
+    // ///
+    // /// Lock is not acquired.
+    // /// Therefore, the use of returned container
+    // /// is not thread safe. Management of thread safety
+    // /// is left to the careful user.
+    // fn deref_mut<'a>(&'a mut self) -> SharedPtrGuardMut<'a, C> {
+    //     self.container.as_mut()
+    // }
 
-    /// Lock the container for exclusive access.
-    pub fn lock_mut(&self) -> Result<(), LockError<()>> {
-        self.lock.lock_mut()
-    }
+    // /// Lock the container for exclusive access.
+    // fn lock_mut(&self) -> Result<(), LockError<()>> {
+    //     self.lock.lock_mut()
+    // }
 
-    /// Unlock the container.
-    pub fn unlock(&self) {
-        self.lock.unlock()
-    }
+    // /// Unlock the container.
+    // fn unlock(&self) {
+    //     self.lock.unlock()
+    // }
 }
 
 impl<'a, K, V, C> BuildingBlock<'a, K, V> for Sequential<C>
@@ -82,40 +82,46 @@ where
 {
     fn capacity(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
-        self.container.capacity()
+        self.container.as_ref().capacity()
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
         self.lock.lock().unwrap();
-        let out = Box::new(self.container.flush());
+        let mut container = self.container.as_mut();
+        let out = Box::new(container.flush());
         self.lock.unlock();
         out
     }
 
     fn count(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
-        self.container.count()
+        let container = self.container.as_ref();
+        container.count()
     }
 
     fn contains(&self, key: &K) -> bool {
         let _ = self.lock.lock_for(()).unwrap();
-        self.container.contains(key)
+        let container = self.container.as_ref();
+        container.contains(key)
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
         let _ = self.lock.lock_mut_for(()).unwrap();
-        self.container.take(key)
+        let mut container = self.container.as_mut();
+        container.take(key)
     }
 
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let _ = self.lock.lock_mut_for(()).unwrap();
-        self.container.pop(n)
+        let mut container = self.container.as_mut();
+        container.pop(n)
     }
 
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         match self.lock.lock_mut() {
             Ok(_) => {
-                let out = self.container.push(elements);
+                let mut container = self.container.as_mut();
+                let out = container.push(elements);
                 self.lock.unlock();
                 out
             }
@@ -206,7 +212,7 @@ where
 {
     unsafe fn get(&self, key: &K) -> Option<SequentialCell<U>> {
         match self.lock.lock() {
-            Ok(_) => match (*self.container).get(key) {
+            Ok(_) => match self.container.as_ref().get(key) {
                 None => {
                     self.lock.unlock();
                     None
@@ -225,7 +231,7 @@ where
 {
     unsafe fn get_mut(&mut self, key: &K) -> Option<SequentialCell<W>> {
         match self.lock.lock_mut() {
-            Ok(_) => match (*self.container).get_mut(key) {
+            Ok(_) => match self.container.as_mut().get_mut(key) {
                 None => {
                     self.lock.unlock();
                     None
@@ -249,12 +255,14 @@ where
 {
     fn prefetch(&mut self, keys: Vec<K>) {
         let _ = self.lock.lock_for(()).unwrap();
-        self.container.prefetch(keys)
+        let mut container = self.container.as_mut();
+        container.prefetch(keys)
     }
 
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
         let _ = self.lock.lock_for(()).unwrap();
-        self.container.take_multiple(keys)
+        let mut container = self.container.as_mut();
+        container.take_multiple(keys)
     }
 }
 

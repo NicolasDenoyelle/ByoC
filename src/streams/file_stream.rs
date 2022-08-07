@@ -1,4 +1,4 @@
-use crate::private::lock::RWLock;
+use crate::internal::lock::RWLock;
 #[cfg(feature = "tempfile")]
 use crate::streams::StreamFactory;
 use crate::streams::{Stream, StreamBase};

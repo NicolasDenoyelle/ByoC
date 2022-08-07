@@ -1,6 +1,6 @@
-use crate::private::bits::log2;
-use crate::private::io_vec::{IOStructMut, IOVec};
-use crate::private::set::MinSet;
+use crate::internal::bits::log2;
+use crate::internal::io_vec::{IOStructMut, IOVec};
+use crate::internal::set::MinSet;
 use crate::streams::{Stream, StreamFactory};
 use crate::{BuildingBlock, Get, GetMut, Ordered, Prefetch};
 use serde::{de::DeserializeOwned, Serialize};

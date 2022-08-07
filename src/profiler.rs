@@ -1,4 +1,4 @@
-use crate::private::clone::CloneCell;
+use crate::internal::SharedPtr;
 use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered, Prefetch};
 #[cfg(feature = "serde")]
 use serde::Deserialize;
@@ -165,7 +165,7 @@ pub struct Profiler<C> {
     cache: C,
     name: String,
     output: ProfilerOutputKind,
-    stats: CloneCell<Stats>,
+    stats: SharedPtr<Stats>,
 }
 
 impl<C> Drop for Profiler<C> {
@@ -176,31 +176,31 @@ impl<C> Drop for Profiler<C> {
         match &self.output {
             ProfilerOutputKind::None => {}
             ProfilerOutputKind::Stdout => {
-                print_it!(self.stats, count, prefix);
-                print_it!(self.stats, contains, prefix);
-                print_it!(self.stats, take, prefix);
-                print_it!(self.stats, pop, prefix);
-                print_it!(self.stats, push, prefix);
-                print_it!(self.stats, flush, prefix);
-                print_it!(self.stats, flush_iter, prefix);
-                print_it!(self.stats, get, prefix);
-                print_it!(self.stats, get_mut, prefix);
-                print_it!(self.stats, hit, prefix);
-                print_it!(self.stats, miss, prefix);
+                print_it!(self.stats.as_ref(), count, prefix);
+                print_it!(self.stats.as_ref(), contains, prefix);
+                print_it!(self.stats.as_ref(), take, prefix);
+                print_it!(self.stats.as_ref(), pop, prefix);
+                print_it!(self.stats.as_ref(), push, prefix);
+                print_it!(self.stats.as_ref(), flush, prefix);
+                print_it!(self.stats.as_ref(), flush_iter, prefix);
+                print_it!(self.stats.as_ref(), get, prefix);
+                print_it!(self.stats.as_ref(), get_mut, prefix);
+                print_it!(self.stats.as_ref(), hit, prefix);
+                print_it!(self.stats.as_ref(), miss, prefix);
             }
             ProfilerOutputKind::File(s) => match File::create(s) {
                 Ok(mut f) => {
-                    write_it!(self.stats, count, prefix, f);
-                    write_it!(self.stats, contains, prefix, f);
-                    write_it!(self.stats, take, prefix, f);
-                    write_it!(self.stats, pop, prefix, f);
-                    write_it!(self.stats, push, prefix, f);
-                    write_it!(self.stats, flush, prefix, f);
-                    write_it!(self.stats, flush_iter, prefix, f);
-                    write_it!(self.stats, get, prefix, f);
-                    write_it!(self.stats, get_mut, prefix, f);
-                    write_it!(self.stats, hit, prefix, f);
-                    write_it!(self.stats, miss, prefix, f);
+                    write_it!(self.stats.as_ref(), count, prefix, f);
+                    write_it!(self.stats.as_ref(), contains, prefix, f);
+                    write_it!(self.stats.as_ref(), take, prefix, f);
+                    write_it!(self.stats.as_ref(), pop, prefix, f);
+                    write_it!(self.stats.as_ref(), push, prefix, f);
+                    write_it!(self.stats.as_ref(), flush, prefix, f);
+                    write_it!(self.stats.as_ref(), flush_iter, prefix, f);
+                    write_it!(self.stats.as_ref(), get, prefix, f);
+                    write_it!(self.stats.as_ref(), get_mut, prefix, f);
+                    write_it!(self.stats.as_ref(), hit, prefix, f);
+                    write_it!(self.stats.as_ref(), miss, prefix, f);
                 }
                 Err(e) => {
                     println!(
@@ -220,7 +220,7 @@ impl<C> Profiler<C> {
             cache,
             name: String::from(name),
             output,
-            stats: CloneCell::new(Stats::new()),
+            stats: SharedPtr::from(Stats::new()),
         }
     }
 
@@ -228,56 +228,56 @@ impl<C> Profiler<C> {
     /// [`count()`](trait.BuildingBlock.html#tymethod.count) method call
     /// and (1) the total time spent in nanoseconds in these calls.
     pub fn count_stats(&self) -> (u64, u64) {
-        self.stats.count.read()
+        self.stats.as_ref().count.read()
     }
     /// Get a summary of (0) the number of
     /// [`contain()`](trait.BuildingBlock.html#tymethod.contain) method
     /// call and (1) the total time spent in nanoseconds in these calls.
     pub fn contains_stats(&self) -> (u64, u64) {
-        self.stats.contains.read()
+        self.stats.as_ref().contains.read()
     }
     /// Get a summary of (0) the number of
     /// [`take()`](trait.BuildingBlock.html#tymethod.take) method
     /// call and (1) the total time spent in nanoseconds in these calls.
     pub fn take_stats(&self) -> (u64, u64) {
-        self.stats.take.read()
+        self.stats.as_ref().take.read()
     }
     /// Get a summary of (0) the number of
     /// [`pop()`](trait.BuildingBlock.html#tymethod.pop) method
     /// call and (1) the total time spent in nanoseconds in these calls.
     pub fn pop_stats(&self) -> (u64, u64) {
-        self.stats.pop.read()
+        self.stats.as_ref().pop.read()
     }
     /// Get a summary of (0) the number of
     /// [`push()`](trait.BuildingBlock.html#tymethod.push) method
     /// call and (1) the total time spent in nanoseconds in these calls.
     pub fn push_stats(&self) -> (u64, u64) {
-        self.stats.push.read()
+        self.stats.as_ref().push.read()
     }
     /// Get a summary of (0) the number of
     /// [`flush()`](trait.BuildingBlock.html#tymethod.flush) method
     /// call and (1) the total time spent in nanoseconds in these calls.
     pub fn flush_stats(&self) -> (u64, u64) {
-        self.stats.flush.read()
+        self.stats.as_ref().flush.read()
     }
     /// Get a summary of (0) the number of iterations performed on an
     /// iterator obtained through
     /// [`flush()`](trait.BuildingBlock.html#tymethod.flush) method
     /// and (1) the total time spent in nanoseconds on iterations.
     pub fn flush_iter_stats(&self) -> (u64, u64) {
-        self.stats.flush_iter.read()
+        self.stats.as_ref().flush_iter.read()
     }
     /// Get a summary of (0) the number of
     /// [`get()`](trait.Get.html#tymethod.get) method
     /// call and (1) the total time spent in nanoseconds in these calls.
     pub fn get_stats(&self) -> (u64, u64) {
-        self.stats.get.read()
+        self.stats.as_ref().get.read()
     }
     /// Get a summary of (0) the number of
     /// [`get_mut()`](trait.Get.html#tymethod.get_mut) method
     /// call and (1) the total time spent in nanoseconds in these calls.
     pub fn get_mut_stats(&self) -> (u64, u64) {
-        self.stats.get_mut.read()
+        self.stats.as_ref().get_mut.read()
     }
     /// Get the total amount of time user key query was matched with a key
     /// in the container when calling
@@ -286,7 +286,7 @@ impl<C> Profiler<C> {
     /// [`get()`](trait.Get.html#tymethod.get) or
     /// [`get_mut()`](trait.Get.html#tymethod.get_mut) methods.
     pub fn hit_stats(&self) -> (u64, u64) {
-        self.stats.hit.read()
+        self.stats.as_ref().hit.read()
     }
     /// Get the total amount of time user key query was not matched with a
     /// key in the container when calling
@@ -295,20 +295,20 @@ impl<C> Profiler<C> {
     /// [`get()`](trait.Get.html#tymethod.get) or
     /// [`get_mut()`](trait.Get.html#tymethod.get_mut) methods.
     pub fn miss_stats(&self) -> (u64, u64) {
-        self.stats.miss.read()
+        self.stats.as_ref().miss.read()
     }
 
     /// Get the total time spent in methods call so far.
     pub fn time_stats(&self) -> u64 {
-        let count_time = self.stats.count.read().1;
-        let contains_time = self.stats.contains.read().1;
-        let take_time = self.stats.take.read().1;
-        let pop_time = self.stats.pop.read().1;
-        let push_time = self.stats.push.read().1;
-        let flush_time = self.stats.flush.read().1;
-        let flush_iter_time = self.stats.flush_iter.read().1;
-        let get_time = self.stats.get.read().1;
-        let get_mut_time = self.stats.get_mut.read().1;
+        let count_time = self.stats.as_ref().count.read().1;
+        let contains_time = self.stats.as_ref().contains.read().1;
+        let take_time = self.stats.as_ref().take.read().1;
+        let pop_time = self.stats.as_ref().pop.read().1;
+        let push_time = self.stats.as_ref().push.read().1;
+        let flush_time = self.stats.as_ref().flush.read().1;
+        let flush_iter_time = self.stats.as_ref().flush_iter.read().1;
+        let get_time = self.stats.as_ref().get.read().1;
+        let get_mut_time = self.stats.as_ref().get_mut.read().1;
         count_time
             + contains_time
             + take_time
@@ -329,14 +329,14 @@ impl<C> Profiler<C> {
 /// of iterations.
 struct ProfilerFlushIter<'a, T> {
     elements: Box<dyn Iterator<Item = T> + 'a>,
-    stats: CloneCell<Stats>,
+    stats: SharedPtr<Stats>,
 }
 
 impl<'a, T> Iterator for ProfilerFlushIter<'a, T> {
     type Item = T;
     fn next(&mut self) -> Option<Self::Item> {
         let (time, item) = time_it!(self.elements.next());
-        self.stats.clone().flush_iter.add(1, time);
+        Clone::clone(&self.stats).as_mut().flush_iter.add(1, time);
         item
     }
 }
@@ -357,49 +357,49 @@ where
 
     fn count(&self) -> usize {
         let (time, count) = time_it!(self.cache.count());
-        self.stats.clone().count.add(1, time);
+        Clone::clone(&self.stats).as_mut().count.add(1, time);
         count
     }
 
     fn contains(&self, key: &K) -> bool {
         let (time, out) = time_it!(self.cache.contains(key));
-        self.stats.clone().contains.add(1, time);
+        Clone::clone(&self.stats).as_mut().contains.add(1, time);
         match out {
-            true => self.stats.clone().hit.add(1, time),
-            false => self.stats.clone().miss.add(1, time),
+            true => Clone::clone(&self.stats).as_mut().hit.add(1, time),
+            false => Clone::clone(&self.stats).as_mut().miss.add(1, time),
         };
         out
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
         let (time, out) = time_it!(self.cache.take(key));
-        self.stats.take.add(1, time);
+        self.stats.as_mut().take.add(1, time);
         match out {
-            Some(_) => self.stats.clone().hit.add(1, time),
-            None => self.stats.clone().miss.add(1, time),
+            Some(_) => Clone::clone(&self.stats).as_mut().hit.add(1, time),
+            None => Clone::clone(&self.stats).as_mut().miss.add(1, time),
         };
         out
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
         let (time, out) = time_it!(self.cache.flush());
-        self.stats.flush.add(1, time);
+        self.stats.as_mut().flush.add(1, time);
         Box::new(ProfilerFlushIter {
             elements: out,
-            stats: self.stats.clone(),
+            stats: Clone::clone(&self.stats),
         })
     }
 
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let (time, out) = time_it!(self.cache.pop(n));
-        self.stats.pop.add(n, time);
+        self.stats.as_mut().pop.add(n, time);
         out
     }
 
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = elements.len();
         let (time, out) = time_it!(self.cache.push(elements));
-        self.stats.push.add(n, time);
+        self.stats.as_mut().push.add(n, time);
         out
     }
 }
@@ -428,7 +428,7 @@ where
             cache: Concurrent::clone(&self.cache),
             name: self.name.clone(),
             output: self.output.clone(),
-            stats: self.stats.clone(),
+            stats: Clone::clone(&self.stats),
         }
     }
 }
@@ -444,10 +444,10 @@ where
 {
     unsafe fn get(&self, key: &K) -> Option<U> {
         let (time, out) = time_it!(self.cache.get(key));
-        self.stats.clone().get.add(1, time);
+        Clone::clone(&self.stats).as_mut().get.add(1, time);
         match out {
-            Some(_) => self.stats.clone().hit.add(1, time),
-            None => self.stats.clone().miss.add(1, time),
+            Some(_) => Clone::clone(&self.stats).as_mut().hit.add(1, time),
+            None => Clone::clone(&self.stats).as_mut().miss.add(1, time),
         };
         out
     }
@@ -460,10 +460,10 @@ where
 {
     unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
         let (time, out) = time_it!(self.cache.get_mut(key));
-        self.stats.get_mut.add(1, time);
+        self.stats.as_mut().get_mut.add(1, time);
         match out {
-            Some(_) => self.stats.clone().hit.add(1, time),
-            None => self.stats.clone().miss.add(1, time),
+            Some(_) => Clone::clone(&self.stats).as_mut().hit.add(1, time),
+            None => Clone::clone(&self.stats).as_mut().miss.add(1, time),
         };
         out
     }
@@ -486,11 +486,11 @@ where
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
         let n = keys.len();
         let (time, out) = time_it!(self.cache.take_multiple(keys));
-        self.stats.take.add(n, time);
+        self.stats.as_mut().take.add(n, time);
         let hits = out.len();
         let misses = n - hits;
-        self.stats.hit.add(hits, time);
-        self.stats.miss.add(misses, time);
+        self.stats.as_mut().hit.add(hits, time);
+        self.stats.as_mut().miss.add(misses, time);
         out
     }
 }
