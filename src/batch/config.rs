@@ -2,31 +2,29 @@ use crate::config::{
     BuildingBlockConfig, ConfigError, GenericConfig, GenericKey,
     GenericValue,
 };
-use crate::{Associative, BuildingBlock};
+use crate::{Batch, BuildingBlock};
 use serde::Deserialize;
-use std::collections::hash_map::DefaultHasher;
-use toml;
 
-/// Configuration format for [`Associative`](../struct.Associative.html)
+/// Configuration format for [`Batch`](../struct.Batch.html)
 /// containers.
 ///
 /// This configuration format is composed of an `id` field where the
-/// `id` value must be "AssociativeConfig"; and of an
+/// `id` value must be "BatchConfig"; and of an
 /// [`array of tables`](https://toml.io/en/v1.0.0#array-of-tables)
 /// where each "container" table is a container configuration.
 ///
-/// For instance, below is an [`Associative`](../struct.Associative.html)
-/// container of two buckets where each bucket is an
+/// For instance, below is a [`Batch`](../struct.Batch.html)
+/// container composed of two containers where each element is an
 /// [`Array`](../struct.Array.html) container. See
 /// [`ArrayConfig`](struct.ArrayConfig.html) for details on Array configuration
 /// format.
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::Builder;
-/// use byoc::config::{BuilderConfig, BuildingBlockConfig};
+/// use byoc::builder::Build;
+/// use byoc::config::{Builder, DynBuildingBlock};
 ///
 /// let config_str = format!("
-/// id='AssociativeConfig'
+/// id='BatchConfig'
 /// [[container]]
 /// id='ArrayConfig'
 /// capacity=10
@@ -34,36 +32,42 @@ use toml;
 /// id='ArrayConfig'
 /// capacity=10
 /// ");
-/// let container: Box<dyn BuildingBlock<u64, u64>> =
-///                BuilderConfig::from_str(config_str.as_str())
+/// let container: DynBuildingBlock<u64, u64> =
+///                Builder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
 #[derive(Deserialize, Clone)]
-pub struct AssociativeConfig {
+pub struct BatchConfig {
     #[allow(dead_code)]
     id: String,
     container: toml::value::Array,
 }
 
-impl BuildingBlockConfig for AssociativeConfig {
+impl BuildingBlockConfig for BatchConfig {
     fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
     where
         K: 'a + GenericKey,
         V: 'a + GenericValue,
     {
-        Box::new(Associative::new(
-            self.container
-                .into_iter()
-                .map(|cfg| GenericConfig::from_toml(cfg).unwrap().build())
-                .collect(),
-            DefaultHasher::new(),
-        ))
+        let c = self
+            .container
+            .into_iter()
+            .map(|cfg| GenericConfig::from_toml(cfg).unwrap().build())
+            .fold(Batch::new(), |acc, batch| acc.append(batch));
+        Box::new(c)
+    }
+
+    fn is_ordered(&self) -> bool {
+        self.container
+            .iter()
+            .map(|cfg| GenericConfig::from_toml(cfg.clone()).unwrap())
+            .all(|cfg| cfg.is_ordered())
     }
 
     fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
-        let cfg: AssociativeConfig = match toml::from_str(&toml) {
+        let cfg: BatchConfig = match toml::from_str(&toml) {
             Err(e) => return Err(ConfigError::TomlFormatError(e)),
             Ok(cfg) => cfg,
         };
@@ -79,53 +83,38 @@ impl BuildingBlockConfig for AssociativeConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{
-        AssociativeConfig, BuildingBlockConfig, ConfigError,
-    };
+    use super::BatchConfig;
+    use crate::config::{BuildingBlockConfig, ConfigError};
     use crate::BuildingBlock;
-    use toml;
 
     #[test]
-    fn test_valid_associative_config() {
+    fn test_valid_batch_config() {
         let array_capacity = 10;
         let config_str = format!(
-            "id='AssociativeConfig'
+            "id='BatchConfig'
 [[container]]
 id='ArrayConfig'
-capacity={}
-[[container]]
-id='ArrayConfig'
-capacity={}
-",
-            array_capacity, array_capacity
+capacity={}",
+            array_capacity
         );
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = AssociativeConfig::from_toml(value).unwrap();
-        assert_eq!(config.container.len(), 2);
+        let config = BatchConfig::from_toml(value).unwrap();
+        assert_eq!(config.container.len(), 1);
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
-        assert_eq!(container.capacity(), array_capacity * 2);
+        assert_eq!(container.capacity(), array_capacity);
     }
 
     #[test]
-    fn test_invalid_associative_config() {
-        let array_capacity = 10;
-        let config_str = format!(
-            "id='AssociativeConfig'
+    fn test_invalid_batch_config() {
+        let config_str = "id='BatchConfig'
 [[container]]
 id='ArrayConfig'
-capacity={}
-[[container]]
-id='ArrayConfg'
-capacity={}
-",
-            array_capacity, array_capacity
-        );
+capacity='ten'"
+            .to_string();
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        assert!(matches!(
-            AssociativeConfig::from_toml(value),
-            Err(ConfigError::ConfigFormatError(_))
-        ));
+        let out = BatchConfig::from_toml(value);
+        assert!(matches!(out, Err(ConfigError::ConfigFormatError(_))));
     }
 }

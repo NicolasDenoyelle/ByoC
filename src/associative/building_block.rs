@@ -39,6 +39,34 @@ where
         self.containers[i].take(key)
     }
 
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let mut ret = Vec::with_capacity(keys.len());
+
+        // Rearrange keys per set.
+        let mut set_keys: Vec<Vec<K>> =
+            Vec::with_capacity(self.containers.len());
+        for _ in 0..self.containers.len() {
+            set_keys.push(Vec::with_capacity(keys.len()));
+        }
+        for k in keys.drain(0..keys.len()) {
+            set_keys[self.set(k.clone())].push(k);
+        }
+
+        // Take from each bucket.
+        for (c, keys) in
+            self.containers.iter_mut().zip(set_keys.iter_mut())
+        {
+            ret.append(&mut c.take_multiple(keys));
+        }
+
+        // Put the remaining keys back in the input keys.
+        for mut sk in set_keys.into_iter() {
+            keys.append(&mut sk);
+        }
+
+        ret
+    }
+
     /// Remove up to `n` values from the container.
     /// If less than `n` values are stored in the container,
     /// the returned vector contains all the container values and

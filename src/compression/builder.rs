@@ -1,6 +1,6 @@
-use crate::builder::traits::*;
+use crate::builder::Build;
 use crate::stream::{Stream, StreamFactory};
-use crate::{Batch, Compressor};
+use crate::{Batch, Compressed};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 
@@ -9,22 +9,22 @@ use std::marker::PhantomData;
 /// This builder will create a [`batch`](../../struct.Batch.html) of
 /// `num_batch` smaller `Compression` building blocks, each with a set
 /// `batch_capacity` on a its own stream created with `stream_factory`.
-pub struct CompressorBuilder<'a, T, S, F>
+pub struct CompressedBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream<'a>,
+    S: Stream,
     F: StreamFactory<S>,
 {
     num_batch: usize,
     batch_capacity: usize,
     stream_factory: F,
-    unused: PhantomData<&'a (T, S)>,
+    unused: PhantomData<(T, S)>,
 }
 
-impl<'a, T, S, F> CompressorBuilder<'a, T, S, F>
+impl<T, S, F> CompressedBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream<'a>,
+    S: Stream,
     F: StreamFactory<S>,
 {
     pub fn new(
@@ -32,7 +32,7 @@ where
         batch_capacity: usize,
         stream_factory: F,
     ) -> Self {
-        CompressorBuilder {
+        CompressedBuilder {
             num_batch,
             batch_capacity,
             stream_factory,
@@ -41,14 +41,14 @@ where
     }
 }
 
-impl<'a, T, S, F> Clone for CompressorBuilder<'a, T, S, F>
+impl<T, S, F> Clone for CompressedBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream<'a>,
+    S: Stream,
     F: StreamFactory<S> + Clone,
 {
     fn clone(&self) -> Self {
-        CompressorBuilder {
+        CompressedBuilder {
             num_batch: self.num_batch,
             batch_capacity: self.batch_capacity,
             stream_factory: self.stream_factory.clone(),
@@ -57,68 +57,21 @@ where
     }
 }
 
-impl<'a, T, S, F> Builder<Batch<Compressor<'a, T, S>>>
-    for CompressorBuilder<'a, T, S, F>
+impl<T, S, F> Build<Batch<Compressed<T, S>>> for CompressedBuilder<T, S, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream<'a>,
+    S: Stream,
     F: StreamFactory<S>,
 {
-    fn build(mut self) -> Batch<Compressor<'a, T, S>> {
-        let mut b = Batch::<Compressor<'a, T, S>>::new();
-        for _ in 0..self.num_batch {
-            b.append(Compressor::new(
-                self.stream_factory.create(),
-                self.batch_capacity,
-            ));
-        }
-        b
+    fn build(mut self) -> Batch<Compressed<T, S>> {
+        (0..self.num_batch).fold(
+            Batch::<Compressed<T, S>>::new(),
+            |acc, _| {
+                acc.append(Compressed::new(
+                    self.stream_factory.create(),
+                    self.batch_capacity,
+                ))
+            },
+        )
     }
-}
-
-impl<'a, T, S, F, H: std::hash::Hasher + Clone>
-    Associative<Batch<Compressor<'a, T, S>>, H>
-    for CompressorBuilder<'a, T, S, F>
-where
-    T: Serialize + DeserializeOwned,
-    S: Stream<'a>,
-    F: StreamFactory<S> + Clone,
-{
-}
-
-impl<'a, T, S, F> Policy<Batch<Compressor<'a, T, S>>>
-    for CompressorBuilder<'a, T, S, F>
-where
-    T: Serialize + DeserializeOwned,
-    S: Stream<'a>,
-    F: StreamFactory<S>,
-{
-}
-
-impl<'a, T, S, F> Profiler<Batch<Compressor<'a, T, S>>>
-    for CompressorBuilder<'a, T, S, F>
-where
-    T: Serialize + DeserializeOwned,
-    S: Stream<'a>,
-    F: StreamFactory<S>,
-{
-}
-
-impl<'a, T, S, F> Sequential<Batch<Compressor<'a, T, S>>>
-    for CompressorBuilder<'a, T, S, F>
-where
-    T: Serialize + DeserializeOwned,
-    S: Stream<'a>,
-    F: StreamFactory<S>,
-{
-}
-
-impl<'a, T, S, F, R, RB> Multilevel<Batch<Compressor<'a, T, S>>, R, RB>
-    for CompressorBuilder<'a, T, S, F>
-where
-    T: Serialize + DeserializeOwned,
-    S: Stream<'a>,
-    F: StreamFactory<S>,
-    RB: Builder<R>,
-{
 }

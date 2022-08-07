@@ -14,7 +14,7 @@ repos:
     -   id: cargo-check
         args: [--offline, --all-targets, --all-features]
     -   id: clippy
-        args: [--fix, --allow-staged, --allow-dirty]
+        args: [--fix, --allow-staged, --allow-dirty, --all-features]
 
 -   repo: https://github.com/crate-ci/typos
     rev: v1.10.1

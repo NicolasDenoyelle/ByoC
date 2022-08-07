@@ -6,25 +6,25 @@ use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 
 /// Implementation of [`Reference`](trait.Reference.html)
-/// with a Least Recently Used (LRU) eviction policy.
+/// with a Least Recently Used (Lru) eviction policy.
 ///
-/// See /// See [`LRU`](struct.LRU.html)
+/// See /// See [`Lru`](struct.Lru.html)
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct LRUCell<V, T: Timestamp> {
+pub struct LruCell<V, T: Timestamp> {
     value: V,
     /// Last access time.
     timestamp: Cell<T>,
 }
 
-/// Value wrappers implementing Least Recently Used ordering.
+/// Reference implementation of Least Recently Used ordering.
 ///
-/// `LRU` wraps values into cells implementing LRU ordering policy.
+/// `Lru` wraps values into cells implementing Lru ordering policy.
 /// The purpose of this policy is to keep in the cache the most recently
 /// used elements while the least recently used one are elected for
 /// eviction.
 ///
-/// LRU implementation keep a timestamp of last access in the cell wrapping
+/// Lru implementation keep a timestamp of last access in the cell wrapping
 /// the value on which to track last access. When the value is accessed
 /// the timestamp is updated to the time of the access.
 ///
@@ -32,59 +32,59 @@ pub struct LRUCell<V, T: Timestamp> {
 ///
 /// ```
 /// use byoc::{Array, Policy};
-/// use byoc::policy::LRU;
+/// use byoc::policy::Lru;
 /// use byoc::policy::timestamp::Clock;
 ///
-/// // let c = Policy::new(Array::new(3), LRU::<Clock>::new());
+/// // let c = Policy::new(Array::new(3), Lru::<Clock>::new());
 /// ```
-pub struct LRU<T: Timestamp> {
+pub struct Lru<T: Timestamp> {
     phantom: std::marker::PhantomData<T>,
 }
 
-impl<T: Timestamp> Clone for LRU<T> {
+impl<T: Timestamp> Clone for Lru<T> {
     fn clone(&self) -> Self {
-        LRU {
+        Lru {
             phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<T: Timestamp> LRU<T> {
+impl<T: Timestamp> Lru<T> {
     pub fn new() -> Self {
-        LRU {
+        Lru {
             phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<T: Timestamp> Default for LRU<T> {
+impl<T: Timestamp> Default for Lru<T> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<V, T: Timestamp> ReferenceFactory<V, LRUCell<V, T>> for LRU<T> {
-    fn wrap(&mut self, v: V) -> LRUCell<V, T> {
-        LRUCell {
+impl<V, T: Timestamp> ReferenceFactory<V, LruCell<V, T>> for Lru<T> {
+    fn wrap(&mut self, v: V) -> LruCell<V, T> {
+        LruCell {
             value: v,
-            timestamp: Cell::new(T::new()),
+            timestamp: Cell::new(T::now()),
         }
     }
 }
 
-unsafe impl<T: Timestamp> Send for LRU<T> {}
-unsafe impl<T: Timestamp> Sync for LRU<T> {}
+unsafe impl<T: Timestamp> Send for Lru<T> {}
+unsafe impl<T: Timestamp> Sync for Lru<T> {}
 
-impl<V, T: Timestamp> LRUCell<V, T> {
+impl<V, T: Timestamp> LruCell<V, T> {
     pub fn new(e: V) -> Self {
-        LRUCell {
+        LruCell {
             value: e,
-            timestamp: Cell::new(T::new()),
+            timestamp: Cell::new(T::now()),
         }
     }
 }
 
-impl<V, T: Timestamp> Ord for LRUCell<V, T> {
+impl<V, T: Timestamp> Ord for LruCell<V, T> {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.timestamp.get().cmp(&other.timestamp.get()) {
             Ordering::Less => Ordering::Greater,
@@ -94,44 +94,44 @@ impl<V, T: Timestamp> Ord for LRUCell<V, T> {
     }
 }
 
-impl<V, T: Timestamp> PartialOrd for LRUCell<V, T> {
+impl<V, T: Timestamp> PartialOrd for LruCell<V, T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<V, T: Timestamp> PartialEq for LRUCell<V, T> {
+impl<V, T: Timestamp> PartialEq for LruCell<V, T> {
     fn eq(&self, other: &Self) -> bool {
         self.timestamp.get() == other.timestamp.get()
     }
 }
 
-impl<V, T: Timestamp> Eq for LRUCell<V, T> {}
+impl<V, T: Timestamp> Eq for LruCell<V, T> {}
 
-impl<V, T: Timestamp> Reference<V> for LRUCell<V, T> {
+impl<V, T: Timestamp> Reference<V> for LruCell<V, T> {
     fn unwrap(self) -> V {
         self.value
     }
     fn get(&self) -> &V {
-        self.timestamp.set(T::new());
+        self.timestamp.set(T::now());
         &self.value
     }
     fn get_mut(&mut self) -> &mut V {
-        self.timestamp.set(T::new());
+        self.timestamp.set(T::now());
         &mut self.value
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::LRUCell;
+    use super::LruCell;
     use crate::policy::timestamp::Counter;
     use crate::policy::Reference;
 
     #[test]
     fn test_lru_ref() {
-        let lfu_0 = LRUCell::<u32, Counter>::new(999u32);
-        let lfu_1 = LRUCell::<u32, Counter>::new(666u32);
+        let lfu_0 = LruCell::<u32, Counter>::new(999u32);
+        let lfu_1 = LruCell::<u32, Counter>::new(666u32);
         assert!(lfu_0 > lfu_1); // lfu_1 is the most recently created.
         lfu_0.get();
         assert!(lfu_0 < lfu_1); // lfu_0 is the most recently used.

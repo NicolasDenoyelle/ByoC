@@ -2,73 +2,81 @@ use crate::config::{
     BuildingBlockConfig, ConfigError, GenericConfig, GenericKey,
     GenericValue,
 };
-use crate::{BuildingBlock, Multilevel};
+use crate::{BuildingBlock, Exclusive};
 use serde::Deserialize;
-use toml;
 
-/// Configuration format for [`Multilevel`](../struct.Multilevel.html)
+/// Configuration format for [`Exclusive`](../struct.Exclusive.html)
 /// containers.
 ///
 /// This configuration format is composed of an `id` field where the
-/// `id` value must be "MultilevelConfig"; and of two
-/// [`toml tables`](https://toml.io/en/v1.0.0#table) `left` and `right`
+/// `id` value must be "ExclusiveConfig"; and of two
+/// [`toml tables`](https://toml.io/en/v1.0.0#table) `front` and `back`
 /// where representing respectively the first tier of storage where element are
 /// accessed and the second tier of storage where popped elements from the first
 /// tier go.
 ///
-/// For instance, below is a [`Multilevel`](../struct.Multilevel.html)
+/// For instance, below is a [`Exclusive`](../struct.Exclusive.html)
 /// container of two buckets where each tier is an
 /// [`Array`](../struct.Array.html) container. See
 /// [`ArrayConfig`](struct.ArrayConfig.html) for details on Array configuration
 /// format.
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::Builder;
-/// use byoc::config::{BuilderConfig, BuildingBlockConfig};
+/// use byoc::builder::Build;
+/// use byoc::config::{Builder, DynBuildingBlock};
 ///
 /// let config_str = format!("
-/// id='MultilevelConfig'
-/// [left]
+/// id='ExclusiveConfig'
+/// [front]
 /// id='ArrayConfig'
 /// capacity=10
-/// [right]
+/// [back]
 /// id='ArrayConfig'
 /// capacity=10
 /// ");
-/// let container: Box<dyn BuildingBlock<u64, u64>> =
-///                BuilderConfig::from_str(config_str.as_str())
+/// let container: DynBuildingBlock<u64, u64> =
+///                Builder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
 #[derive(Deserialize, Clone)]
-pub struct MultilevelConfig {
+pub struct ExclusiveConfig {
     #[allow(dead_code)]
     id: String,
-    left: toml::Value,
-    right: toml::Value,
+    front: toml::Value,
+    back: toml::Value,
 }
 
-impl BuildingBlockConfig for MultilevelConfig {
+impl BuildingBlockConfig for ExclusiveConfig {
     fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
     where
         K: 'a + GenericKey,
         V: 'a + GenericValue,
     {
-        Box::new(Multilevel::new(
-            GenericConfig::from_toml(self.left).unwrap().build(),
-            GenericConfig::from_toml(self.right).unwrap().build(),
+        Box::new(Exclusive::new(
+            GenericConfig::from_toml(self.front).unwrap().build(),
+            GenericConfig::from_toml(self.back).unwrap().build(),
         ))
+    }
+
+    fn is_ordered(&self) -> bool {
+        GenericConfig::from_toml(self.front.clone())
+            .unwrap()
+            .has_ordered_trait
+            && GenericConfig::from_toml(self.back.clone())
+                .unwrap()
+                .has_ordered_trait
     }
 
     fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
-        let cfg: MultilevelConfig = match toml::from_str(&toml) {
+        let cfg: ExclusiveConfig = match toml::from_str(&toml) {
             Err(e) => return Err(ConfigError::TomlFormatError(e)),
             Ok(cfg) => cfg,
         };
         match (
-            GenericConfig::from_toml(cfg.left.clone()),
-            GenericConfig::from_toml(cfg.right.clone()),
+            GenericConfig::from_toml(cfg.front.clone()),
+            GenericConfig::from_toml(cfg.back.clone()),
         ) {
             (Ok(_), Ok(_)) => Ok(cfg),
             (Ok(_), Err(e)) => Err(e),
@@ -79,21 +87,19 @@ impl BuildingBlockConfig for MultilevelConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{
-        BuildingBlockConfig, ConfigError, MultilevelConfig,
-    };
+    use super::ExclusiveConfig;
+    use crate::config::{BuildingBlockConfig, ConfigError};
     use crate::BuildingBlock;
-    use toml;
 
     #[test]
-    fn test_valid_multilevel_config() {
+    fn test_valid_exclusive_config() {
         let array_capacity = 10;
         let config_str = format!(
-            "id='MultilevelConfig'
-[left]
+            "id='ExclusiveConfig'
+[front]
 id='ArrayConfig'
 capacity={}
-[right]
+[back]
 id='ArrayConfig'
 capacity={}
 ",
@@ -101,27 +107,26 @@ capacity={}
         );
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = MultilevelConfig::from_toml(value).unwrap();
+        let config = ExclusiveConfig::from_toml(value).unwrap();
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(container.capacity(), array_capacity * 2);
     }
 
     #[test]
-    fn test_invalid_multilevel_config() {
-        let config_str = format!(
-            "id='MultilevelConfig'
-[left]
+    fn test_invalid_exclusive_config() {
+        let config_str = "id='ExclusiveConfig'
+[front]
 id='ArrayConfig'
 capacity=10
-[right]
+[back]
 id='ArrayConfig'
 toto='titi'
 "
-        );
+        .to_string();
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(
-            MultilevelConfig::from_toml(value),
+            ExclusiveConfig::from_toml(value),
             Err(ConfigError::ConfigFormatError(_))
         ));
     }

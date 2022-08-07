@@ -1,5 +1,6 @@
-use crate::builder::traits::{Associative, Builder, Multilevel};
-use crate::{Profiler, ProfilerOutputKind};
+use crate::builder::Build;
+use crate::utils::profiler::ProfilerOutputKind;
+use crate::Profiler;
 use std::marker::PhantomData;
 
 /// `Profiler` container builder.
@@ -8,11 +9,12 @@ use std::marker::PhantomData;
 /// [`Profiler`](../../struct.Profiler.html)
 /// container.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// ```
-/// use byoc::{BuildingBlock, ProfilerOutputKind};
-/// use byoc::builder::traits::*;
+/// use byoc::BuildingBlock;
+/// use byoc::utils::profiler::ProfilerOutputKind;
+/// use byoc::builder::Build;
 /// use byoc::builder::builders::{ArrayBuilder, ProfilerBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
@@ -30,7 +32,7 @@ use std::marker::PhantomData;
 /// ```
 pub struct ProfilerBuilder<C, B>
 where
-    B: Builder<C>,
+    B: Build<C>,
 {
     builder: B,
     name: String,
@@ -40,7 +42,7 @@ where
 
 impl<C, B> ProfilerBuilder<C, B>
 where
-    B: Builder<C>,
+    B: Build<C>,
 {
     pub fn new(
         name: &str,
@@ -58,7 +60,7 @@ where
 
 impl<C, B> Clone for ProfilerBuilder<C, B>
 where
-    B: Builder<C> + Clone,
+    B: Build<C> + Clone,
 {
     fn clone(&self) -> Self {
         ProfilerBuilder {
@@ -70,24 +72,9 @@ where
     }
 }
 
-impl<C, B, H: std::hash::Hasher + Clone> Associative<Profiler<C>, H>
-    for ProfilerBuilder<C, B>
+impl<C, B> Build<Profiler<C>> for ProfilerBuilder<C, B>
 where
-    B: Builder<C> + Clone,
-{
-}
-
-impl<L, LB, R, RB> Multilevel<Profiler<L>, R, RB>
-    for ProfilerBuilder<L, LB>
-where
-    LB: Builder<L>,
-    RB: Builder<R>,
-{
-}
-
-impl<C, B> Builder<Profiler<C>> for ProfilerBuilder<C, B>
-where
-    B: Builder<C>,
+    B: Build<C>,
 {
     fn build(self) -> Profiler<C> {
         Profiler::new(

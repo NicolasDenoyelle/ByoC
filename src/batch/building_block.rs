@@ -24,6 +24,17 @@ where
         self.bb.iter_mut().find_map(|c| c.take(key))
     }
 
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let mut out = Vec::with_capacity(keys.len());
+        for c in self.bb.iter_mut() {
+            if keys.is_empty() {
+                break;
+            }
+            out.append(&mut c.take_multiple(keys))
+        }
+        out
+    }
+
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let mut out = Vec::with_capacity(n * self.bb.len());
 

@@ -1,5 +1,5 @@
 extern crate rand;
-use crate::{BuildingBlock, Get, GetMut, Prefetch};
+use crate::{BuildingBlock, Get, GetMut};
 use rand::random;
 use std::ops::{Deref, DerefMut};
 
@@ -182,38 +182,19 @@ where
         test_pop(c, inserted.len() - 1);
         test_pop(c, 1);
     }
-}
 
-pub fn test_building_block<'a, C>(mut c: C)
-where
-    C: BuildingBlock<'a, TestKey, TestValue>,
-{
-    let capacity = c.capacity();
-    test_n(&mut c, 0);
-    test_n(&mut c, capacity / 2);
-    test_n(&mut c, capacity);
-    test_n(&mut c, capacity * 2);
-}
+    // Flush Test
+    drop(c.flush());
+    assert_eq!(c.count(), 0);
 
-pub fn test_prefetch<'a, C>(mut c: C)
-where
-    C: BuildingBlock<'a, TestKey, TestValue>
-        + Prefetch<'a, TestKey, TestValue>,
-{
-    let n = c.capacity();
+    // take_multiple() Test
     let elements: TestElements = (0..n as u64)
         .map(|i| (i as TestKey, rand(0u64, n as u64) as TestValue))
         .collect();
-    let (mut inserted, _) = insert(&mut c, elements);
+    let (mut inserted, _) = insert(c, elements);
 
     let mut all_keys: Vec<TestKey> =
         inserted.iter().map(|(k, _)| *k).collect();
-
-    // Make sure prefetch method keeps everything inside the container.
-    c.prefetch(all_keys.clone());
-    for (k, _) in inserted.iter() {
-        assert!(c.contains(k));
-    }
 
     let mut take_all = c.take_multiple(&mut all_keys);
 
@@ -232,4 +213,15 @@ where
     for (a, b) in inserted.iter().zip(take_all.iter()) {
         assert_eq!(a, b);
     }
+}
+
+pub fn test_building_block<'a, C>(mut c: C)
+where
+    C: BuildingBlock<'a, TestKey, TestValue>,
+{
+    let capacity = c.capacity();
+    test_n(&mut c, 0);
+    test_n(&mut c, capacity / 2);
+    test_n(&mut c, capacity);
+    test_n(&mut c, capacity * 2);
 }

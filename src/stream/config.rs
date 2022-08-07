@@ -2,9 +2,9 @@ use crate::config::{BuildingBlockConfig, ConfigError};
 use crate::{BuildingBlock, Stream};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::streams::TempFileStreamFactory;
+use crate::stream::TempFileStreamFactory;
 #[cfg(not(feature = "tempfile"))]
-use crate::streams::VecStreamFactory;
+use crate::stream::VecStreamFactory;
 
 /// Configuration format for [`Stream`](../struct.Stream.html)
 /// containers.
@@ -20,16 +20,16 @@ use crate::streams::VecStreamFactory;
 /// [`Stream`](../struct.Stream.html).
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::Builder;
-/// use byoc::config::{BuilderConfig, BuildingBlockConfig};
+/// use byoc::builder::Build;
+/// use byoc::config::{Builder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id='StreamConfig'
 /// capacity=10
 /// ");
 ///
-/// let container: Box<dyn BuildingBlock<u64, u64>> =
-///                BuilderConfig::from_str(config_str.as_str())
+/// let container: DynBuildingBlock<u64, u64> =
+///                Builder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -46,18 +46,21 @@ impl BuildingBlockConfig for StreamConfig {
         Self: Sized,
     {
         let toml = toml::to_string(&value).unwrap();
-        match toml::from_str(&toml) {
-            Err(e) => Err(ConfigError::ConfigFormatError(format!(
+        toml::from_str(&toml).map_err(|e| {
+            ConfigError::ConfigFormatError(format!(
                 "Invalid StreamConfig: {}\n{:?}",
                 toml, e
-            ))),
-            Ok(cfg) => Ok(cfg),
-        }
+            ))
+        })
+    }
+
+    fn is_ordered(&self) -> bool {
+        true
     }
 
     fn build<
         'a,
-        K: 'a + DeserializeOwned + Serialize + Eq,
+        K: 'a + DeserializeOwned + Serialize + Ord,
         V: 'a + DeserializeOwned + Serialize + Ord,
     >(
         self,
@@ -78,7 +81,6 @@ mod tests {
     use super::StreamConfig;
     use crate::config::{BuildingBlockConfig, ConfigError};
     use crate::BuildingBlock;
-    use toml;
 
     #[test]
     fn test_valid_stream_config() {
@@ -95,7 +97,7 @@ mod tests {
 
     #[test]
     fn test_invalid_stream_config() {
-        let config_str = format!("id='StreamConfig'\ncapacity='ten'");
+        let config_str = "id='StreamConfig'\ncapacity='ten'".to_string();
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(

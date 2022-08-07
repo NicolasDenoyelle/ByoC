@@ -2,9 +2,9 @@ use crate::config::{
     BuildingBlockConfig, ConfigError, GenericConfig, GenericKey,
     GenericValue,
 };
-use crate::{BuildingBlock, Profiler, ProfilerOutputKind};
+use crate::utils::profiler::ProfilerOutputKind;
+use crate::{BuildingBlock, Profiler};
 use serde::Deserialize;
-use toml;
 
 /// Configuration format for [`Profiler`](../struct.Profiler.html)
 /// containers.
@@ -20,8 +20,8 @@ use toml;
 /// information to stdout.
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::Builder;
-/// use byoc::config::{BuilderConfig, BuildingBlockConfig};
+/// use byoc::builder::Build;
+/// use byoc::config::{Builder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id='ProfilerConfig'
@@ -36,8 +36,8 @@ use toml;
 /// // output.kind='File'
 /// // output.filename='/dev/stdout'
 ///
-/// let container: Box<dyn BuildingBlock<u64, u64>> =
-///                BuilderConfig::from_str(config_str.as_str())
+/// let container: DynBuildingBlock<u64, u64> =
+///                Builder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -63,6 +63,12 @@ impl BuildingBlockConfig for ProfilerConfig {
         ))
     }
 
+    fn is_ordered(&self) -> bool {
+        GenericConfig::from_toml(self.container.clone())
+            .unwrap()
+            .has_ordered_trait
+    }
+
     fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: ProfilerConfig = match toml::from_str(&toml) {
@@ -78,11 +84,9 @@ impl BuildingBlockConfig for ProfilerConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{
-        BuildingBlockConfig, ConfigError, ProfilerConfig,
-    };
+    use super::ProfilerConfig;
+    use crate::config::{BuildingBlockConfig, ConfigError};
     use crate::BuildingBlock;
-    use toml;
 
     #[test]
     fn test_valid_profiler_config() {
@@ -107,8 +111,7 @@ capacity={}
 
     #[test]
     fn test_invalid_profiler_config() {
-        let config_str = format!(
-            "
+        let config_str = "
 id='ProfilerConfig'
 name=10
 output.kind='None'
@@ -116,7 +119,7 @@ output.kind='None'
 id='ArrayConfig'
 capacity=10
 "
-        );
+        .to_string();
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(

@@ -38,6 +38,12 @@ where
         container.take(key)
     }
 
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let _ = self.lock.lock_for(()).unwrap();
+        let mut container = self.container.as_mut();
+        container.take_multiple(keys)
+    }
+
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         let _ = self.lock.lock_mut_for(()).unwrap();
         let mut container = self.container.as_mut();

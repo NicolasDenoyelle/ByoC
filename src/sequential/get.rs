@@ -9,7 +9,7 @@ use std::ops::{Deref, DerefMut};
 /// where the element comes from. The lock is either shared or exclusive
 /// depending on whether the element is read-only or read-write.
 ///
-/// # Safety:
+/// ## Safety:
 ///
 /// While this structure will prevent unsafe access between the
 /// values and the building block containing them, if an unsafe access to

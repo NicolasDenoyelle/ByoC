@@ -36,7 +36,7 @@ impl<T: Timestamp + Copy> Stats<T> {
     pub fn new(exponent: f32) -> Self {
         Stats {
             exponent,
-            last: T::new(),
+            last: T::now(),
             eavg: 0f32,
         }
     }
@@ -47,7 +47,7 @@ impl<T: Timestamp + Copy> Stats<T> {
     /// last touch. The difference is summed to the current statistic
     /// and the total statistic is then divided by the tracker exponent.
     pub fn touch(&mut self) {
-        let last = T::new();
+        let last = T::now();
         let diff = last.diff(&self.last);
         self.last = last;
         self.eavg = diff + self.eavg / self.exponent;
@@ -55,67 +55,67 @@ impl<T: Timestamp + Copy> Stats<T> {
 
     /// Read the current statistic of this tracker.
     pub fn score(&self) -> f32 {
-        T::new().diff(&self.last) + self.eavg / self.exponent
+        T::now().diff(&self.last) + self.eavg / self.exponent
     }
 }
 
 /// Implementation of [`Reference`](trait.Reference.html)
-/// with a Least Recently Frequently Used (LRFU) eviction policy.
+/// with a Least Recently Frequently Used (Lrfu) eviction policy.
 ///
-/// `LRFUCell` references implement an order
-/// based on the Least Recently Frequently Used (LRFU) policy.
+/// `LrfuCell` references implement an order
+/// based on the Least Recently Frequently Used (Lrfu) policy.
 ///
-/// See [`LRFU`](struct.LRFU.html)
+/// See [`Lrfu`](struct.Lrfu.html)
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct LRFUCell<V, T: Timestamp + Copy> {
+pub struct LrfuCell<V, T: Timestamp + Copy> {
     /// Reference value.
     value: V,
     stats: Cell<Stats<T>>,
 }
 
-/// Value wrappers implementing Least Recently Frequently Used ordering.
+/// Reference implementation of Least Recently Frequently Used ordering.
 ///
-/// `LRFU` wraps values into cells implementing LRFU ordering policy.
+/// `Lrfu` wraps values into cells implementing Lrfu ordering policy.
 /// It tries to keep in cache frequently used elements while giving a chance
 /// to recently added but not frequently used elements to stay in the cache.
 /// When a cache lookup occurs the state of the cell is updated
 /// according to the number of times it is accessed and the timestamp of
 /// accesses.
 ///
-/// When a cache element wrapped into a LRFU cell is accessed, its
+/// When a cache element wrapped into a Lrfu cell is accessed, its
 /// statistic is updated as follow:
 /// the time difference between now and the timestamp of
 /// last touch is computed. The difference is summed to the current
 /// statistic and the total statistic is then divided by the policy
 /// `exponent`.
 ///
-/// See [`LRFU::new()`](struct.LRFU.html#tymethod.new)
+/// See [`Lrfu::new()`](struct.Lrfu.html#tymethod.new)
 ///
 /// ## Examples
 ///
 /// ```
 /// use byoc::{Array, Policy};
-/// use byoc::policy::LRFU;
+/// use byoc::policy::Lrfu;
 ///
-/// // let c = Policy::new(Array::new(3), LRFU::new(2.0));
+/// // let c = Policy::new(Array::new(3), Lrfu::new(2.0));
 /// ```
-pub struct LRFU<T: Timestamp + Copy> {
+pub struct Lrfu<T: Timestamp + Copy> {
     exponent: f32,
     phantom: std::marker::PhantomData<T>,
 }
 
-impl<T: Timestamp + Copy> Clone for LRFU<T> {
+impl<T: Timestamp + Copy> Clone for Lrfu<T> {
     fn clone(&self) -> Self {
-        LRFU {
+        Lrfu {
             exponent: self.exponent,
             phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<T: Timestamp + Copy> LRFU<T> {
-    /// Construct a LRFU references factory.
+impl<T: Timestamp + Copy> Lrfu<T> {
+    /// Construct a Lrfu references factory.
     ///
     /// The `exponent` decay must be strictly greater than 0.
     /// The greater the exponent (>>1) the closer to Least Recently Used
@@ -124,37 +124,37 @@ impl<T: Timestamp + Copy> LRFU<T> {
     /// this  policy gets.
     /// If exponent is < 1, then the policy put more weight on old elements.
     ///
-    /// See [`LRFU`](struct.LRFU.html)
+    /// See [`Lrfu`](struct.Lrfu.html)
     pub fn new(exponent: f32) -> Self {
-        LRFU {
+        Lrfu {
             exponent,
             phantom: std::marker::PhantomData,
         }
     }
 }
 
-unsafe impl<T: Timestamp + Copy> Send for LRFU<T> {}
-unsafe impl<T: Timestamp + Copy> Sync for LRFU<T> {}
+unsafe impl<T: Timestamp + Copy> Send for Lrfu<T> {}
+unsafe impl<T: Timestamp + Copy> Sync for Lrfu<T> {}
 
-impl<V, T: Timestamp + Copy> ReferenceFactory<V, LRFUCell<V, T>>
-    for LRFU<T>
+impl<V, T: Timestamp + Copy> ReferenceFactory<V, LrfuCell<V, T>>
+    for Lrfu<T>
 {
-    fn wrap(&mut self, v: V) -> LRFUCell<V, T> {
-        LRFUCell::new(v, self.exponent)
+    fn wrap(&mut self, v: V) -> LrfuCell<V, T> {
+        LrfuCell::new(v, self.exponent)
     }
 }
 
-impl<V, T: Timestamp + Copy> LRFUCell<V, T> {
-    /// Construct a [`LRFUCell`](struct.LRFUCell.html) cache reference.
+impl<V, T: Timestamp + Copy> LrfuCell<V, T> {
+    /// Construct a [`LrfuCell`](struct.LrfuCell.html) cache reference.
     ///
-    /// See [`LRFU`](struct.LRFU.html) and
-    /// [`LRFU::new()`](struct.LRFU.html#tymethod.new)
+    /// See [`Lrfu`](struct.Lrfu.html) and
+    /// [`Lrfu::new()`](struct.Lrfu.html#tymethod.new)
     /// for more details on exponent argument.
     pub fn new(v: V, exponent: f32) -> Self {
         if exponent <= 0.0 {
-            panic!("LRFUCell exponent cannot be <= 0.");
+            panic!("LrfuCell exponent cannot be <= 0.");
         }
-        LRFUCell {
+        LrfuCell {
             value: v,
             stats: Cell::new(Stats::new(exponent)),
         }
@@ -169,7 +169,7 @@ impl<V, T: Timestamp + Copy> LRFUCell<V, T> {
     }
 }
 
-impl<V, T: Timestamp + Copy> Ord for LRFUCell<V, T> {
+impl<V, T: Timestamp + Copy> Ord for LrfuCell<V, T> {
     fn cmp(&self, other: &Self) -> Ordering {
         // SAFETY:
         // self.stats and other.stats are initialized.
@@ -182,21 +182,21 @@ impl<V, T: Timestamp + Copy> Ord for LRFUCell<V, T> {
     }
 }
 
-impl<V, T: Timestamp + Copy> PartialOrd for LRFUCell<V, T> {
+impl<V, T: Timestamp + Copy> PartialOrd for LrfuCell<V, T> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<V, T: Timestamp + Copy> PartialEq for LRFUCell<V, T> {
+impl<V, T: Timestamp + Copy> PartialEq for LrfuCell<V, T> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
 
-impl<V, T: Timestamp + Copy> Eq for LRFUCell<V, T> {}
+impl<V, T: Timestamp + Copy> Eq for LrfuCell<V, T> {}
 
-impl<V, T: Timestamp + Copy> Reference<V> for LRFUCell<V, T> {
+impl<V, T: Timestamp + Copy> Reference<V> for LrfuCell<V, T> {
     fn unwrap(self) -> V {
         self.value
     }
@@ -212,14 +212,14 @@ impl<V, T: Timestamp + Copy> Reference<V> for LRFUCell<V, T> {
 
 #[cfg(test)]
 mod tests {
-    use super::LRFUCell;
+    use super::LrfuCell;
     use crate::policy::timestamp::Counter;
     use crate::policy::Reference;
 
     #[test]
     fn test_lrfu_ref() {
-        let r0 = LRFUCell::<u32, Counter>::new(999, 2.0);
-        let r1 = LRFUCell::<u32, Counter>::new(666, 2.0);
+        let r0 = LrfuCell::<u32, Counter>::new(999, 2.0);
+        let r1 = LrfuCell::<u32, Counter>::new(666, 2.0);
         r0.get();
         assert!(r0 < r1); // r0 is the most frequently and recently touched.
         r1.get();

@@ -1,4 +1,5 @@
-use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered};
+use crate::policy::Ordered;
+use crate::{BuildingBlock, Concurrent, Get, GetMut};
 use std::marker::Sync;
 use std::ops::{Deref, DerefMut};
 use std::sync::{
@@ -72,7 +73,7 @@ impl<V> SharedPtr<V> {
     /// * The pointer is being accessed mutably somewhere else,
     /// * A thread holding a guard from a copy of this pointer panicked and
     /// poisoned the associated lock.
-    pub fn get<'a>(&'a self) -> TryLockResult<RwLockReadGuard<'a, V>> {
+    pub fn get(&self) -> TryLockResult<RwLockReadGuard<'_, V>> {
         self.ptr.try_read()
     }
 
@@ -89,16 +90,14 @@ impl<V> SharedPtr<V> {
     /// * The pointer is being accessed somewhere else,
     /// * A thread holding a guard from a copy of this pointer panicked and
     /// poisoned the associated lock.
-    pub fn get_mut<'a>(
-        &'a mut self,
-    ) -> TryLockResult<RwLockWriteGuard<'a, V>> {
+    pub fn get_mut(&mut self) -> TryLockResult<RwLockWriteGuard<'_, V>> {
         self.ptr.try_write()
     }
 
     /// This method has the same effect as
     /// [`get_mut()`](struct.SharedPtr.html#method.get_mut) method except
     /// it will panic if it cannot acquire the lock on the pointer.
-    pub fn as_mut<'a>(&'a mut self) -> RwLockWriteGuard<'a, V> {
+    pub fn as_mut(&mut self) -> RwLockWriteGuard<'_, V> {
         match self.get_mut() {
             Ok(ptr) => ptr,
             Err(TryLockError::WouldBlock) => panic!("Cannot borrow SharedPtr mutably while being borrowed already."),
@@ -109,7 +108,7 @@ impl<V> SharedPtr<V> {
     /// This method has the same effect as
     /// [`get()`](struct.SharedPtr.html#method.get) method except it will
     /// panic if it cannot acquire the lock on the pointer.
-    pub fn as_ref<'a>(&'a self) -> RwLockReadGuard<'a, V> {
+    pub fn as_ref(&self) -> RwLockReadGuard<'_, V> {
         match self.get() {
             Ok(ptr) => ptr,
             Err(TryLockError::WouldBlock) => panic!("Cannot borrow SharedPtr mutably while being borrowed already."),

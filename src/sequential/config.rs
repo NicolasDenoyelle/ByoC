@@ -4,7 +4,6 @@ use crate::config::{
 };
 use crate::{BuildingBlock, Sequential};
 use serde::Deserialize;
-use toml;
 
 /// Configuration format for [`Sequential`](../struct.Sequential.html)
 /// containers.
@@ -18,8 +17,8 @@ use toml;
 /// [`Array`](../struct.Array.html) container.
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::Builder;
-/// use byoc::config::{BuilderConfig, BuildingBlockConfig};
+/// use byoc::builder::Build;
+/// use byoc::config::{Builder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id='SequentialConfig'
@@ -28,8 +27,8 @@ use toml;
 /// capacity=10
 /// ");
 ///
-/// let container: Box<dyn BuildingBlock<u64, u64>> =
-///                BuilderConfig::from_str(config_str.as_str())
+/// let container: DynBuildingBlock<u64, u64> =
+///                Builder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -51,6 +50,16 @@ impl BuildingBlockConfig for SequentialConfig {
         ))
     }
 
+    fn is_concurrent(&self) -> bool {
+        true
+    }
+
+    fn is_ordered(&self) -> bool {
+        GenericConfig::from_toml(self.container.clone())
+            .unwrap()
+            .has_ordered_trait
+    }
+
     fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: SequentialConfig = match toml::from_str(&toml) {
@@ -66,11 +75,9 @@ impl BuildingBlockConfig for SequentialConfig {
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{
-        BuildingBlockConfig, ConfigError, SequentialConfig,
-    };
+    use super::SequentialConfig;
+    use crate::config::{BuildingBlockConfig, ConfigError};
     use crate::BuildingBlock;
-    use toml;
 
     #[test]
     fn test_valid_sequential_config() {
@@ -92,13 +99,12 @@ capacity={}
 
     #[test]
     fn test_invalid_sequential_config() {
-        let config_str = format!(
-            "id='SequentialConfig'
+        let config_str = "id='SequentialConfig'
 [container]
 id='ArrayConfig'
 capacity='ten'
 "
-        );
+        .to_string();
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(

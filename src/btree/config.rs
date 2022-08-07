@@ -15,15 +15,15 @@ use serde::Deserialize;
 /// hold.
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::Builder;
-/// use byoc::config::{BuilderConfig, BuildingBlockConfig};
+/// use byoc::builder::Build;
+/// use byoc::config::{Builder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id = 'BTreeConfig'
 /// capacity = 10
 /// ");
-/// let array: Box<dyn BuildingBlock<u64, u64>> =
-///            BuilderConfig::from_str(config_str.as_str())
+/// let array: DynBuildingBlock<u64, u64> =
+///            Builder::from_string(config_str.as_str())
 ///            .unwrap()
 ///            .build();
 /// ```
@@ -37,13 +37,12 @@ pub struct BTreeConfig {
 impl BuildingBlockConfig for BTreeConfig {
     fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
-        match toml::from_str(&toml) {
-            Err(e) => Err(ConfigError::ConfigFormatError(format!(
+        toml::from_str(&toml).map_err(|e| {
+            ConfigError::ConfigFormatError(format!(
                 "Invalid BTreeConfig: {}\n{:?}",
                 toml, e
-            ))),
-            Ok(cfg) => Ok(cfg),
-        }
+            ))
+        })
     }
 
     fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
@@ -60,7 +59,6 @@ mod tests {
     use super::BTreeConfig;
     use crate::config::{BuildingBlockConfig, ConfigError};
     use crate::BuildingBlock;
-    use toml;
 
     #[test]
     fn test_valid_btree_config() {
@@ -77,7 +75,7 @@ mod tests {
 
     #[test]
     fn test_invalid_btree_config() {
-        let config_str = format!("id='BTreeConfig'\ncapacity='ten'");
+        let config_str = "id='BTreeConfig'\ncapacity='ten'".to_string();
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(

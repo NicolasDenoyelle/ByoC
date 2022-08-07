@@ -30,6 +30,15 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     /// Take the matching key/value pair out of the container.
     fn take(&mut self, key: &K) -> Option<(K, V)>;
 
+    /// Optimized implementation to take multiple keys out of a building
+    /// block. This method returns a vector of all elements matching input
+    /// `keys` that were inside a building block. Input keys can be
+    /// altered only to remove keys that have been taken out of the
+    /// building block.
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        keys.iter().filter_map(|k| self.take(k)).collect()
+    }
+
     /// Remove up to `n` values from the container.
     /// If less than `n` values are stored in the container,
     /// the returned vector contains all the container values and
@@ -57,4 +66,30 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     /// This functions yields an iterator because the amount of items to
     /// iterate over might exceed the size of computer memory.
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
+}
+
+impl<'a, K: 'a, V: 'a> BuildingBlock<'a, K, V>
+    for Box<dyn BuildingBlock<'a, K, V> + 'a>
+{
+    fn capacity(&self) -> usize {
+        (**self).capacity()
+    }
+    fn count(&self) -> usize {
+        (**self).count()
+    }
+    fn contains(&self, key: &K) -> bool {
+        (**self).contains(key)
+    }
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
+        (**self).take(key)
+    }
+    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+        (**self).pop(n)
+    }
+    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
+        (**self).push(values)
+    }
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        (**self).flush()
+    }
 }

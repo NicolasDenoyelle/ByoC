@@ -14,7 +14,7 @@ where
 {
     /// Get a read-only smart pointer to a value inside the container.
     ///
-    /// # Safety
+    /// ## Safety
     ///
     /// At this time, it does not seam feasible to return a trait object
     /// with the same lifetime as the function call. Therefore, any lifetime
@@ -41,14 +41,14 @@ where
 /// bounds because, for instance int the former the value can be moved
 /// from a building block not implementing `GetMut` to one implementing
 /// it and returning the value from there
-/// (See [`Multilevel`](struct.Multilevel.html)).
+/// (See [`Exclusive`](struct.Exclusive.html)).
 pub trait GetMut<K, V, W>
 where
     W: Deref<Target = V> + DerefMut,
 {
     /// Get a smart pointer to a mutable value inside the container.
     ///
-    /// # Safety
+    /// ## Safety
     ///
     /// At this time, it does not seam feasible to return a trait object
     /// with the same lifetime as the function call. Therefore, any lifetime

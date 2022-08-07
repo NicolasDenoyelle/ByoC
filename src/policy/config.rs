@@ -1,18 +1,18 @@
 use crate::config::{
-    BuildingBlockConfig, ConfigError, GenericConfig, GenericKey,
-    GenericValue,
+    BuildingBlockConfig, ConfigError, DynOrdered, GenericConfig,
+    GenericKey, GenericValue,
 };
-use crate::policies::{timestamp::Counter, FIFO, LRFU, LRU};
+use crate::policy::{timestamp::Counter, Fifo, Lrfu, Lru};
 use crate::{BuildingBlock, Policy};
 use serde::Deserialize;
 use toml;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Copy, Clone)]
 #[serde(tag = "kind", content = "exponent")]
 pub enum PolicyKind {
-    LRFU(f32),
-    LRU,
-    FIFO,
+    Lrfu(f32),
+    Lru,
+    Fifo,
     None,
 }
 
@@ -33,26 +33,26 @@ pub enum PolicyKind {
 /// * `policy.kind` field which accept values defined in the [`PolicyKind`]
 /// enum,
 /// * `policy.exponent` field that sets the floating point value for the
-/// [`LRFU`](../policies/struct.LRFU.html) policy.
+/// [`Lrfu`](../policy/struct.Lrfu.html) policy.
 ///
 /// Below is an example of the configuration of a
 /// [`Policy`](../struct.Policy.html) wrapping an
 /// [`Array`](../struct.Array.html) container.
 /// ```no_run
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::Builder;
-/// use byoc::config::{BuilderConfig, BuildingBlockConfig};
+/// use byoc::builder::Build;
+/// use byoc::config::{Builder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id='PolicyConfig'
-/// policy.kind='FIFO'
+/// policy.kind='Fifo'
 /// [container]
 /// id='ArrayConfig'
 /// capacity=10
 /// ");
 ///
-/// let container: Box<dyn BuildingBlock<u64, u64>> =
-///                BuilderConfig::from_str(config_str.as_str())
+/// let container: DynBuildingBlock<u64, u64> =
+///                Builder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -71,17 +71,32 @@ impl BuildingBlockConfig for PolicyConfig {
         V: 'a + GenericValue,
     {
         match self.policy {
-            PolicyKind::LRFU(exponent) => Box::new(Policy::new(
-                GenericConfig::from_toml(self.container).unwrap().build(),
-                LRFU::<Counter>::new(exponent),
+            PolicyKind::Lrfu(exponent) => Box::new(Policy::new(
+                DynOrdered::new(
+                    GenericConfig::from_toml(self.container)
+                        .unwrap()
+                        .build(),
+                    false,
+                ),
+                Lrfu::<Counter>::new(exponent),
             )),
-            PolicyKind::LRU => Box::new(Policy::new(
-                GenericConfig::from_toml(self.container).unwrap().build(),
-                LRU::<Counter>::new(),
+            PolicyKind::Lru => Box::new(Policy::new(
+                DynOrdered::new(
+                    GenericConfig::from_toml(self.container)
+                        .unwrap()
+                        .build(),
+                    false,
+                ),
+                Lru::<Counter>::new(),
             )),
-            PolicyKind::FIFO => Box::new(Policy::new(
-                GenericConfig::from_toml(self.container).unwrap().build(),
-                FIFO::new(),
+            PolicyKind::Fifo => Box::new(Policy::new(
+                DynOrdered::new(
+                    GenericConfig::from_toml(self.container)
+                        .unwrap()
+                        .build(),
+                    false,
+                ),
+                Fifo::new(),
             )),
             PolicyKind::None => {
                 GenericConfig::from_toml(self.container).unwrap().build()
@@ -91,16 +106,14 @@ impl BuildingBlockConfig for PolicyConfig {
 
     fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
-        match toml::from_str(&toml) {
-            Err(e) => Err(ConfigError::TomlFormatError(e)),
-            Ok(cfg) => Ok(cfg),
-        }
+        toml::from_str(&toml).map_err(ConfigError::TomlFormatError)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::config::{BuildingBlockConfig, ConfigError, PolicyConfig};
+    use super::PolicyConfig;
+    use crate::config::{BuildingBlockConfig, ConfigError};
     use crate::BuildingBlock;
     use toml;
 
@@ -110,7 +123,7 @@ mod tests {
         let config_str = format!(
             "
 id='PolicyConfig'
-policy.kind='LRFU'
+policy.kind='Lrfu'
 policy.exponent=0.5
 [container]
 id='ArrayConfig'
@@ -127,8 +140,7 @@ capacity={}
 
     #[test]
     fn test_invalid_policy_config() {
-        let config_str = format!(
-            "
+        let config_str = "
 id='PolicyConfig'
 policy.kind='LRF'
 policy.exponent=0.5
@@ -136,7 +148,7 @@ policy.exponent=0.5
 id='ArrayConfig'
 capacity=10
 "
-        );
+        .to_string();
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(

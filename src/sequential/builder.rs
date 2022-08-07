@@ -1,6 +1,4 @@
-use crate::builder::traits::{
-    Associative, Builder, Multilevel, Policy, Profiler,
-};
+use crate::builder::Build;
 use crate::Sequential;
 use std::marker::PhantomData;
 
@@ -10,11 +8,11 @@ use std::marker::PhantomData;
 /// [`Sequential`](../../struct.Sequential.html)
 /// container.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::*;
+/// use byoc::builder::Build;
 /// use byoc::builder::builders::{ArrayBuilder, SequentialBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
@@ -27,7 +25,7 @@ use std::marker::PhantomData;
 /// ```
 pub struct SequentialBuilder<C, B>
 where
-    B: Builder<C>,
+    B: Build<C>,
 {
     builder: B,
     unused: PhantomData<C>,
@@ -35,7 +33,7 @@ where
 
 impl<C, B> SequentialBuilder<C, B>
 where
-    B: Builder<C>,
+    B: Build<C>,
 {
     pub fn new(builder: B) -> Self {
         SequentialBuilder {
@@ -47,7 +45,7 @@ where
 
 impl<C, B> Clone for SequentialBuilder<C, B>
 where
-    B: Builder<C> + Clone,
+    B: Build<C> + Clone,
 {
     fn clone(&self) -> Self {
         SequentialBuilder {
@@ -57,34 +55,9 @@ where
     }
 }
 
-impl<C, B, H: std::hash::Hasher + Clone> Associative<Sequential<C>, H>
-    for SequentialBuilder<C, B>
+impl<C, B> Build<Sequential<C>> for SequentialBuilder<C, B>
 where
-    B: Builder<C> + Clone,
-{
-}
-
-impl<C, B> Policy<Sequential<C>> for SequentialBuilder<C, B> where
-    B: Builder<C>
-{
-}
-
-impl<C, B> Profiler<Sequential<C>> for SequentialBuilder<C, B> where
-    B: Builder<C>
-{
-}
-
-impl<L, LB, R, RB> Multilevel<Sequential<L>, R, RB>
-    for SequentialBuilder<L, LB>
-where
-    LB: Builder<L>,
-    RB: Builder<R>,
-{
-}
-
-impl<C, B> Builder<Sequential<C>> for SequentialBuilder<C, B>
-where
-    B: Builder<C>,
+    B: Build<C>,
 {
     fn build(self) -> Sequential<C> {
         Sequential::new(self.builder.build())

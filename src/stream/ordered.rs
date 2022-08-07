@@ -1,13 +1,13 @@
 use super::ByteStream;
+use crate::policy::Ordered;
 use crate::stream::{Stream, StreamFactory};
-use crate::Ordered;
 use serde::{de::DeserializeOwned, Serialize};
 
-impl<'a, K, V: Ord, S, F> Ordered<V> for ByteStream<'a, (K, V), S, F>
+impl<K, V: Ord, S, F> Ordered<V> for ByteStream<(K, V), S, F>
 where
     K: DeserializeOwned + Serialize,
     V: DeserializeOwned + Serialize,
-    S: Stream<'a>,
+    S: Stream,
     F: StreamFactory<S>,
 {
 }

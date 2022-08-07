@@ -1,3 +1,5 @@
+//! Fixed point in time used by time sensitive cache policies.
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -13,9 +15,9 @@ use std::time::Instant;
 /// to ask for it to be copy in order to facilitate management of object using
 /// timestamps.
 pub trait Timestamp: Ord + Eq + PartialOrd + PartialEq + Copy {
-    /// Timestamp default constructor.
-    fn new() -> Self;
-    /// Timestamp difference to f32.
+    /// A point in time representing the present.
+    fn now() -> Self;
+    /// The difference between two points in time.
     fn diff(&self, other: &Self) -> f32;
 }
 
@@ -23,51 +25,51 @@ pub trait Timestamp: Ord + Eq + PartialOrd + PartialEq + Copy {
 // Counter based timestamp.                                                   //
 //----------------------------------------------------------------------------//
 
-/// Global counter for [`Counter`](struct.Counter.html) implementation
-/// of [`Timestamp`](trait.Timestamp.html).
-///
-/// It is modified in a none thread safe way.
-/// However, it is ok to assume that threads issuing a timestamp
-/// at the same moment will get similar timestamp (more or less).
-/// Therefore, it is not an issue if `COUNTER_STATE` is incremented concurrently.
-/// This is a very big counter. Unlikely to overflow.
+/// Global counter for [`Counter`].
 static mut COUNTER_STATE: AtomicU64 = AtomicU64::new(0);
 
-/// A timestamp based on a global counter.
+/// A timestamp based on a global atomic counter.
+///
+/// Everytime this [`Timestamp`] is used to read the current time
+/// the global atomic counter is incremented.
 ///
 /// ```
 /// use byoc::policy::timestamp::{Timestamp, Counter};
 ///
 /// // Counters are strictly ascending
-/// assert!(Counter::new() < Counter::new());
+/// assert_eq!(u64::from(Counter::now()) + 1, u64::from(Counter::now()));
 /// ```
+#[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Eq, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Counter {
     value: u64,
 }
 
+impl From<Counter> for u64 {
+    fn from(c: Counter) -> u64 {
+        c.value
+    }
+}
+
 impl Timestamp for Counter {
     /// [`Timestamp`](trait.Timestamp.html) creation.
     ///
-    /// This will copy the global counter before incrementing it.
-    /// The copy before increment is returned.
-    fn new() -> Counter {
-        let v: u64;
-        // SAFETY: This thread safe because we are doing an atomic
-        // operation on the global variable. This may overflow.
-        unsafe { v = COUNTER_STATE.fetch_add(1u64, Ordering::SeqCst) }
+    /// This will perform a `fetch_add()` atomic operation on a global counter
+    /// and return the initial value of the counter in a [`Counter`].
+    fn now() -> Self {
+        // This may overflow.
+        let v = unsafe { COUNTER_STATE.fetch_add(1u64, Ordering::SeqCst) };
         Counter { value: v }
     }
 
-    /// Convert to f32 then compute difference.
+    /// Compute the difference then cast the result to f32.
     ///
     /// ```
     /// use byoc::policy::timestamp::{Timestamp, Counter};
     ///
-    /// let t0 = Counter::new();
-    /// let t1 = Counter::new();
-    /// assert!(t1.diff(&t0) == 1.0);
+    /// let t0 = Counter::now();
+    /// assert_eq!(Counter::now().diff(&t0), 1.0);
     /// ```
     fn diff(&self, other: &Self) -> f32 {
         (self.value - other.value) as f32
@@ -78,28 +80,25 @@ impl Timestamp for Counter {
 // Clock based timestamp.                                                     //
 //----------------------------------------------------------------------------//
 
-/// A timestamp based on monotonic clock.
+/// A timestamp based on a monotonic clock.
 ///
-/// ## Details
-///
-/// This is implemented using rust `Instant` and `Duration`.
-/// To this date the granularity of the clock is the nanosecond.
+/// This timestamp is wrapper around [`std::time::Instant`].
+/// The granularity of the clock is the nanosecond.
 ///
 /// ```
 /// use byoc::policy::timestamp::{Timestamp, Clock};
 ///    
-/// assert!(Clock::new() < Clock::new());
+/// assert!(Clock::now() < Clock::now());
 /// ```
+#[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialOrd, PartialEq, Eq, Ord)]
 pub struct Clock {
     t: Instant,
 }
 
 impl Timestamp for Clock {
-    /// Taking a timestamp on current time.
-    ///
-    /// The clock granularity is nanoseconds.
-    fn new() -> Clock {
+    /// Create a timestamp of current time with a nanoseconds granularity.
+    fn now() -> Self {
         Clock { t: Instant::now() }
     }
 
@@ -113,11 +112,11 @@ mod tests {
     use super::{Clock, Counter, Timestamp};
 
     fn test_timestamp<T: Timestamp + std::fmt::Debug>() {
-        let t0 = T::new();
-        let mut ti = T::new();
+        let t0 = T::now();
+        let mut ti = T::now();
 
         for _ in 0..10 {
-            let tj = T::new();
+            let tj = T::now();
             assert!(tj >= ti);
             assert!(tj >= t0);
             // assert!(tj == tj);

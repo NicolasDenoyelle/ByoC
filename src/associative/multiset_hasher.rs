@@ -1,26 +1,33 @@
 use crate::internal::bits::log2;
 use std::hash::Hasher;
 
-/// Hasher wrapper that returns a subset of the hash bits shifted to the
-/// right.
+/// A single hasher for multiple stages of associative containers.
 ///
 /// The purpose of this structure is to concatenate multiple layer of
-/// [`Associative`](struct.Associative.html) building block with one
-/// different hasher but different hashes on each level.
-/// See how to instantiate such a structure in
-/// [builder examples](builder/associative/struct.AssociativeBuilder.html).
+/// [`Associative`](struct.Associative.html) building block with a
+/// single hasher but different hashes on each level.
 ///
-/// This hasher can be used to create another `MultisetHasher` returning a
-/// disjoint set of bits compared to the first one from the hash bits.
-/// See [`next()`](struct.MultisetHasher.html#tymethod.next) method.
-pub struct MultisetHasher<H: Hasher> {
+/// This is needed when building multiple stages of associative containers
+/// with the same hasher, to avoid ending up using only one bucket in every
+/// level but the first one, thus defeating the purpose of the associative
+/// container.
+///
+/// This hasher can be used to create another `ExclusiveHasher` returning a
+/// disjoint set of bits compared to the first one from the same hash bits.
+/// See [`next()`](struct.ExclusiveHasher.html#tymethod.next) method.
+///
+/// This structure is used by the [`Associative`](../../struct.Associative.html)
+/// container
+/// [builder](../../associative/builder/struct.AssociativeBuilder.html) to stack
+/// multiple associative containers.
+pub struct ExclusiveHasher<H: Hasher> {
     hasher: H,
     mask: u64,
     rshift: u8,
     nbits: u8,
 }
 
-impl<H: Hasher> Hasher for MultisetHasher<H> {
+impl<H: Hasher> Hasher for ExclusiveHasher<H> {
     fn finish(&self) -> u64 {
         let h = self.hasher.finish();
         (h & self.mask) >> self.rshift
@@ -31,9 +38,9 @@ impl<H: Hasher> Hasher for MultisetHasher<H> {
     }
 }
 
-impl<H: Hasher + Clone> Clone for MultisetHasher<H> {
+impl<H: Hasher + Clone> Clone for ExclusiveHasher<H> {
     fn clone(&self) -> Self {
-        MultisetHasher {
+        ExclusiveHasher {
             hasher: self.hasher.clone(),
             mask: self.mask,
             rshift: self.rshift,
@@ -42,12 +49,12 @@ impl<H: Hasher + Clone> Clone for MultisetHasher<H> {
     }
 }
 
-impl<H: Hasher + Clone> MultisetHasher<H> {
+impl<H: Hasher + Clone> ExclusiveHasher<H> {
     /// Create a new multiset hasher from another hasher
     /// that returns hash with a maximum value of at least nsets.
     pub fn new(hasher: H, nsets: usize) -> Self {
         let nbits = log2(nsets as u64) + 1;
-        MultisetHasher {
+        ExclusiveHasher {
             hasher,
             mask: (!0u64) >> ((64u8 - nbits) as u64),
             rshift: 0u8,
@@ -70,7 +77,7 @@ impl<H: Hasher + Clone> MultisetHasher<H> {
         }
 
         let mask = ((!0u64) >> ((64u8 - nbits) as u64)) << rshift;
-        Ok(MultisetHasher {
+        Ok(ExclusiveHasher {
             hasher: self.hasher.clone(),
             mask,
             rshift,
@@ -81,12 +88,12 @@ impl<H: Hasher + Clone> MultisetHasher<H> {
 
 #[cfg(test)]
 mod tests {
-    use super::MultisetHasher;
+    use super::ExclusiveHasher;
     use std::collections::hash_map::DefaultHasher;
 
     #[test]
     fn multiset_hasher() {
-        let mut h = MultisetHasher::new(DefaultHasher::new(), 1);
+        let mut h = ExclusiveHasher::new(DefaultHasher::new(), 1);
         for i in 1..64 {
             h = h.next(1).unwrap();
             assert_eq!(h.nbits, 1);
@@ -95,7 +102,7 @@ mod tests {
         }
         assert!(h.next(1).is_err());
 
-        let mut h = MultisetHasher::new(DefaultHasher::new(), 7);
+        let mut h = ExclusiveHasher::new(DefaultHasher::new(), 7);
         for i in 1..21 {
             h = h.next(7).unwrap();
             assert_eq!(h.nbits, 3);

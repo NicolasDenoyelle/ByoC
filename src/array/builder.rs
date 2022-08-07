@@ -1,6 +1,4 @@
-use crate::builder::traits::{
-    Associative, Builder, Multilevel, Policy, Profiler, Sequential,
-};
+use crate::builder::Build;
 use crate::Array;
 use std::marker::PhantomData;
 
@@ -12,7 +10,7 @@ use std::marker::PhantomData;
 /// ## Examples
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::*;
+/// use byoc::builder::Build;
 /// use byoc::builder::builders::ArrayBuilder;
 ///
 /// let mut array = ArrayBuilder::new(2).build();
@@ -43,20 +41,7 @@ impl<T> Clone for ArrayBuilder<T> {
     }
 }
 
-impl<T> Policy<Array<T>> for ArrayBuilder<T> {}
-impl<T, H: std::hash::Hasher + Clone> Associative<Array<T>, H>
-    for ArrayBuilder<T>
-{
-}
-impl<T> Sequential<Array<T>> for ArrayBuilder<T> {}
-impl<T> Profiler<Array<T>> for ArrayBuilder<T> {}
-
-impl<T, R, RB: Builder<R>> Multilevel<Array<T>, R, RB>
-    for ArrayBuilder<T>
-{
-}
-
-impl<T> Builder<Array<T>> for ArrayBuilder<T> {
+impl<T> Build<Array<T>> for ArrayBuilder<T> {
     fn build(self) -> Array<T> {
         Array::new(self.capacity)
     }

@@ -44,20 +44,49 @@ pub enum ProfilerOutputKind {
     File(String),
 }
 
-/// Building block wrapper to collect
-/// access, misses, hits and statistics about methods access time.
+/// [`BuildingBlock`](trait.BuildingBlock.html) wrapper to collect
+/// accesses, misses, hits and statistics about methods access time.
 ///
-/// See Profiler `_stats()` methods to learn about what is counted/measured.
+/// [`Profiler`] is a building block wrapper that inherits the root traits from
+/// [this crate](index.html), of the
+/// [`BuildingBlock`](trait.BuildingBlock.html) it wraps.
+/// The resulting profiled statistics is dumped when the [`Profiler`] is
+/// dropped. The destination where to write the dump is specified by a
+/// [`ProfilerOutputKind`](utils/profiler/enum.ProfilerOutputKind.html) enum.
+/// It can be either `stdout`, a file or nothing.
 ///
-/// Recording statistics is thread safe.
-/// If the wrapped container implements the concurrent trait, then
-/// so does the profiler.
+/// When using the [`Profiler`] wrapper, the following events are counted:
+/// * The time spent in methods:
+/// [`count()`](trait.BuildingBlock.html#tymethod.count),
+/// [`contains()`](trait.BuildingBlock.html#tymethod.contains),
+/// [`take()`](trait.BuildingBlock.html#tymethod.take),
+/// [`pop()`](trait.BuildingBlock.html#tymethod.pop),
+/// [`push()`](trait.BuildingBlock.html#tymethod.push),
+/// [`flush()`](trait.BuildingBlock.html#tymethod.contains),
+/// [`get()`](trait.Get.html#tymethod.get),
+/// [`get_mut()`](trait.GetMut.html#tymethod.get_mut).
+/// * The time spent iterating on flushed items,
+/// * cache hits and misses: when calling
+/// [`contains()`](trait.BuildingBlock.html#tymethod.contains),
+/// [`take()`](trait.BuildingBlock.html#tymethod.take),
+/// [`get()`](trait.Get.html#tymethod.get) or
+/// [`get_mut()`](trait.GetMut.html#tymethod.get_mut), if the key to lookup
+/// is indeed in the container, the hit count is incremented, else, the miss
+/// count is incremented.
 ///
-/// # Examples
+/// This building block can also be built with a
+/// [builder](builder/trait.Build.html#method.profile) pattern or from a
+/// [configuration](config/configs/struct.ProfilerConfig.html).
+/// Everything is counted in an atomic type so that it is safe to use the
+/// [`Concurrent`](trait.Concurrent.html) trait if the wrapped container
+/// implements it.
+///
+/// ## Examples
 ///
 /// ```
 /// use byoc::{BuildingBlock, Get};
-/// use byoc::{Array, Profiler, ProfilerOutputKind};
+/// use byoc::{Array, Profiler};
+/// use byoc::utils::profiler::ProfilerOutputKind;
 ///
 /// // Build a cache:
 /// let c = Array::new(3);
@@ -154,7 +183,7 @@ impl<C> Profiler<C> {
         self.stats.as_ref().count.read()
     }
     /// Get a summary of (0) the number of
-    /// [`contain()`](trait.BuildingBlock.html#tymethod.contain) method
+    /// [`contains()`](trait.BuildingBlock.html#tymethod.contain) method
     /// call and (1) the total time spent in nanoseconds in these calls.
     pub fn contains_stats(&self) -> (u64, u64) {
         self.stats.as_ref().contains.read()
@@ -208,6 +237,8 @@ impl<C> Profiler<C> {
     /// [`take()`](trait.BuildingBlock.html#tymethod.take),
     /// [`get()`](trait.Get.html#tymethod.get) or
     /// [`get_mut()`](trait.Get.html#tymethod.get_mut) methods.
+    /// The first element is the number of hits, and the second element
+    /// is the total time spent in the method on a hit in nanoseconds.
     pub fn hit_stats(&self) -> (u64, u64) {
         self.stats.as_ref().hit.read()
     }
@@ -217,6 +248,8 @@ impl<C> Profiler<C> {
     /// [`take()`](trait.BuildingBlock.html#tymethod.take),
     /// [`get()`](trait.Get.html#tymethod.get) or
     /// [`get_mut()`](trait.Get.html#tymethod.get_mut) methods.
+    /// The first element is the number of misses, and the second element
+    /// is the total time spent in the method on a miss in nanoseconds.
     pub fn miss_stats(&self) -> (u64, u64) {
         self.stats.as_ref().miss.read()
     }

@@ -10,7 +10,11 @@ use tempfile::NamedTempFile;
 
 /// A [`Stream`](../trait.Stream.html) implementation based on a file.
 ///
-/// The underlying file is deleted when all the clones go out of scope.
+/// This structure can be cloned into multiple handles over the same
+/// [`std::fs::File`]. When all the clones go out of scope, the file is deleted,
+/// unless the method
+/// [`do_not_delete()`](struct.FileStream.html#tymethod.do_not_delete) has
+/// been called once on one of the clones.
 pub struct FileStream {
     file: File,
     path: PathBuf,
@@ -18,26 +22,41 @@ pub struct FileStream {
 }
 
 impl FileStream {
-    fn new(file: File, path: PathBuf) -> Self {
+    /// FileStream constructor.
+    ///
+    /// Attempt to open or create the file pointed by `path` for writing.
+    /// On success, the function returns a new [`FileStream`]. If the file
+    /// cannot be opened, an error is returned.
+    fn new(path: PathBuf) -> std::io::Result<Self> {
+        let file = match OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(path.clone())
+        {
+            Err(e) => return Err(e),
+            Ok(f) => f,
+        };
         let rc = RWLock::new();
         rc.lock().unwrap();
-        FileStream { file, path, rc }
+        Ok(FileStream { file, path, rc })
+    }
+
+    /// Keep the file when the last clone of this [`FileStream`] is deleted.
+    pub fn do_not_delete(self) -> Self {
+        self.rc.lock().unwrap();
+        self
     }
 }
 
 impl From<&String> for FileStream {
     fn from(s: &String) -> FileStream {
-        let path = PathBuf::from(s.clone());
-        let file = OpenOptions::new()
-            .append(true)
-            .create(true)
-            .open(s)
-            .unwrap();
-        FileStream::new(file, path)
+        FileStream::new(PathBuf::from(s.clone())).unwrap()
     }
 }
 
 impl Clone for FileStream {
+    /// Return a copy of this [`FileStream`] with a [`std::fs::File`] handle
+    /// on the same file.
     fn clone(&self) -> Self {
         self.rc.lock().unwrap();
         FileStream {
@@ -49,6 +68,11 @@ impl Clone for FileStream {
 }
 
 impl Drop for FileStream {
+    /// Delete this copy of the [`FileStream`]. If this was the last copy of
+    /// the [`FileStream`], the underlying [`std::fs::File`] is deleted, unless
+    /// the method
+    /// [`do_not_delete()`](struct.FileStream.html#tymethod.do_not_delete) has
+    /// been called once on one of the clones.    
     fn drop(&mut self) {
         self.rc.unlock();
         #[allow(unused_must_use)]
@@ -58,15 +82,6 @@ impl Drop for FileStream {
             Ok(_) => {
                 std::fs::remove_file(&self.path);
             }
-        }
-    }
-}
-
-impl crate::stream::Resize for FileStream {
-    fn resize(&mut self, size: u64) -> std::io::Result<()> {
-        match self.file.set_len(size) {
-            Ok(_) => Ok(()),
-            Err(e) => Err(e),
         }
     }
 }
@@ -93,14 +108,21 @@ impl std::io::Seek for FileStream {
     }
 }
 
-impl<'a> StreamBase<'a> for FileStream {
-    fn box_clone(&self) -> Box<dyn StreamBase<'a> + 'a> {
+impl StreamBase for FileStream {
+    fn box_clone(&self) -> Box<dyn StreamBase> {
         Box::new(self.clone())
     }
-}
-impl<'a> Stream<'a> for FileStream {}
 
-/// Factory to spawn temporary file stream.
+    fn resize(&mut self, size: u64) -> std::io::Result<()> {
+        match self.file.set_len(size) {
+            Ok(_) => Ok(()),
+            Err(e) => Err(e),
+        }
+    }
+}
+impl Stream for FileStream {}
+
+/// Factory to spawn temporary [`FileStream`] instances.
 #[cfg(feature = "tempfile")]
 #[derive(Clone)]
 pub struct TempFileStreamFactory {}
@@ -111,7 +133,6 @@ impl StreamFactory<FileStream> for TempFileStreamFactory {
         let named_tmpfile =
             NamedTempFile::new().expect("Temporary file creation failed.");
         let path = named_tmpfile.path().to_path_buf();
-        let file = named_tmpfile.into_file();
-        FileStream::new(file, path)
+        FileStream::new(path).unwrap()
     }
 }

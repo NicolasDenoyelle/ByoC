@@ -1,22 +1,28 @@
 use std::hash::{Hash, Hasher};
 
-/// Associative building block wrapper with multiple sets/buckets.
+/// Associative [`BuildingBlock`](trait.BuildingBlock.html) wrapper with
+/// multiple sets/buckets.
 ///
 /// This building block is implemented as an array of building blocks.
 /// Keys inserted in this container must be hashable to find in which bucket
 /// it should be stored/retrieved.
 ///
 /// Since a key can only go in one bucket, the container may refuse
-/// insertions before it is actually full if the target buckets are full.
+/// insertions before it is actually full if one of the target buckets is full.
 ///
-/// When [popping](../trait.BuildingBlock.html#tymethod.pop) elements,
+/// When [popping](trait.BuildingBlock.html#tymethod.pop) elements,
 /// the policy is to balance buckets element count rather than strictly
-/// pop values in descending order. The latter might be "loosely" satisfied
-/// if the buckets building block apply such a policy and maximum value are
-/// evenly distributed across the buckets with the largest count of
-/// elements.
+/// pop values in descending order. This is because popping values in descending
+/// order requires lot of [`pop()`](trait.BuildingBlock.html#tymethod.pop)
+/// and [`push()`](trait.BuildingBlock.html#tymethod.push) operations whereas
+/// balancing buckets can be done by looking at the count of each bucket once
+/// and [popping](trait.BuildingBlock.html#tymethod.pop) once per bucket.
 ///
-/// # Examples
+/// [`Get`](trait.Get.html) and [`Concurrent`](trait.Concurrent.html)
+/// traits are inherited from the type of container used to build this
+/// associative container.
+///
+/// ## Examples
 ///
 /// ```
 /// use byoc::BuildingBlock;
@@ -40,6 +46,10 @@ use std::hash::{Hash, Hasher};
 ///       }
 /// }
 ///```
+///
+/// [`Associative`] can also be built from a
+/// [builder pattern](builder/builders/struct.AssociativeBuilder.html) and a
+/// [configuration](config/struct.AssociativeConfig.html).
 pub struct Associative<C, H: Hasher + Clone> {
     pub(super) containers: Vec<C>,
     pub(super) hasher: H,

@@ -17,7 +17,7 @@ std::thread::panicking
 	Instead of building a map with elements offset based on key hash,
 	just pack elements to be more space efficient.
 * DONE Prefetcher Trait
-* TODO Prefetcher building block implementations.
+* DONE Prefetcher building block implementations.
 A building block wrapping another and asynchronously prefetching keys based.
 on some predictions.
 * DONE Parallel Tests
@@ -30,6 +30,7 @@ on some predictions.
 	than wrapper.
 * DEL Rename wrapper into transform
 * DONE Compression building block.
+* TODO Documentation pass
 * TODO Benchmarks:
 + Multiple distributions of keys
 + Different sizes of keys and values.
@@ -37,4 +38,16 @@ on some predictions.
 
 Insertions go into the last level and shallow copies of what is in the
 last level goes in the first level.
-* TODO Resizable building blocks.
+* (TODO) Resizable building blocks.
+* TODO [Capacity / Pop / Push] based on size and not number.
+* TODO Distributed building block
+* TODO Front-ends
+For instance:
++ The Memory is partitionned with only 50% to the user. On user page fault event,
+user pages are written to the cache;
++ A POSIX buffered filesystem implementation where reads and writes go to
+the cache;
+* TODO async Get and GetMut
+Because there might be delay fetching far data.
+* TODO Get trait with LifetimeGuard wrapper in the return type.
+* TODO Batch builder implementation.

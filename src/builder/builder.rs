@@ -1,5 +1,5 @@
 #[cfg(feature = "compression")]
-use crate::builder::builders::CompressorBuilder;
+use crate::builder::builders::CompressedBuilder;
 #[cfg(feature = "stream")]
 use crate::builder::builders::StreamBuilder;
 use crate::builder::builders::{ArrayBuilder, BTreeBuilder};
@@ -8,32 +8,32 @@ use crate::stream::{Stream, StreamFactory};
 #[cfg(feature = "stream")]
 use serde::{de::DeserializeOwned, Serialize};
 
-/// Begin a container builder chain.
+/// Entry point to build a container from builder pattern chain.
 ///
 /// This builder can be consumed to produce a the first component
 /// of a [building block](../../trait.BuildingBlock.html) chain.
 /// In order to start the chain, you have to call one of the
 /// struct methods.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::*;
-/// use byoc::builder::Begin;
+/// use byoc::builder::Build;
+/// use byoc::builder::Builder;
 ///
 /// // Build a multi-layer concurrent cache where the first layer stores
 /// // up to two elements in an `Array` type container and the second layer
 /// // stores up to four elements into a `BTree` type container.
-/// let mut container = Begin::array(2)
-///     .multilevel(Begin::btree(4))
+/// let mut container = Builder::array(2)
+///     .exclusive(Builder::btree(4))
 ///     .into_sequential()
 ///     .build();
 /// container.push(vec![(1, 2)]);
 /// ```
-pub struct Begin {}
+pub struct Builder {}
 
-impl<'a> Begin {
+impl Builder {
     pub fn array<T>(capacity: usize) -> ArrayBuilder<T> {
         ArrayBuilder::new(capacity)
     }
@@ -47,25 +47,25 @@ impl<'a> Begin {
     #[cfg(feature = "stream")]
     pub fn byte_stream<
         T: DeserializeOwned + Serialize,
-        S: Stream<'a>,
+        S: Stream,
         F: StreamFactory<S> + Clone,
     >(
         factory: F,
         capacity: usize,
-    ) -> StreamBuilder<'a, T, S, F> {
+    ) -> StreamBuilder<T, S, F> {
         StreamBuilder::new(factory, capacity)
     }
 
     #[cfg(feature = "compression")]
-    pub fn compressor<
+    pub fn compressed<
         T: DeserializeOwned + Serialize,
-        S: Stream<'a>,
+        S: Stream,
         F: StreamFactory<S> + Clone,
     >(
         factory: F,
         num_batch: usize,
         batch_capacity: usize,
-    ) -> CompressorBuilder<'a, T, S, F> {
-        CompressorBuilder::new(num_batch, batch_capacity, factory)
+    ) -> CompressedBuilder<T, S, F> {
+        CompressedBuilder::new(num_batch, batch_capacity, factory)
     }
 }
