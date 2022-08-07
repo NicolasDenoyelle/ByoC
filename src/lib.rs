@@ -254,7 +254,7 @@ pub use stream::{ByteStream as Stream, StreamCell, StreamMutCell};
 /// Library boilerplate code.
 /// This code is not available to user but used throughout the
 /// library.
-mod private;
+mod internal;
 
 /// Public test module available at test time.
 ///

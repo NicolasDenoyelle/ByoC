@@ -1,17 +1,17 @@
-use crate::private::clone::CloneCell;
+use crate::internal::SharedPtr;
 use crate::streams::{Resize, Stream, StreamBase, StreamFactory};
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 
 /// An implementation of a [`Stream`](../trait.Stream.html) in a `Vec<u8>`.
 pub struct VecStream {
-    vec: CloneCell<Vec<u8>>,
+    vec: SharedPtr<Vec<u8>>,
     pos: usize,
 }
 
 impl VecStream {
     pub fn new() -> Self {
         VecStream {
-            vec: CloneCell::new(Vec::new()),
+            vec: SharedPtr::from(Vec::new()),
             pos: 0usize,
         }
     }
@@ -34,8 +34,9 @@ impl Clone for VecStream {
 
 impl Read for VecStream {
     fn read(&mut self, buf: &mut [u8]) -> Result<usize> {
+        let vec = self.vec.as_ref();
         let buf_len = buf.len();
-        let vec_len = self.vec.len();
+        let vec_len = vec.len();
 
         let len = if self.pos >= vec_len {
             return Ok(0);
@@ -46,7 +47,7 @@ impl Read for VecStream {
         };
 
         let range = self.pos..(self.pos + len);
-        let slice = self.vec.as_slice().get(range).unwrap();
+        let slice = vec.as_slice().get(range).unwrap();
         buf.get_mut(0..len).unwrap().copy_from_slice(slice);
         self.pos += len;
         Ok(len)
@@ -56,17 +57,20 @@ impl Read for VecStream {
 impl Write for VecStream {
     fn write(&mut self, buf: &[u8]) -> Result<usize> {
         let buf_len = buf.len();
-        let vec_len = self.vec.len();
+        let mut vec = self.vec.as_mut();
+        let vec_len = vec.len();
 
         if (vec_len - self.pos) < buf_len {
-            self.vec.resize(self.pos + buf_len, 0u8);
+            vec.resize(self.pos + buf_len, 0u8);
         }
 
         let len = buf_len as usize;
         let range = self.pos..(self.pos + len);
-        let slice = self.vec.as_mut_slice().get_mut(range).unwrap();
         let buf = buf.get(0..len).unwrap();
-        slice.copy_from_slice(buf);
+        vec.as_mut_slice()
+            .get_mut(range)
+            .unwrap()
+            .copy_from_slice(buf);
         self.pos += len;
         Ok(len)
     }
@@ -78,7 +82,7 @@ impl Write for VecStream {
 
 impl Seek for VecStream {
     fn seek(&mut self, pos: SeekFrom) -> Result<u64> {
-        let max = self.vec.len() as i64;
+        let max = self.vec.as_ref().len() as i64;
         let pos = match pos {
             SeekFrom::Start(pos) => pos as i64,
             SeekFrom::End(pos) => pos + max,
@@ -100,7 +104,7 @@ impl Seek for VecStream {
 impl Resize for VecStream {
     fn resize(&mut self, size: u64) -> Result<()> {
         let size = size as usize;
-        self.vec.resize(size, 0u8);
+        self.vec.as_mut().resize(size, 0u8);
         self.pos = if self.pos > size { size } else { self.pos };
         Ok(())
     }

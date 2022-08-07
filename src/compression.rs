@@ -1,5 +1,4 @@
-use crate::private::clone::CloneCell;
-use crate::private::set::MinSet;
+use crate::internal::{set::MinSet, SharedPtr};
 use crate::streams::{IOError, IOResult, Stream};
 use crate::{BuildingBlock, Get, GetMut, Ordered, Prefetch};
 use lz4::{Decoder, EncoderBuilder};
@@ -27,7 +26,7 @@ use std::ops::{Deref, DerefMut};
 pub struct Compressor<'a, T: Serialize + DeserializeOwned, S: Stream<'a>> {
     stream: S,
     capacity: usize,
-    count: CloneCell<usize>,
+    count: SharedPtr<usize>,
     unused: PhantomData<&'a T>,
 }
 
@@ -38,10 +37,10 @@ impl<'a, T: Serialize + DeserializeOwned, S: Stream<'a>>
         let mut c = Compressor {
             stream,
             capacity,
-            count: CloneCell::new(0usize),
+            count: SharedPtr::from(0usize),
             unused: PhantomData,
         };
-        *c.count = match c.read() {
+        *c.count.as_mut().deref_mut() = match c.read() {
             Ok(v) => v.len(),
             Err(_) => 0usize,
         };
@@ -91,20 +90,19 @@ impl<'a, T: Serialize + DeserializeOwned, S: Stream<'a>>
     }
 
     pub fn write(&mut self, val: &[T]) -> IOResult<()> {
-        let mut stream = self.stream.clone();
         let n = val.len();
 
         // Resize to zero if content is shorter than previous content.
-        if let Err(e) = stream.resize(0u64) {
+        if let Err(e) = self.stream.resize(0u64) {
             return Err(IOError::SeekError(e));
         }
 
         // Rewind stream
-        if let Err(e) = stream.seek(SeekFrom::Start(0u64)) {
+        if let Err(e) = self.stream.seek(SeekFrom::Start(0u64)) {
             return Err(IOError::SeekError(e));
         }
         // Resize to zero if content is shorter than previous content.
-        if let Err(e) = stream.resize(0u64) {
+        if let Err(e) = self.stream.resize(0u64) {
             return Err(IOError::SeekError(e));
         }
 
@@ -115,10 +113,11 @@ impl<'a, T: Serialize + DeserializeOwned, S: Stream<'a>>
         };
 
         // Compress bytes.
-        let mut encoder = match EncoderBuilder::new().build(stream) {
-            Ok(e) => e,
-            Err(e) => return Err(IOError::EncodeError(e)),
-        };
+        let mut encoder =
+            match EncoderBuilder::new().build(&mut self.stream) {
+                Ok(e) => e,
+                Err(e) => return Err(IOError::EncodeError(e)),
+            };
 
         // Write to stream.
         if let Err(e) = encoder.write(bytes.as_mut_slice()) {
@@ -126,7 +125,7 @@ impl<'a, T: Serialize + DeserializeOwned, S: Stream<'a>>
         }
 
         // Finish encoding
-        let mut w = match encoder.finish() {
+        let w = match encoder.finish() {
             (_, Err(e)) => {
                 return Err(IOError::EncodeError(e));
             }
@@ -137,8 +136,9 @@ impl<'a, T: Serialize + DeserializeOwned, S: Stream<'a>>
         if let Err(e) = w.flush() {
             return Err(IOError::EncodeError(e));
         }
+        drop(w);
 
-        *self.count = n;
+        *self.count.as_mut().deref_mut() = n;
         Ok(())
     }
 }
@@ -158,7 +158,7 @@ where
     }
 
     fn count(&self) -> usize {
-        *self.count
+        *self.count.as_ref().deref()
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -262,7 +262,7 @@ where
             return Box::new(std::iter::empty());
         }
 
-        *self.count = 0;
+        *self.count.as_mut().deref_mut() = 0;
         Box::new(v.into_iter())
     }
 }

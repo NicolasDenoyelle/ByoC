@@ -1,7 +1,8 @@
 /// Utils for bit calculation
 pub mod bits;
 /// Utils for obtaining multiple writable shallow copies of a resource.
-pub mod clone;
+mod shared_ptr;
+pub use shared_ptr::{SharedPtr, SharedPtrGuard, SharedPtrGuardMut};
 #[cfg(feature = "stream")]
 /// Array implementation above a
 /// [stream](../utils/stream/trait.Stream.html) and

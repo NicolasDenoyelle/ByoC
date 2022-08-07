@@ -411,11 +411,6 @@ where
         }
     }
 
-    /// Get a clone of inner stream.
-    pub fn get_stream(&self) -> T {
-        self.stream.clone()
-    }
-
     /// The number of element in the vector.
     pub fn len(&self) -> IOResult<usize> {
         let mut stream = self.stream.clone();
@@ -514,7 +509,7 @@ where
             return Err(IOError::SeekError(e));
         };
 
-        let mut stream = BufWriter::new(self.stream.clone());
+        let mut stream = BufWriter::new(&mut self.stream);
         while let Some(value) = values.pop() {
             let mut chunk = IOChunk::new(self.chunk_size);
             match chunk.serialize(&value) {

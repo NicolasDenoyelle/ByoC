@@ -144,6 +144,12 @@ pub struct ArrayCell<T> {
 impl<T> Deref for ArrayCell<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
+        // SAFETY:
+        // Because this element is created with the unsafe get() method,
+        // by contract, the user is responsible for ensuring that
+        // this array element does outlive its array container,
+        // and that the array is not modified/reallocated while this element
+        // is being read.
         unsafe { self.t.as_ref().unwrap() }
     }
 }
@@ -157,12 +163,20 @@ pub struct ArrayMutCell<T> {
 impl<T> Deref for ArrayMutCell<T> {
     type Target = T;
     fn deref(&self) -> &Self::Target {
+        // SAFETY:
+        // Because this element is created with the unsafe get_mut() method,
+        // by contract, the user is responsible for ensuring that
+        // this array element does outlive its array container,
+        // and that the array is not modified/reallocated while this element
+        // is being read.
         unsafe { self.t.as_ref().unwrap() }
     }
 }
 
 impl<T> DerefMut for ArrayMutCell<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        // SAFETY:
+        // See Deref trait method.
         unsafe { self.t.as_mut().unwrap() }
     }
 }
@@ -178,7 +192,7 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>> for Array<(K, V)> {
     /// lead to undefined behavior. The user of this method must ensure that
     /// the Array container is not modified until the `ArrayCell` is
     /// dropped. Otherwise, the content of the `ArrayCell` might be
-    /// corrupted.
+    /// corrupted or even point to a non allocated area.
     ///
     /// # Example:
     ///
@@ -222,7 +236,7 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
     /// lead to undefined behavior. The user of this method must ensure that
     /// the Array container is not modified until the `ArrayMutCell` is
     /// dropped. Otherwise, the content of the `ArrayMutCell` might be
-    /// corrupted.
+    /// corrupted or even point to a non allocated area.
     ///
     /// # Example:
     ///
