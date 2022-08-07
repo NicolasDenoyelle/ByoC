@@ -1,91 +1,10 @@
-use crate::internal::lock::{RWLock, RWLockGuard, TryLockError};
 use crate::{BuildingBlock, Concurrent, Get, GetMut, Ordered};
-use std::boxed::Box;
 use std::marker::Sync;
-use std::ops::{Deref, DerefMut, Drop};
-
-//------------------------------------------------------------------------//
-//                            Public clonable struct                      //
-//------------------------------------------------------------------------//
-
-/// Reference counted raw pointer.
-struct UnsafeSharedPtr<V> {
-    ptr: *mut V,
-    rc: RWLock,
-}
-
-impl<V> UnsafeSharedPtr<V> {
-    /// Gain read only access to the object.
-    /// This function is unsafe because shadow copies of the underlying
-    /// object may write the underlying object and lead to unexpected or
-    /// inconsistent reads when the object is being accessed concurrently.
-    pub unsafe fn as_ref(&self) -> &V {
-        // SAFETY:
-        // As long as the UnsafeSharedPtr exists, its pointer is valid.
-        // It is freed only when the last copy of the pointed content is
-        // dropped. The only way for it to be invalid would be that the
-        // rc counter is invalid or a memory corruption.
-        self.ptr.as_ref().unwrap()
-    }
-
-    /// Gain write access to the object.
-    /// This function is unsafe because shadow copies of the underlying
-    /// object may write the underlying object at the same time and lead to
-    /// inconsistent modifications.
-    pub unsafe fn as_mut(&mut self) -> &mut V {
-        // SAFETY:
-        // As long as the UnsafeSharedPtr exists, its pointer is valid.
-        // It is freed only when the last copy of the pointed content is
-        // dropped. The only way for it to be invalid would be that the
-        // rc counter is invalid or a memory corruption.
-        self.ptr.as_mut().unwrap()
-    }
-}
-
-impl<V> From<V> for UnsafeSharedPtr<V> {
-    /// UnsafeSharedPtr constructor.
-    /// Wrap a value into a reference counting cell and move it on the heap.
-    fn from(value: V) -> Self {
-        let rc = RWLock::new();
-        // Increment reference count in the lock by one.
-        rc.lock().unwrap();
-
-        UnsafeSharedPtr {
-            ptr: Box::into_raw(Box::new(value)),
-            rc,
-        }
-    }
-}
-
-impl<V> Clone for UnsafeSharedPtr<V> {
-    /// Create a shadow copy of the same object pointed by the same pointer.
-    /// This function safely increments the count of copies of this pointer.
-    /// Then it creates a shadow copy of the same element pointed by the same
-    /// pointer. Although creating a shadow copy is safe, using it is not
-    /// because it breaks the borrowing and concurrency rules.
-    fn clone(&self) -> Self {
-        self.rc.lock().unwrap();
-        UnsafeSharedPtr {
-            ptr: self.ptr,
-            rc: self.rc.clone(),
-        }
-    }
-}
-
-impl<V> Drop for UnsafeSharedPtr<V> {
-    /// This method decrements the count of shadow copies.
-    /// Then, it tries to acquire exclusive ownership over the reference counted
-    /// pointer. If ownership is acquired, then it means that there we no other
-    /// shadow copies of this element, and the content is destroyed.
-    fn drop(&mut self) {
-        // release (last?) read lock.
-        self.rc.unlock();
-        // If we are the only remaining clone owner we clean ourselves up.
-        if let Ok(_) = self.rc.try_lock_mut() {
-            drop(unsafe { Box::from_raw(self.ptr) })
-        }
-    }
-}
+use std::ops::{Deref, DerefMut};
+use std::sync::{
+    Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockError,
+    TryLockResult,
+};
 
 //-------------------------------------------------------------------------
 // A Shared ptr blocking on access.
@@ -124,53 +43,19 @@ impl<V> Drop for UnsafeSharedPtr<V> {
 ///     // Mutable access not ok.
 ///     assert!(v.clone().get_mut().is_err());
 /// }
-/// let mut v2 = v.clone();
-/// *v2.get_mut().unwrap() += 1u32; // Ok
-/// assert_eq!(*v2.as_ref(), 5u32);
+///
+/// {
+///     let mut v2 = v.clone();
+///     *v2.get_mut().unwrap() += 1u32; // Ok
+///     assert_eq!(*v2.as_ref(), 5u32);
+/// }
+///
+/// // Mutating the clone mutated the original pointer.
+/// assert_eq!(*v.as_ref(), 5u32);
 /// ```
+#[derive(Debug)]
 pub struct SharedPtr<V> {
-    ptr: UnsafeSharedPtr<V>,
-    lock: RWLock,
-}
-
-pub struct SharedPtrGuard<'a, V> {
-    ptr: RWLockGuard<'a, UnsafeSharedPtr<V>>,
-}
-
-impl<'a, V> Deref for SharedPtrGuard<'a, V> {
-    type Target = V;
-    fn deref(&self) -> &Self::Target {
-        // SAFETY:
-        // This object has been created by successfully acquiring the (read)
-        // lock of the SharedPtr holder. Therefore it cannot be modified
-        // elsewhere while this guard is in scope.
-        unsafe { self.ptr.as_ref() }
-    }
-}
-
-pub struct SharedPtrGuardMut<'a, V> {
-    ptr: RWLockGuard<'a, UnsafeSharedPtr<V>>,
-}
-
-impl<'a, V> Deref for SharedPtrGuardMut<'a, V> {
-    type Target = V;
-    fn deref(&self) -> &Self::Target {
-        // SAFETY:
-        // This object has been created by successfully acquiring the exclusive
-        // (write) lock of the SharedPtr holder. Therefore it cannot be
-        // read or modified elsewhere while this guard is in scope.
-        unsafe { self.ptr.as_ref() }
-    }
-}
-
-impl<'a, V> DerefMut for SharedPtrGuardMut<'a, V> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        // SAFETY:
-        // This object has been created by successfully acquiring the exclusive
-        // (write) lock of the SharedPtr holder. Therefore it cannot be
-        // read or modified elsewhere while this guard is in scope.
-        unsafe { self.ptr.as_mut() }
-    }
+    ptr: Arc<RwLock<V>>,
 }
 
 impl<V> SharedPtr<V> {
@@ -187,15 +72,8 @@ impl<V> SharedPtr<V> {
     /// * The pointer is being accessed mutably somewhere else,
     /// * A thread holding a guard from a copy of this pointer panicked and
     /// poisoned the associated lock.
-    pub fn get<'a>(
-        &'a self,
-    ) -> Result<SharedPtrGuard<'a, V>, TryLockError<()>> {
-        match self.lock.try_lock() {
-            Ok(_) => Ok(SharedPtrGuard {
-                ptr: RWLockGuard::new(&self.lock, self.ptr.clone()),
-            }),
-            Err(e) => Err(e),
-        }
+    pub fn get<'a>(&'a self) -> TryLockResult<RwLockReadGuard<'a, V>> {
+        self.ptr.try_read()
     }
 
     /// Gain read-write access to the pointed object.
@@ -213,22 +91,17 @@ impl<V> SharedPtr<V> {
     /// poisoned the associated lock.
     pub fn get_mut<'a>(
         &'a mut self,
-    ) -> Result<SharedPtrGuardMut<'a, V>, TryLockError<()>> {
-        match self.lock.try_lock_mut() {
-            Ok(_) => Ok(SharedPtrGuardMut {
-                ptr: RWLockGuard::new(&self.lock, self.ptr.clone()),
-            }),
-            Err(e) => Err(e),
-        }
+    ) -> TryLockResult<RwLockWriteGuard<'a, V>> {
+        self.ptr.try_write()
     }
 
     /// This method has the same effect as
     /// [`get_mut()`](struct.SharedPtr.html#method.get_mut) method except
     /// it will panic if it cannot acquire the lock on the pointer.
-    pub fn as_mut<'a>(&'a mut self) -> SharedPtrGuardMut<'a, V> {
+    pub fn as_mut<'a>(&'a mut self) -> RwLockWriteGuard<'a, V> {
         match self.get_mut() {
             Ok(ptr) => ptr,
-            Err(TryLockError::WouldBlock(_)) => panic!("Cannot borrow SharedPtr mutably while being borrowed already."),
+            Err(TryLockError::WouldBlock) => panic!("Cannot borrow SharedPtr mutably while being borrowed already."),
 	    Err(TryLockError::Poisoned(_)) =>panic!("Cannot borrow poisoned SharedPtr."),
         }
     }
@@ -236,10 +109,10 @@ impl<V> SharedPtr<V> {
     /// This method has the same effect as
     /// [`get()`](struct.SharedPtr.html#method.get) method except it will
     /// panic if it cannot acquire the lock on the pointer.
-    pub fn as_ref<'a>(&'a self) -> SharedPtrGuard<'a, V> {
+    pub fn as_ref<'a>(&'a self) -> RwLockReadGuard<'a, V> {
         match self.get() {
             Ok(ptr) => ptr,
-            Err(TryLockError::WouldBlock(_)) => panic!("Cannot mutably borrow SharedPtr mutably while being borrowed already."),
+            Err(TryLockError::WouldBlock) => panic!("Cannot borrow SharedPtr mutably while being borrowed already."),
 	    Err(TryLockError::Poisoned(_)) =>panic!("Cannot borrow poisoned SharedPtr."),
         }
     }
@@ -250,8 +123,7 @@ impl<V> From<V> for SharedPtr<V> {
     /// Wrap a value into a reference counting cell and move it on the heap.
     fn from(value: V) -> Self {
         SharedPtr {
-            ptr: UnsafeSharedPtr::from(value),
-            lock: RWLock::new(),
+            ptr: Arc::new(RwLock::new(value)),
         }
     }
 }
@@ -265,31 +137,7 @@ impl<V> Clone for SharedPtr<V> {
     fn clone(&self) -> Self {
         SharedPtr {
             ptr: self.ptr.clone(),
-            lock: self.lock.clone(),
         }
-    }
-}
-
-impl<V: std::fmt::Debug> std::fmt::Debug for SharedPtr<V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.get() {
-            Ok(ptr) => ptr.fmt(f),
-            Err(_) => f.write_fmt(format_args!(
-                "SharedPtr<{}>: unavailable",
-                std::any::type_name::<V>()
-            )),
-        }
-    }
-}
-
-impl<'a, V: std::fmt::Debug> std::fmt::Debug for SharedPtrGuard<'a, V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.deref().fmt(f)
-    }
-}
-impl<'a, V: std::fmt::Debug> std::fmt::Debug for SharedPtrGuardMut<'a, V> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.deref().fmt(f)
     }
 }
 
@@ -432,8 +280,13 @@ mod tests {
             assert!(v.clone().get_mut().is_err());
         }
 
-        let mut v2 = v;
-        *v2.get_mut().unwrap() += 1u32; // Ok
-        assert_eq!(*v2.as_ref(), 5u32);
+        {
+            let mut v2 = v.clone();
+            *v2.get_mut().unwrap() += 1u32; // Ok
+            assert_eq!(*v2.as_ref(), 5u32);
+        }
+
+        // Mutating the clone mutated the original pointer.
+        assert_eq!(*v.as_ref(), 5u32);
     }
 }

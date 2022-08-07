@@ -2,7 +2,7 @@
 pub mod bits;
 /// Utils for obtaining multiple writable shallow copies of a resource.
 mod shared_ptr;
-pub use shared_ptr::{SharedPtr, SharedPtrGuard, SharedPtrGuardMut};
+pub use shared_ptr::SharedPtr;
 #[cfg(feature = "stream")]
 /// Array implementation above a
 /// [stream](../utils/stream/trait.Stream.html) and
