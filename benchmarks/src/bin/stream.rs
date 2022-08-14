@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate byoc_benchmarks;
-use byoc::streams::TempFileStreamFactory;
+use byoc::stream::TempFileStreamFactory;
 use byoc::Stream;
 use byoc_benchmarks::{MicroBenchmark, MicroBenchmarkArgs};
 use std::fs::File;

@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate byoc_benchmarks;
-use byoc::streams::VecStream;
+use byoc::stream::VecStream;
 use byoc::Compressor;
 use byoc_benchmarks::{MicroBenchmark, MicroBenchmarkArgs};
 use std::fs::File;

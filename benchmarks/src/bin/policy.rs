@@ -1,6 +1,6 @@
 #[macro_use]
 extern crate byoc_benchmarks;
-use byoc::policies::FIFO;
+use byoc::policy::FIFO;
 use byoc::{Array, Policy};
 use byoc_benchmarks::{MicroBenchmark, MicroBenchmarkArgs};
 use std::fs::File;

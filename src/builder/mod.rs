@@ -1,41 +1,29 @@
-mod array;
-mod associative;
-mod btree;
-#[cfg(feature = "compression")]
-mod compression;
-mod multilevel;
-mod policy;
-mod profiler;
-mod sequential;
-#[cfg(feature = "stream")]
-mod stream;
-
-mod begin;
-pub use begin::Begin;
+mod builder;
+pub use builder::Begin;
 
 /// Build a specific container builder.
 pub mod builders {
-    pub use crate::builder::array::ArrayBuilder;
-    pub use crate::builder::associative::AssociativeBuilder;
-    pub use crate::builder::btree::BTreeBuilder;
+    pub use crate::array::builder::ArrayBuilder;
+    pub use crate::associative::builder::AssociativeBuilder;
+    pub use crate::btree::builder::BTreeBuilder;
     #[cfg(feature = "compression")]
-    pub use crate::builder::compression::CompressorBuilder;
-    pub use crate::builder::multilevel::MultilevelBuilder;
-    pub use crate::builder::policy::PolicyBuilder;
-    pub use crate::builder::profiler::ProfilerBuilder;
-    pub use crate::builder::sequential::SequentialBuilder;
+    pub use crate::compression::builder::CompressorBuilder;
+    pub use crate::multilevel::builder::MultilevelBuilder;
+    pub use crate::policy::builder::PolicyBuilder;
+    pub use crate::profiler::builder::ProfilerBuilder;
+    pub use crate::sequential::builder::SequentialBuilder;
     #[cfg(feature = "stream")]
-    pub use crate::builder::stream::StreamBuilder;
+    pub use crate::stream::builder::StreamBuilder;
 }
 
 /// Traits enabling builders chaining capabilities.
 pub mod traits {
-    use crate::builder::associative::AssociativeBuilder;
-    use crate::builder::multilevel::MultilevelBuilder;
-    use crate::builder::policy::PolicyBuilder;
-    use crate::builder::profiler::ProfilerBuilder;
-    use crate::builder::sequential::SequentialBuilder;
-    use crate::policies::{Reference, ReferenceFactory};
+    use crate::associative::builder::AssociativeBuilder;
+    use crate::multilevel::builder::MultilevelBuilder;
+    use crate::policy::builder::PolicyBuilder;
+    use crate::policy::{Reference, ReferenceFactory};
+    use crate::profiler::builder::ProfilerBuilder;
+    use crate::sequential::builder::SequentialBuilder;
     use crate::ProfilerOutputKind;
     use std::hash::Hasher;
 
