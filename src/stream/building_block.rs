@@ -1,16 +1,14 @@
 use super::ByteStream;
-use crate::internal::io_vec::IOVec;
 use crate::internal::set::MinSet;
-use crate::stream::{Stream, StreamFactory};
+use crate::stream::{IOVec, Stream, StreamFactory};
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
 
-impl<'a, K, V, S, F> BuildingBlock<'a, K, V>
-    for ByteStream<'a, (K, V), S, F>
+impl<'a, K, V, S, F> BuildingBlock<'a, K, V> for ByteStream<(K, V), S, F>
 where
-    K: 'a + DeserializeOwned + Serialize + Eq,
+    K: 'a + DeserializeOwned + Serialize + Ord,
     V: 'a + DeserializeOwned + Serialize + Ord,
-    S: 'a + Stream<'a>,
+    S: 'a + Stream,
     F: StreamFactory<S>,
 {
     fn capacity(&self) -> usize {
@@ -61,6 +59,20 @@ where
                 }
             }
         }
+    }
+
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let mut ret = Vec::with_capacity(keys.len());
+        keys.sort();
+        for stream in self.stream.iter_mut().filter_map(|s| s.as_ref()) {
+            for (k, v) in stream.iter().map(|x| x.unwrap()) {
+                if let Ok(i) = keys.binary_search(&k) {
+                    ret.push((k, v));
+                    keys.remove(i);
+                }
+            }
+        }
+        ret
     }
 
     /// Remove up to `n` values from the container.

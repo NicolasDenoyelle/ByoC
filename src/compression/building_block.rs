@@ -1,15 +1,15 @@
-use super::Compressor;
+use super::Compressed;
 use crate::internal::set::MinSet;
 use crate::stream::Stream;
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
 use std::ops::{Deref, DerefMut};
 
-impl<'a, K, V, S> BuildingBlock<'a, K, V> for Compressor<'a, (K, V), S>
+impl<'a, K, V, S> BuildingBlock<'a, K, V> for Compressed<(K, V), S>
 where
-    K: 'a + Serialize + DeserializeOwned + Eq,
+    K: 'a + Serialize + DeserializeOwned + Ord,
     V: 'a + Serialize + DeserializeOwned + Ord,
-    S: Stream<'a>,
+    S: Stream,
 {
     fn capacity(&self) -> usize {
         self.capacity
@@ -52,6 +52,45 @@ where
         match self.write(&v) {
             Ok(_) => Some(ret),
             Err(_) => None,
+        }
+    }
+
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let mut out = Vec::with_capacity(keys.len());
+
+        // Read elements into memory.
+        let mut v = match self.read() {
+            Err(_) => return out,
+            Ok(v) => v,
+        };
+
+        keys.sort();
+
+        #[allow(clippy::needless_collect)]
+        {
+            let matches: Vec<usize> = v
+                .iter()
+                .enumerate()
+                .filter_map(|(i, (k, _))| {
+                    if keys.binary_search(k).is_ok() {
+                        Some(i)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for i in matches.into_iter().rev() {
+                out.push(v.swap_remove(i));
+            }
+        }
+
+        // Rewrite vector to stream.
+        match self.write(&v) {
+            Ok(_) => out,
+            Err(_) => {
+                panic!("Could not write updated elements to Compressed")
+            }
         }
     }
 
@@ -105,7 +144,7 @@ where
         // Rewrite vector to stream.
         match self.write(&v) {
             Ok(_) => out,
-            Err(_) => panic!("Could not write new elements to Compressor"),
+            Err(_) => panic!("Could not write new elements to Compressed"),
         }
     }
 
@@ -127,14 +166,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::Compressor;
+    use super::Compressed;
     use crate::stream::VecStream;
     use crate::tests::test_building_block;
 
     #[test]
     fn building_block() {
         for i in [0usize, 10usize, 100usize] {
-            test_building_block(Compressor::new(VecStream::new(), i));
+            test_building_block(Compressed::new(VecStream::new(), i));
         }
     }
 }

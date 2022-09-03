@@ -1,11 +1,17 @@
 use crate::internal::lock::RWLock;
 use crate::internal::SharedPtr;
 
-/// Concurrent building block wrapper with a lock.
+/// [`Concurrent`](trait.Concurrent.html)
+/// [`BuildingBlock`](trait.BuildingBlock.html) wrapper with a lock.
 ///
-/// Makes a container thread safe by sequentializing its access.
+/// This wrapper can be used to makes a container thread safe by
+/// sequentializing its access.
 ///
-/// # Examples
+/// This building block can also be built with a
+/// [builder](builder/trait.Build.html#method.into_sequential) pattern or from a
+/// [configuration](config/configs/struct.SequentialConfig.html).
+///
+/// ## Examples
 ///
 /// ```
 /// use byoc::{BuildingBlock, Concurrent};

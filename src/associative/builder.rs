@@ -1,5 +1,6 @@
-use crate::builder::traits::{Builder, Multilevel, Policy, Profiler};
-use crate::{Associative, MultisetHasher};
+use crate::associative::ExclusiveHasher;
+use crate::builder::Build;
+use crate::Associative;
 use std::hash::Hasher;
 use std::marker::PhantomData;
 
@@ -8,18 +9,24 @@ use std::marker::PhantomData;
 /// This builder can be consumed later to wrap some containers into an
 /// [`Associative`](../../struct.Associative.html) container.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::*;
+/// use byoc::{Array, Associative};
+/// use byoc::builder::{AssociativeBuild, Build};
 /// use byoc::builder::builders::{ArrayBuilder, AssociativeBuilder};
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// let array_builder = ArrayBuilder::new(2);
-/// let mut container =
+/// let mut container: Associative::<Array<(u64,u64)>,_> =
 ///     AssociativeBuilder::<_,_,_>::new(array_builder,
 ///                                      DefaultHasher::new(), 2).build();
+/// assert_eq!(container.capacity(), 4);
+/// let associative: Associative::<Array<(u64,u64)>,_> =
+///                  Associative::new(vec![Array::new(2), Array::new(2)],
+///                                   DefaultHasher::new());
+/// assert_eq!(associative.capacity(), 4);
 /// container.push(vec![(1, 2)]);
 ///
 /// // You can also chain calls:
@@ -45,17 +52,17 @@ use std::marker::PhantomData;
 pub struct AssociativeBuilder<C, H, B>
 where
     H: Hasher + Clone,
-    B: Builder<C> + Clone,
+    B: Build<C> + Clone,
 {
     builder: B,
-    set_hasher: MultisetHasher<H>,
+    set_hasher: ExclusiveHasher<H>,
     unused: PhantomData<C>,
 }
 
 impl<C, H, B> Clone for AssociativeBuilder<C, H, B>
 where
     H: Hasher + Clone,
-    B: Builder<C> + Clone,
+    B: Build<C> + Clone,
 {
     fn clone(&self) -> Self {
         AssociativeBuilder {
@@ -69,12 +76,12 @@ where
 impl<C, H, B> AssociativeBuilder<C, H, B>
 where
     H: Hasher + Clone,
-    B: Builder<C> + Clone,
+    B: Build<C> + Clone,
 {
     pub fn new(builder: B, key_hasher: H, num_sets: usize) -> Self {
         AssociativeBuilder {
             builder,
-            set_hasher: MultisetHasher::new(key_hasher, num_sets),
+            set_hasher: ExclusiveHasher::new(key_hasher, num_sets),
             unused: PhantomData,
         }
     }
@@ -82,7 +89,7 @@ where
     pub fn add_layer(
         self,
         num_keys: usize,
-    ) -> AssociativeBuilder<Associative<C, MultisetHasher<H>>, H, Self>
+    ) -> AssociativeBuilder<Associative<C, ExclusiveHasher<H>>, H, Self>
     {
         let hasher = self.set_hasher.next(num_keys).expect(
             "Too many and/or too large associative layers stacked.",
@@ -95,38 +102,13 @@ where
     }
 }
 
-impl<C, H, B> Policy<Associative<C, MultisetHasher<H>>>
+impl<C, H, B> Build<Associative<C, ExclusiveHasher<H>>>
     for AssociativeBuilder<C, H, B>
 where
-    B: Builder<C> + Clone,
+    B: Build<C> + Clone,
     H: Hasher + Clone,
 {
-}
-
-impl<C, H, B> Profiler<Associative<C, MultisetHasher<H>>>
-    for AssociativeBuilder<C, H, B>
-where
-    B: Builder<C> + Clone,
-    H: Hasher + Clone,
-{
-}
-
-impl<L, H, LB, R, RB> Multilevel<Associative<L, MultisetHasher<H>>, R, RB>
-    for AssociativeBuilder<L, H, LB>
-where
-    LB: Builder<L> + Clone,
-    H: Hasher + Clone,
-    RB: Builder<R>,
-{
-}
-
-impl<C, H, B> Builder<Associative<C, MultisetHasher<H>>>
-    for AssociativeBuilder<C, H, B>
-where
-    B: Builder<C> + Clone,
-    H: Hasher + Clone,
-{
-    fn build(self) -> Associative<C, MultisetHasher<H>> {
+    fn build(self) -> Associative<C, ExclusiveHasher<H>> {
         Associative::new(
             vec![self.builder.clone().build()],
             self.set_hasher,

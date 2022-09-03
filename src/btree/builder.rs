@@ -1,6 +1,4 @@
-use crate::builder::traits::{
-    Associative, Builder, Multilevel, Policy, Profiler, Sequential,
-};
+use crate::builder::Build;
 use crate::BTree;
 use std::marker::PhantomData;
 
@@ -9,11 +7,11 @@ use std::marker::PhantomData;
 /// This builder can be consumed later to spawn an
 /// [`BTree`](../../struct.BTree.html) container.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::traits::*;
+/// use byoc::builder::Build;
 /// use byoc::builder::builders::BTreeBuilder;
 ///
 /// let mut btree = BTreeBuilder::new(2).build();
@@ -42,28 +40,7 @@ impl<K: Ord + Copy, V: Ord> Clone for BTreeBuilder<K, V> {
     }
 }
 
-impl<K: Ord + Copy, V: Ord, H: std::hash::Hasher + Clone>
-    Associative<BTree<K, V>, H> for BTreeBuilder<K, V>
-{
-}
-
-impl<K: Ord + Copy, V: Ord> Sequential<BTree<K, V>>
-    for BTreeBuilder<K, V>
-{
-}
-
-impl<K: Ord + Copy, V: Ord> Profiler<BTree<K, V>> for BTreeBuilder<K, V> {}
-
-impl<K: Ord + Copy, V: Ord> Policy<BTree<K, V>> for BTreeBuilder<K, V> {}
-impl<K, V, R, RB> Multilevel<BTree<K, V>, R, RB> for BTreeBuilder<K, V>
-where
-    K: Ord + Copy,
-    V: Ord,
-    RB: Builder<R>,
-{
-}
-
-impl<K: Copy + Ord, V: Ord> Builder<BTree<K, V>> for BTreeBuilder<K, V> {
+impl<K: Copy + Ord, V: Ord> Build<BTree<K, V>> for BTreeBuilder<K, V> {
     fn build(self) -> BTree<K, V> {
         BTree::new(self.capacity)
     }

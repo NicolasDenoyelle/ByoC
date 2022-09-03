@@ -2,19 +2,36 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
 use std::vec::Vec;
 
-/// Building block with ordered keys and values.
+/// In-memory container with ordered keys and values.
 ///
-/// BTree is a container organized with binary tree structures for keys
+/// [`BTree`] is a container organized with binary tree structures for keys
 /// and values. Keys are kept in a binary tree for fast lookups.
 /// Values are kept in a binary tree for fast search of eviction candidates.
-/// Since keys are ordered, this container will not allow several matching
-/// keys in the container. However, it can store equal values.
+/// This container cannot contain matching pairs of a key and a value.
+/// However, it can store matching values or matching keys.
+/// Additionally, because [`BTree`] is an ordered container,
+/// it is not safe to store keys or values for which the order may change
+/// through time. Specifically, using [`Lru`](./policy/struct.Lru.html)
+/// or [`Lrfu`](./policy/struct.Lrfu.html) policies is not safe.
 ///
-/// BTree does not implement [`Get`](../trait.Get.html) trait because
-/// accessing values, even in a non exclusive way, may change their
-/// relative order and break the way values are stored in a binary tree.
+/// * Insertion complexity is `$O(log(n))$`.
+/// The whole array is walked to look for matching keys and avoid collisions.
+/// * Removal complexity is `$O(log(n))$`.
+/// The whole array is walked to look for matching keys.
+/// * Eviction complexity is `$O(log(n))$`.
+/// The whole array is sorted to remove the top `k` elements.
+/// * Keys lookup complexity is `$O(log(n))$`.
+/// * Capacity and count queries are `$O(1)$`.
 ///
-/// # Examples
+/// [`BTree`] does not implement [`Get`](trait.Get.html) trait because
+/// accessing modifying values is likely to modify their order and break the
+/// container logic.
+///
+/// This container implements the [`Ordered`](../policy/trait.Ordered.html)
+/// (although it cannot be safely used with a [policy](policy/index.html))
+/// because eviction will evict the top `k` elements.
+///
+/// ## Examples
 ///
 /// ```
 /// use byoc::BuildingBlock;
@@ -27,8 +44,8 @@ use std::vec::Vec;
 /// // No element is rejected.
 /// assert!(c.push(vec![("first", 4), ("second", 2)]).pop().is_none());
 ///
-/// // Insertion of existing keys are rejected and elements not fitting
-/// // in the container are also rejected.
+/// // Insertion of existing keys is rejected and elements not fitting
+/// // in the container are returned.
 /// let out = c.push(vec![("second", 4), ("third", 3), ("fourth", 4)]);
 /// // Already in the container.
 /// assert_eq!(out[0].0, "second");
@@ -44,6 +61,10 @@ use std::vec::Vec;
 /// let (key, value) = c.pop(1).pop().unwrap();
 /// assert_eq!(key, "second");
 /// ```
+///
+/// [`BTree`] can also be built from a
+/// [builder pattern](builder/struct.Builder.html#method.btree) and a
+/// [configuration](config/struct.BTreeConfig.html).
 pub struct BTree<K, V>
 where
     K: Copy + Ord,

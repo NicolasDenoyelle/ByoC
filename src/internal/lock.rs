@@ -317,7 +317,7 @@ impl RWLock {
 /// A RWLock guard that unlock a lock when going out of scope.
 /// Element inside a RWLockGuard can be accessed with Deref and DerefMut methods.
 ///
-/// # Examples
+/// ## Examples
 ///
 /// ```ignore
 /// use byoc::lock::{RWLock, RWLockGuard};

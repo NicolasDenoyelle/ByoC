@@ -53,7 +53,7 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>> for Array<(K, V)> {
     /// [`ArrayCell`](struct.ArrayCell.html). The `ArrayCell` can
     /// further be dereferenced into a value reference.
     ///
-    /// # Safety:
+    /// ## Safety:
     ///
     /// Using the return value inside the `ArrayCell` is unsafe and can
     /// lead to undefined behavior. The user of this method must ensure that
@@ -61,7 +61,7 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>> for Array<(K, V)> {
     /// dropped. Otherwise, the content of the `ArrayCell` might be
     /// corrupted or even point to a non allocated area.
     ///
-    /// # Example:
+    /// ## Example:
     ///
     /// ```
     /// use byoc::{BuildingBlock, Get};
@@ -97,7 +97,7 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
     /// [`ArrayMutCell`](struct.ArrayMutCell.html). The `ArrayMutCell`
     /// can further be dereferenced into a value reference.
     ///
-    /// # Safety:
+    /// ## Safety:
     ///
     /// Using the return value inside the `ArrayMutCell` is unsafe and can
     /// lead to undefined behavior. The user of this method must ensure that
@@ -105,7 +105,7 @@ impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
     /// dropped. Otherwise, the content of the `ArrayMutCell` might be
     /// corrupted or even point to a non allocated area.
     ///
-    /// # Example:
+    /// ## Example:
     ///
     /// ```
     /// use byoc::{BuildingBlock, GetMut};

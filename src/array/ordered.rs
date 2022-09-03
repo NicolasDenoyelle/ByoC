@@ -1,5 +1,5 @@
 use super::Array;
-use crate::Ordered;
+use crate::policy::Ordered;
 
 // Make this container usable with a policy.
 impl<K, V: Ord> Ordered<V> for Array<(K, V)> {}

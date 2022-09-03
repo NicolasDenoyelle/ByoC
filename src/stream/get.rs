@@ -1,6 +1,5 @@
 use super::ByteStream;
-use crate::internal::io_vec::IOStructMut;
-use crate::stream::{Stream, StreamFactory};
+use crate::stream::{IOStructMut, Stream, StreamFactory};
 use crate::{Get, GetMut};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
@@ -27,21 +26,21 @@ impl<V> Deref for StreamCell<V> {
 /// stream. If the value inside a `StreamMutCell` is modified via a call
 /// to `deref_mut()`, then the key/value pair is written back to the
 /// stream it comes from when the `StreamMutCell` is destroyed.
-pub struct StreamMutCell<'a, K, V, S>
+pub struct StreamMutCell<K, V, S>
 where
     K: Serialize,
     V: Serialize,
-    S: Stream<'a>,
+    S: Stream,
 {
     item: IOStructMut<(K, V), S>,
-    unused: PhantomData<&'a S>,
+    unused: PhantomData<S>,
 }
 
-impl<'a, K, V, S> Deref for StreamMutCell<'a, K, V, S>
+impl<K, V, S> Deref for StreamMutCell<K, V, S>
 where
     K: Serialize,
     V: Serialize,
-    S: Stream<'a>,
+    S: Stream,
 {
     type Target = V;
     fn deref(&self) -> &Self::Target {
@@ -49,30 +48,29 @@ where
     }
 }
 
-impl<'a, K, V, S> DerefMut for StreamMutCell<'a, K, V, S>
+impl<K, V, S> DerefMut for StreamMutCell<K, V, S>
 where
     K: Serialize,
     V: Serialize,
-    S: Stream<'a>,
+    S: Stream,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.item.deref_mut().1
     }
 }
 
-impl<'a, K, V, F, S> Get<K, V, StreamCell<V>>
-    for ByteStream<'a, (K, V), S, F>
+impl<K, V, F, S> Get<K, V, StreamCell<V>> for ByteStream<(K, V), S, F>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
-    S: Stream<'a>,
+    S: Stream,
     F: StreamFactory<S>,
 {
     /// Get value inside a `Stream`. The value is wrapped inside a
     /// [`StreamCell`](struct.StreamCell.html). The `StreamCell` can
     /// further be dereferenced into a value reference.
     ///
-    /// # Safety:
+    /// ## Safety:
     ///
     /// The return value inside the `StreamCell` is a copy of
     /// the value inside the stream. Ideally, the stream should not
@@ -80,12 +78,12 @@ where
     /// in use. If the stream is modified, the value inside the `StreamCell`
     /// may no longer accurately represent the value inside the stream.
     ///
-    /// # Example:
+    /// ## Example:
     ///
     /// ```
     /// use byoc::{BuildingBlock, Get};
     /// use byoc::Stream;
-    /// use byoc::stream::VecStreamFactory;
+    /// use byoc::utils::stream::VecStreamFactory;
     ///
     /// // Make a stream and populate it.
     /// // Array with 3 elements capacity.
@@ -116,12 +114,12 @@ where
     }
 }
 
-impl<'a, K, V, F, S> GetMut<K, V, StreamMutCell<'a, K, V, S>>
-    for ByteStream<'a, (K, V), S, F>
+impl<K, V, F, S> GetMut<K, V, StreamMutCell<K, V, S>>
+    for ByteStream<(K, V), S, F>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
-    S: Stream<'a>,
+    S: Stream,
     F: StreamFactory<S>,
 {
     /// Get a mutable value inside a `Stream`. The value is wrapped
@@ -129,7 +127,7 @@ where
     /// The `StreamMutCell` can further be dereferenced into a value
     /// reference.
     ///
-    /// # Safety:
+    /// ## Safety:
     ///
     /// The return value inside the `StreamMutCell` is a copy of
     /// the value inside the stream. If the value is modified, it is
@@ -138,12 +136,12 @@ where
     /// returned `StreamMutCell` is still in use. If the latter happens,
     /// all the subsequent uses of this container are undefined behavior.
     ///
-    /// # Example:
+    /// ## Example:
     ///
     /// ```
     /// use byoc::{BuildingBlock, Get, GetMut};
     /// use byoc::Stream;
-    /// use byoc::stream::VecStreamFactory;
+    /// use byoc::utils::stream::VecStreamFactory;
     ///
     /// // Make a stream and populate it.
     /// let mut c = Stream::new(VecStreamFactory{}, 1);
@@ -161,7 +159,7 @@ where
     unsafe fn get_mut(
         &mut self,
         key: &K,
-    ) -> Option<StreamMutCell<'a, K, V, S>> {
+    ) -> Option<StreamMutCell<K, V, S>> {
         self.stream
             .iter_mut()
             .filter_map(|s| s.as_mut())

@@ -1,41 +1,41 @@
 use crate::internal::bits::log2;
-use crate::internal::io_vec::IOVec;
-use crate::stream::{Stream, StreamFactory};
+use crate::stream::{IOVec, Stream, StreamFactory};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
 use std::vec::Vec;
 
-/// Key/value storage on a byte stream.
+/// [`BuildingBlock`](trait.BuildingBlock.html) implementation serializing its
+/// elements in a byte [`Stream`](utils/stream/trait.Stream.html).
 ///
-/// `Stream` is a [`BuildingBlock`](trait.BuildingBlock.html)
-/// implementation storing key/value pairs together in a byte stream.
 /// The byte stream of a `Stream` can be any kind of byte stream
 /// implementing the trait
-/// [`Stream`](stream/trait.Stream.html) such as a
-/// [file](stream/struct.FileStream.html) or a
-/// [vector](stream/struct.VecStream.html).
+/// [`Stream`](utils/stream/trait.Stream.html) such as a
+/// [file](utils/stream/struct.FileStream.html) or a
+/// [vector](utils/stream/struct.VecStream.html).
 ///
-/// The `Stream` building block behaves similarly as the
+/// This building block implementation behaves similarly as the
 /// [`Array`](struct.Array.html) building block implementation.
-/// In fact key/value pairs are stored in a set of vectors abstraction
-/// implemented over a byte stream.
+/// (Key,Value) pairs are stored together as a vector element in a
+/// continuous and contiguous list of elements on the backend
+/// [`Stream`](utils/stream/trait.Stream.html). For optimization reason,
+/// elements of such a vector need to be all of the same size.
+/// If a (Key,Value) pair does not fit the size of an element, it is
+/// stored on a different [`Stream`](utils/stream/trait.Stream.html) vector
+/// where elements are large enough to fit it.
+/// For a given (Key,Value) pair, the size of the corresponding element is
+/// the closest power of two fitting the serialized pair.
 ///
-/// Key/value pairs of this building block are serialized/deserialized
-/// into bytes inside a buffer. For a given kay/value pair, the size of
-/// the corresponding buffer is the closest power of two fitting the
-/// serialized pair. Given a chunk size, the chunk is stored in a vector
-/// (or byte stream) of chunks of the same size.
+/// [`Streams`](utils/stream/trait.Stream.html) are generated from a structure
+/// implementing the trait [`StreamFactory`](stream/trait.StreamFactory.html),
+/// such as [`VecStreamFactory`](stream/struct.VecStreamFactory.html) or
+/// [`TempFileStreamFactory`](utils/stream/struct.TempFileStreamFactory.html).
 ///
-/// Byte stream are generated from a structure implementing the trait
-/// [`StreamFactory`](stream/trait.StreamFactory.html), such as
-/// [`VecStreamFactory`](stream/struct.VecStreamFactory.html).
-///
-/// # Examples
+/// ## Examples
 ///
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::Stream;
-/// use byoc::stream::VecStreamFactory;
+/// use byoc::utils::stream::VecStreamFactory;
 ///
 /// // Array with 3 elements capacity.
 /// let mut c = Stream::new(VecStreamFactory{}, 3);
@@ -56,22 +56,22 @@ use std::vec::Vec;
 /// let (key, value) = c.pop(1).pop().unwrap();
 /// assert_eq!(key, 2);
 /// ```
-pub struct ByteStream<'a, T, S, F>
+pub struct ByteStream<T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream<'a>,
+    S: Stream,
     F: StreamFactory<S>,
 {
     pub(super) factory: F,
     pub(super) stream: Vec<Option<IOVec<T, S>>>,
     pub(super) capacity: usize,
-    pub(super) unused: PhantomData<&'a S>,
+    pub(super) unused: PhantomData<S>,
 }
 
-impl<'a, T, S, F> ByteStream<'a, T, S, F>
+impl<T, S, F> ByteStream<T, S, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream<'a>,
+    S: Stream,
     F: StreamFactory<S>,
 {
     /// Create a new `Stream` building block with a set `capacity`.

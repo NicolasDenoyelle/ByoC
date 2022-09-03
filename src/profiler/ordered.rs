@@ -1,5 +1,5 @@
 use super::Profiler;
-use crate::Ordered;
+use crate::policy::Ordered;
 
 impl<V, C> Ordered<V> for Profiler<C>
 where

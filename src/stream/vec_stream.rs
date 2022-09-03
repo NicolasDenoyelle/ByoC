@@ -1,14 +1,19 @@
 use crate::internal::SharedPtr;
-use crate::stream::{Resize, Stream, StreamBase, StreamFactory};
+use crate::stream::{Stream, StreamBase, StreamFactory};
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 
-/// An implementation of a [`Stream`](../trait.Stream.html) in a `Vec<u8>`.
+/// An implementation of a [`Stream`](trait.Stream.html) in a `Vec<u8>`.
+///
+/// The internal vector is protected inside an `Arc` like structure and
+/// will panic if concurrent access with at least one exclusive access to
+/// the vector happen.
 pub struct VecStream {
     vec: SharedPtr<Vec<u8>>,
     pos: usize,
 }
 
 impl VecStream {
+    /// Create a new empty in-memory stream.
     pub fn new() -> Self {
         VecStream {
             vec: SharedPtr::from(Vec::new()),
@@ -101,7 +106,11 @@ impl Seek for VecStream {
     }
 }
 
-impl Resize for VecStream {
+impl StreamBase for VecStream {
+    fn box_clone(&self) -> Box<dyn StreamBase> {
+        Box::new(self.clone())
+    }
+
     fn resize(&mut self, size: u64) -> Result<()> {
         let size = size as usize;
         self.vec.as_mut().resize(size, 0u8);
@@ -109,15 +118,9 @@ impl Resize for VecStream {
         Ok(())
     }
 }
+impl Stream for VecStream {}
 
-impl<'a> StreamBase<'a> for VecStream {
-    fn box_clone(&self) -> Box<dyn StreamBase<'a> + 'a> {
-        Box::new(self.clone())
-    }
-}
-impl<'a> Stream<'a> for VecStream {}
-
-/// A Factory yielding [`VecStream`](struct.VecStream.html) stream.
+/// Factory to spawn [`VecStream`](struct.VecStream.html) instances.
 #[derive(Clone)]
 pub struct VecStreamFactory {}
 

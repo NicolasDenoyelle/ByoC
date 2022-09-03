@@ -3,7 +3,7 @@ use crate::BuildingBlock;
 
 impl<'a, K, V> BuildingBlock<'a, K, V> for Array<(K, V)>
 where
-    K: 'a + Eq,
+    K: 'a + Ord,
     V: 'a + Ord,
 {
     fn capacity(&self) -> usize {
@@ -63,6 +63,19 @@ where
             None => None,
             Some(i) => Some(self.values.swap_remove(i)),
         }
+    }
+
+    // One pass take
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let mut ret = Vec::with_capacity(keys.len());
+        keys.sort();
+        for i in (0..self.values.len()).rev() {
+            if let Ok(j) = keys.binary_search(&self.values[i].0) {
+                keys.remove(j);
+                ret.push(self.values.swap_remove(i));
+            }
+        }
+        ret
     }
 }
 

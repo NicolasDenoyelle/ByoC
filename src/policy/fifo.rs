@@ -4,27 +4,27 @@ use serde::{Deserialize, Serialize};
 use std::cmp::{Ord, Ordering};
 use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 //----------------------------------------------------------------------------//
-// FIFO eviction policy                                                       //
+// Fifo eviction policy                                                       //
 //----------------------------------------------------------------------------//
 
 /// Implementation of [`Reference`](trait.Reference.html) with
 /// a First In First Out eviction policy.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct FIFOCell<V> {
+pub struct FifoCell<V> {
     value: V,
     counter: u64,
 }
 
-/// Value wrappers implementing First In First Out ordering.
+/// Reference implementation of First In First Out ordering.
 ///
-/// `FIFO` wraps values into cells implementing FIFO ordering policy.
+/// `Fifo` wraps values into cells implementing Fifo ordering policy.
 /// It tries to keep in cache last inserted elements while evicting older
 /// insertions.
 ///
-/// FIFO implementations keeps a counter of fifo cells creation and
-/// attached the counter value to the value wrapped into a FIFO cell.
-/// FIFO cells are further ordered in reverse order of their counter value
+/// Fifo implementations keeps a counter of fifo cells creation and
+/// attached the counter value to the value wrapped into a Fifo cell.
+/// Fifo cells are further ordered in reverse order of their counter value
 /// such that the oldest counter are the one evicted first.
 ///
 /// ## Examples
@@ -32,52 +32,52 @@ pub struct FIFOCell<V> {
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::{Array, Policy};
-/// use byoc::policy::FIFO;
+/// use byoc::policy::Fifo;
 ///
-/// let mut c = Policy::new(Array::new(3), FIFO::new());
+/// let mut c = Policy::new(Array::new(3), Fifo::new());
 /// c.push(vec![("item1",()), ("item2",()), ("item0",())]);
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item2");
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item0");
-pub struct FIFO {
+pub struct Fifo {
     counter: AtomicU64,
 }
 
-impl FIFO {
+impl Fifo {
     pub fn new() -> Self {
-        FIFO {
+        Fifo {
             counter: AtomicU64::new(0),
         }
     }
 }
 
-impl Default for FIFO {
+impl Default for Fifo {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Clone for FIFO {
+impl Clone for Fifo {
     fn clone(&self) -> Self {
-        FIFO {
+        Fifo {
             counter: AtomicU64::new(self.counter.load(Relaxed)),
         }
     }
 }
 
-impl<V> ReferenceFactory<V, FIFOCell<V>> for FIFO {
-    fn wrap(&mut self, v: V) -> FIFOCell<V> {
-        FIFOCell {
+impl<V> ReferenceFactory<V, FifoCell<V>> for Fifo {
+    fn wrap(&mut self, v: V) -> FifoCell<V> {
+        FifoCell {
             value: v,
             counter: self.counter.fetch_add(1, Relaxed),
         }
     }
 }
 
-unsafe impl Send for FIFO {}
-unsafe impl Sync for FIFO {}
+unsafe impl Send for Fifo {}
+unsafe impl Sync for Fifo {}
 
-impl<V> Ord for FIFOCell<V> {
+impl<V> Ord for FifoCell<V> {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.counter.cmp(&other.counter) {
             Ordering::Less => Ordering::Greater,
@@ -87,21 +87,21 @@ impl<V> Ord for FIFOCell<V> {
     }
 }
 
-impl<V> PartialOrd for FIFOCell<V> {
+impl<V> PartialOrd for FifoCell<V> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<V> PartialEq for FIFOCell<V> {
+impl<V> PartialEq for FifoCell<V> {
     fn eq(&self, other: &Self) -> bool {
         self.counter == other.counter
     }
 }
 
-impl<V> Eq for FIFOCell<V> {}
+impl<V> Eq for FifoCell<V> {}
 
-impl<V> Reference<V> for FIFOCell<V> {
+impl<V> Reference<V> for FifoCell<V> {
     fn unwrap(self) -> V {
         self.value
     }
@@ -115,15 +115,15 @@ impl<V> Reference<V> for FIFOCell<V> {
 
 #[cfg(test)]
 mod tests {
-    use super::FIFOCell;
+    use super::FifoCell;
 
     #[test]
     fn test_fifo_ref() {
-        let p0 = FIFOCell {
+        let p0 = FifoCell {
             value: "item0",
             counter: 0u64,
         };
-        let p1 = FIFOCell {
+        let p1 = FifoCell {
             value: "item1",
             counter: 1u64,
         };

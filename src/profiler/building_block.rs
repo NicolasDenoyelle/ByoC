@@ -67,6 +67,19 @@ where
         out
     }
 
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        let n = keys.len();
+        let t0 = Instant::now();
+        let out = self.cache.take_multiple(keys);
+        let time = t0.elapsed().as_nanos();
+        self.stats.as_mut().take.add(n, time);
+        let hits = out.len();
+        let misses = n - hits;
+        self.stats.as_mut().hit.add(hits, time);
+        self.stats.as_mut().miss.add(misses, time);
+        out
+    }
+
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
         let (time, out) = time_it!(self.cache.flush());
         self.stats.as_mut().flush.add(1, time);

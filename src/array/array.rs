@@ -1,8 +1,32 @@
 use std::vec::Vec;
 
-/// BuildingBlock implementation in as an array of key/value pairs.
+/// In-memory container implementation as a fixed size array of key/value pairs.
 ///
-/// # Examples
+/// [`Array`] is an unordered container built on top of a [`std::vec::Vec`].
+///
+/// * Insertion complexity is `$O(n)$`.
+/// The whole array is walked to look for matching keys and avoid collisions.
+/// * Removal complexity is `$O(n)$`.
+/// The whole array is walked to look for matching keys.
+/// * Eviction complexity is `$O(n*log(n))$`.
+/// The whole array is sorted to remove the top `k` elements.
+/// * Keys lookup complexity is `$O(n)$`.
+/// * Capacity and count queries are `$O(1)$`.
+///
+/// Removal performance can be slightly better using the
+/// `take_multiple()` method.
+/// The removal complexity is `$O(k*log(k) + n*log(k))$` where `n` is the number
+/// of elements in the container and `k` is the number of keys to lookup.
+///
+/// This container implements the [`Ordered`](../policy/trait.Ordered.html)
+/// trait and can be safely used with a custom [policy](policy/index.html).
+///
+/// Elements within the array can be accessed with the [`Get`](trait.Get.html)
+/// [`GetMut`](trait.GetMut.html) traits. These traits return a pointer to
+/// an element inside the underlying [`std::vec::Vec`] and are safe to use
+/// as long as the borrow rule are respected.
+///
+/// ## Examples
 ///
 /// ```
 /// use byoc::BuildingBlock;
@@ -29,6 +53,10 @@ use std::vec::Vec;
 /// let (key, value) = c.pop(1).pop().unwrap();
 /// assert_eq!(key, "second");
 /// ```
+///
+/// [`Array`] can also be built from a
+/// [builder pattern](builder/struct.Builder.html#method.array) and a
+/// [configuration](config/struct.ArrayConfig.html).
 pub struct Array<T> {
     pub(super) capacity: usize,
     pub(super) values: Vec<T>,
