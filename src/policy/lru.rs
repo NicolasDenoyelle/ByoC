@@ -63,8 +63,9 @@ impl<T: Timestamp> Default for Lru<T> {
     }
 }
 
-impl<V, T: Timestamp> ReferenceFactory<V, LruCell<V, T>> for Lru<T> {
-    fn wrap(&mut self, v: V) -> LruCell<V, T> {
+impl<V, T: Timestamp> ReferenceFactory<V> for Lru<T> {
+    type Item = LruCell<V, T>;
+    fn wrap(&mut self, v: V) -> Self::Item {
         LruCell {
             value: v,
             timestamp: Cell::new(T::now()),

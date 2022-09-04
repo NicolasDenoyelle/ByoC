@@ -43,13 +43,12 @@ where
     }
 }
 
-impl<K, V, R, F, C> Get<K, V> for Policy<C, V, R, F>
+impl<K, V, F, C> Get<K, V> for Policy<C, V, F>
 where
-    R: Reference<V>,
-    F: ReferenceFactory<V, R> + Clone + Send + Sync,
-    C: Get<K, R> + Ordered<R>,
+    F: ReferenceFactory<V> + Clone + Send + Sync,
+    C: Get<K, F::Item> + Ordered<F::Item>,
 {
-    type Target = PolicyCell<V, R, C::Target>;
+    type Target = PolicyCell<V, F::Item, C::Target>;
 
     fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.container.get(key).map(|x| {
@@ -61,13 +60,12 @@ where
     }
 }
 
-impl<K, V, R, F, C> GetMut<K, V> for Policy<C, V, R, F>
+impl<K, V, F, C> GetMut<K, V> for Policy<C, V, F>
 where
-    R: Reference<V>,
-    F: ReferenceFactory<V, R> + Clone + Send + Sync,
-    C: GetMut<K, R> + Ordered<R>,
+    F: ReferenceFactory<V> + Clone + Send + Sync,
+    C: GetMut<K, F::Item> + Ordered<F::Item>,
 {
-    type Target = PolicyCell<V, R, C::Target>;
+    type Target = PolicyCell<V, F::Item, C::Target>;
 
     fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.container.get_mut(key).map(|x| {

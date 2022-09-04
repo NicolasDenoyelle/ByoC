@@ -45,8 +45,10 @@ impl<V: Ord> Reference<V> for DefaultCell<V> {
 #[derive(Clone)]
 pub struct Default {}
 
-impl<V: Ord> ReferenceFactory<V, DefaultCell<V>> for Default {
-    fn wrap(&mut self, v: V) -> DefaultCell<V> {
+impl<V: Ord> ReferenceFactory<V> for Default {
+    type Item = DefaultCell<V>;
+
+    fn wrap(&mut self, v: V) -> Self::Item {
         DefaultCell { value: v }
     }
 }

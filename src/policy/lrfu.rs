@@ -136,10 +136,9 @@ impl<T: Timestamp + Copy> Lrfu<T> {
 unsafe impl<T: Timestamp + Copy> Send for Lrfu<T> {}
 unsafe impl<T: Timestamp + Copy> Sync for Lrfu<T> {}
 
-impl<V, T: Timestamp + Copy> ReferenceFactory<V, LrfuCell<V, T>>
-    for Lrfu<T>
-{
-    fn wrap(&mut self, v: V) -> LrfuCell<V, T> {
+impl<V, T: Timestamp + Copy> ReferenceFactory<V> for Lrfu<T> {
+    type Item = LrfuCell<V, T>;
+    fn wrap(&mut self, v: V) -> Self::Item {
         LrfuCell::new(v, self.exponent)
     }
 }

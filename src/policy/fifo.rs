@@ -65,8 +65,10 @@ impl Clone for Fifo {
     }
 }
 
-impl<V> ReferenceFactory<V, FifoCell<V>> for Fifo {
-    fn wrap(&mut self, v: V) -> FifoCell<V> {
+impl<V> ReferenceFactory<V> for Fifo {
+    type Item = FifoCell<V>;
+
+    fn wrap(&mut self, v: V) -> Self::Item {
         FifoCell {
             value: v,
             counter: self.counter.fetch_add(1, Relaxed),

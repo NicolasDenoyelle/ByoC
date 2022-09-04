@@ -1,29 +1,26 @@
-use crate::policy::{Ordered, Reference, ReferenceFactory};
+use crate::policy::{Ordered, ReferenceFactory};
 use crate::{Concurrent, Policy};
 use std::marker::PhantomData;
 
-unsafe impl<C, V, R, F> Send for Policy<C, V, R, F>
+unsafe impl<C, V, F> Send for Policy<C, V, F>
 where
-    R: Reference<V>,
-    F: ReferenceFactory<V, R> + Send,
-    C: Ordered<R> + Send,
+    F: ReferenceFactory<V> + Send,
+    C: Ordered<F::Item> + Send,
 {
 }
 
-unsafe impl<C, V, R, F> Sync for Policy<C, V, R, F>
+unsafe impl<C, V, F> Sync for Policy<C, V, F>
 where
-    R: Reference<V>,
-    F: ReferenceFactory<V, R> + Sync,
-    C: Ordered<R> + Sync,
+    F: ReferenceFactory<V> + Sync,
+    C: Ordered<F::Item> + Sync,
 {
 }
 
-impl<'a, V, C, R, F> Concurrent for Policy<C, V, R, F>
+impl<'a, V, C, F> Concurrent for Policy<C, V, F>
 where
     V: 'a,
-    R: 'a + Reference<V>,
-    F: ReferenceFactory<V, R> + Clone + Send + Sync,
-    C: Ordered<R> + Concurrent,
+    F: ReferenceFactory<V> + Clone + Send + Sync,
+    C: Ordered<F::Item> + Concurrent,
 {
     fn clone(&self) -> Self {
         Policy {

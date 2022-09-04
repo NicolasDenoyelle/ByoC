@@ -54,12 +54,11 @@ pub trait Reference<V>: Ord {
 }
 
 /// Facility to wrap cache values into a [`Reference`] cell.
-pub trait ReferenceFactory<V, R>
-where
-    R: Reference<V>,
-{
+pub trait ReferenceFactory<V> {
+    type Item: Reference<V>;
+
     /// Wrap a value into a reference.
-    fn wrap(&mut self, v: V) -> R;
+    fn wrap(&mut self, v: V) -> Self::Item;
 }
 
 /// Containers that can be used with a [`Policy`](../struct.Policy.html)
