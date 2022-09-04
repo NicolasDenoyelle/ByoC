@@ -1,5 +1,6 @@
 use super::Compressed;
 use crate::stream::Stream;
+use crate::utils::get::LifeTimeGuard;
 use crate::{Get, GetMut};
 use serde::{de::DeserializeOwned, Serialize};
 use std::ops::{Deref, DerefMut};
@@ -85,19 +86,21 @@ where
     }
 }
 
-impl<K, V, S> Get<K, V, CompressedCell<V>> for Compressed<(K, V), S>
+impl<K, V, S> Get<K, V> for Compressed<(K, V), S>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize + Ord,
     S: Stream,
 {
-    unsafe fn get(&self, key: &K) -> Option<CompressedCell<V>> {
+    type Target = CompressedCell<V>;
+
+    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         // Read elements into memory.
         match self.read() {
             Err(_) => None,
             Ok(v) => v.into_iter().find_map(|(k, v)| {
                 if &k == key {
-                    Some(CompressedCell { value: v })
+                    Some(LifeTimeGuard::new(CompressedCell { value: v }))
                 } else {
                     None
                 }
@@ -106,17 +109,15 @@ where
     }
 }
 
-impl<K, V, S> GetMut<K, V, CompressedMutCell<K, V, S>>
-    for Compressed<(K, V), S>
+impl<K, V, S> GetMut<K, V> for Compressed<(K, V), S>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize + Ord,
     S: Stream,
 {
-    unsafe fn get_mut(
-        &mut self,
-        key: &K,
-    ) -> Option<CompressedMutCell<K, V, S>> {
+    type Target = CompressedMutCell<K, V, S>;
+
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         // Read elements into memory.
         let v = match self.read() {
             Err(_) => return None,
@@ -136,12 +137,12 @@ where
         };
 
         // Return cell
-        Some(CompressedMutCell {
+        Some(LifeTimeGuard::new(CompressedMutCell {
             stream: self.shallow_copy(),
             elements: v,
             index: i,
             is_written: false,
-        })
+        }))
     }
 }
 

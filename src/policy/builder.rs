@@ -1,5 +1,5 @@
 use crate::builder::Build;
-use crate::policy::{Ordered, Reference, ReferenceFactory};
+use crate::policy::{Ordered, ReferenceFactory};
 use crate::Policy;
 use std::marker::PhantomData;
 
@@ -27,24 +27,22 @@ use std::marker::PhantomData;
 ///    ArrayBuilder::new(2).with_policy(Fifo::new()).build();
 /// container.push(vec![(1, 2)]);
 /// ```
-pub struct PolicyBuilder<C, V, R, F, B>
+pub struct PolicyBuilder<C, V, F, B>
 where
-    C: Ordered<R>,
+    C: Ordered<F::Item>,
     B: Build<C>,
-    R: Reference<V>,
-    F: ReferenceFactory<V, R>,
+    F: ReferenceFactory<V>,
 {
     builder: B,
     policy: F,
-    unused: PhantomData<(C, V, R)>,
+    unused: PhantomData<(C, V)>,
 }
 
-impl<C, V, R, F, B> Clone for PolicyBuilder<C, V, R, F, B>
+impl<C, V, F, B> Clone for PolicyBuilder<C, V, F, B>
 where
-    C: Ordered<R>,
+    C: Ordered<F::Item>,
     B: Build<C> + Clone,
-    R: Reference<V>,
-    F: ReferenceFactory<V, R> + Clone,
+    F: ReferenceFactory<V> + Clone,
 {
     fn clone(&self) -> Self {
         PolicyBuilder {
@@ -55,12 +53,11 @@ where
     }
 }
 
-impl<C, V, R, F, B> PolicyBuilder<C, V, R, F, B>
+impl<C, V, F, B> PolicyBuilder<C, V, F, B>
 where
-    C: Ordered<R>,
+    C: Ordered<F::Item>,
     B: Build<C>,
-    R: Reference<V>,
-    F: ReferenceFactory<V, R>,
+    F: ReferenceFactory<V>,
 {
     pub fn new(builder: B, policy: F) -> Self {
         Self {
@@ -71,15 +68,13 @@ where
     }
 }
 
-impl<C, V, R, F, B> Build<Policy<C, V, R, F>>
-    for PolicyBuilder<C, V, R, F, B>
+impl<C, V, F, B> Build<Policy<C, V, F>> for PolicyBuilder<C, V, F, B>
 where
-    C: Ordered<R>,
+    C: Ordered<F::Item>,
     B: Build<C>,
-    R: Reference<V>,
-    F: ReferenceFactory<V, R>,
+    F: ReferenceFactory<V>,
 {
-    fn build(self) -> Policy<C, V, R, F> {
+    fn build(self) -> Policy<C, V, F> {
         Policy::new(self.builder.build(), self.policy)
     }
 }

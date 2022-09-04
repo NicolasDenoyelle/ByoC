@@ -1,15 +1,14 @@
 use super::ByteStream;
 use crate::internal::set::MinSet;
-use crate::stream::{IOVec, Stream, StreamFactory};
+use crate::stream::{IOVec, StreamFactory};
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
 
-impl<'a, K, V, S, F> BuildingBlock<'a, K, V> for ByteStream<(K, V), S, F>
+impl<'a, K, V, F> BuildingBlock<'a, K, V> for ByteStream<(K, V), F>
 where
     K: 'a + DeserializeOwned + Serialize + Ord,
     V: 'a + DeserializeOwned + Serialize + Ord,
-    S: 'a + Stream,
-    F: StreamFactory<S>,
+    F: 'a + StreamFactory,
 {
     fn capacity(&self) -> usize {
         self.capacity
@@ -156,7 +155,7 @@ where
     #[allow(clippy::needless_collect)]
     // Collect is needed to take everything out of the container.
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        let stream: Vec<IOVec<(K, V), S>> = self
+        let stream: Vec<IOVec<(K, V), F::Stream>> = self
             .stream
             .iter_mut()
             .filter_map(|opt| opt.take())

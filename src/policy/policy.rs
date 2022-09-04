@@ -1,4 +1,4 @@
-use crate::policy::{Ordered, Reference, ReferenceFactory};
+use crate::policy::{Ordered, ReferenceFactory};
 use std::marker::PhantomData;
 
 //------------------------------------------------------------------------//
@@ -40,22 +40,20 @@ use std::marker::PhantomData;
 /// [builder pattern](builder/trait.Build.html#method.with_policy) or
 /// built from a
 /// [configuration](config/index.html).
-pub struct Policy<C, V, R, F>
+pub struct Policy<C, V, F>
 where
-    C: Ordered<R>,
-    R: Reference<V>,
-    F: ReferenceFactory<V, R>,
+    C: Ordered<F::Item>,
+    F: ReferenceFactory<V>,
 {
     pub(super) container: C,
     pub(super) factory: F,
-    pub(super) unused: PhantomData<(R, V)>,
+    pub(super) unused: PhantomData<V>,
 }
 
-impl<C, V, R, F> Policy<C, V, R, F>
+impl<C, V, F> Policy<C, V, F>
 where
-    C: Ordered<R>,
-    R: Reference<V>,
-    F: ReferenceFactory<V, R>,
+    C: Ordered<F::Item>,
+    F: ReferenceFactory<V>,
 {
     /// Construct a new policy wrapper.
     pub fn new(container: C, factory: F) -> Self {
@@ -66,11 +64,10 @@ where
         }
     }
 }
-impl<C, V, R, F> Clone for Policy<C, V, R, F>
+impl<C, V, F> Clone for Policy<C, V, F>
 where
-    R: Reference<V>,
-    F: ReferenceFactory<V, R> + Clone,
-    C: Ordered<R> + Clone,
+    F: ReferenceFactory<V> + Clone,
+    C: Ordered<F::Item> + Clone,
 {
     fn clone(&self) -> Self {
         Policy {

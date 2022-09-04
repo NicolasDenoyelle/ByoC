@@ -2,13 +2,12 @@ use crate::policy::{Ordered, Reference, ReferenceFactory};
 use crate::BuildingBlock;
 use crate::Policy;
 
-impl<'a, K, V, C, R, F> BuildingBlock<'a, K, V> for Policy<C, V, R, F>
+impl<'a, K, V, C, F> BuildingBlock<'a, K, V> for Policy<C, V, F>
 where
     K: 'a + Ord,
     V: 'a,
-    R: 'a + Reference<V>,
-    C: Ordered<R> + BuildingBlock<'a, K, R>,
-    F: ReferenceFactory<V, R>,
+    C: Ordered<F::Item> + BuildingBlock<'a, K, F::Item>,
+    F: 'a + ReferenceFactory<V>,
 {
     fn capacity(&self) -> usize {
         self.container.capacity()

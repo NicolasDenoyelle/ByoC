@@ -1,4 +1,5 @@
 use super::Exclusive;
+use crate::utils::get::LifeTimeGuard;
 use crate::{BuildingBlock, Get, GetMut};
 use std::ops::{Deref, DerefMut};
 
@@ -45,41 +46,44 @@ where
     }
 }
 
-impl<'b, K, V, L, R, LU, RU> Get<K, V, ExclusiveCell<V, LU, RU>>
-    for Exclusive<K, V, L, R>
+impl<'b, K, V, L, R> Get<K, V> for Exclusive<K, V, L, R>
 where
     K: 'b,
     V: 'b,
-    LU: Deref<Target = V>,
-    RU: Deref<Target = V>,
-    L: Get<K, V, LU> + BuildingBlock<'b, K, V>,
-    R: Get<K, V, RU> + BuildingBlock<'b, K, V>,
+    L: Get<K, V> + BuildingBlock<'b, K, V>,
+    R: Get<K, V> + BuildingBlock<'b, K, V>,
 {
-    unsafe fn get(&self, key: &K) -> Option<ExclusiveCell<V, LU, RU>> {
+    type Target = ExclusiveCell<V, L::Target, R::Target>;
+
+    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         match self.front.get(key) {
-            Some(x) => Some(ExclusiveCell::Ltype(x)),
-            None => self.back.get(key).map(ExclusiveCell::Rtype),
+            Some(x) => {
+                Some(LifeTimeGuard::new(ExclusiveCell::Ltype(x.unwrap())))
+            }
+            None => self.back.get(key).map(|y| {
+                LifeTimeGuard::new(ExclusiveCell::Rtype(y.unwrap()))
+            }),
         }
     }
 }
 
-impl<'b, K, V, L, R, LW, RW> GetMut<K, V, ExclusiveCell<V, LW, RW>>
-    for Exclusive<K, V, L, R>
+impl<'b, K, V, L, R> GetMut<K, V> for Exclusive<K, V, L, R>
 where
     K: 'b,
     V: 'b,
-    LW: Deref<Target = V> + DerefMut,
-    RW: Deref<Target = V> + DerefMut,
-    L: GetMut<K, V, LW> + BuildingBlock<'b, K, V>,
-    R: GetMut<K, V, RW> + BuildingBlock<'b, K, V>,
+    L: GetMut<K, V> + BuildingBlock<'b, K, V>,
+    R: GetMut<K, V> + BuildingBlock<'b, K, V>,
 {
-    unsafe fn get_mut(
-        &mut self,
-        key: &K,
-    ) -> Option<ExclusiveCell<V, LW, RW>> {
+    type Target = ExclusiveCell<V, L::Target, R::Target>;
+
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         match self.front.get_mut(key) {
-            Some(x) => Some(ExclusiveCell::Ltype(x)),
-            None => self.back.get_mut(key).map(ExclusiveCell::Rtype),
+            Some(x) => {
+                Some(LifeTimeGuard::new(ExclusiveCell::Ltype(x.unwrap())))
+            }
+            None => self.back.get_mut(key).map(|y| {
+                LifeTimeGuard::new(ExclusiveCell::Rtype(y.unwrap()))
+            }),
         }
     }
 }

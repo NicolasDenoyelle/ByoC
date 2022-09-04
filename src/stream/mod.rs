@@ -22,8 +22,9 @@ pub(crate) mod config;
 /// This trait helps with generating multiple containers based on a stream,
 /// for instance, in [`Associative`](../../struct.Associative.html)
 /// containers, tests, or builder patterns.
-pub trait StreamFactory<S> {
-    fn create(&mut self) -> S;
+pub trait StreamFactory {
+    type Stream: Stream;
+    fn create(&mut self) -> Self::Stream;
 }
 
 /// Combination of traits to implement containers backed raw `io` bytes.

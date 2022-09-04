@@ -65,7 +65,7 @@ pub mod builders {
 use crate::associative::builder::AssociativeBuilder;
 use crate::exclusive::builder::ExclusiveBuilder;
 use crate::policy::builder::PolicyBuilder;
-use crate::policy::{Ordered, Reference, ReferenceFactory};
+use crate::policy::{Ordered, ReferenceFactory};
 use crate::profiler::builder::ProfilerBuilder;
 use crate::sequential::builder::SequentialBuilder;
 use crate::utils::profiler::ProfilerOutputKind;
@@ -130,13 +130,13 @@ pub trait Build<C> {
     ///                    .build();
     /// container.push(vec![(1,2)]);
     /// ```
-    fn with_policy<V, R: Reference<V>, F: ReferenceFactory<V, R>>(
+    fn with_policy<V, F: ReferenceFactory<V>>(
         self,
         policy: F,
-    ) -> PolicyBuilder<C, V, R, F, Self>
+    ) -> PolicyBuilder<C, V, F, Self>
     where
         Self: Sized,
-        C: Ordered<R>,
+        C: Ordered<F::Item>,
     {
         PolicyBuilder::new(self, policy)
     }

@@ -1,7 +1,6 @@
 extern crate rand;
 use crate::{BuildingBlock, Get, GetMut};
 use rand::random;
-use std::ops::{Deref, DerefMut};
 
 pub type TestKey = u16;
 pub type TestValue = u32;
@@ -55,43 +54,38 @@ where
     (inserted, out)
 }
 
-pub fn test_get<'a, C, U>(mut c: C)
+pub fn test_get<'a, C>(mut c: C)
 where
-    U: Deref<Target = TestValue>,
     C: 'a
         + BuildingBlock<'a, TestKey, TestValue>
-        + Get<TestKey, TestValue, U>,
+        + Get<TestKey, TestValue>,
 {
     let elements: TestElements =
         (0u16..10u16).map(|i| (i, i as TestValue)).collect();
     let (elements, _) = insert(&mut c, elements);
 
     for (k, _) in elements.iter() {
-        assert!(unsafe { c.get(k) }.is_some());
+        assert!(c.get(k).is_some());
     }
 }
 
-pub fn test_get_mut<'a, C, W>(mut c: C)
+pub fn test_get_mut<'a, C>(mut c: C)
 where
-    W: Deref<Target = TestValue> + DerefMut,
     C: 'a
         + BuildingBlock<'a, TestKey, TestValue>
-        + GetMut<TestKey, TestValue, W>,
+        + GetMut<TestKey, TestValue>,
 {
     let elements: TestElements =
         (0u16..10u16).map(|i| (i, i as TestValue)).collect();
     let (elements, _) = insert(&mut c, elements);
 
     for (k, _) in elements.iter() {
-        let mut v = unsafe { c.get_mut(k).unwrap() };
+        let mut v = c.get_mut(k).unwrap();
         *v += 1;
     }
 
     for (k, v) in elements.iter() {
-        assert_eq!(
-            *unsafe { c.get_mut(k).unwrap() } as TestValue,
-            *v + 1u32
-        );
+        assert_eq!(*c.get_mut(k).unwrap() as TestValue, *v + 1u32);
     }
 }
 

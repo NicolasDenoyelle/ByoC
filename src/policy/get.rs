@@ -1,4 +1,5 @@
 use crate::policy::{Ordered, Reference, ReferenceFactory};
+use crate::utils::get::LifeTimeGuard;
 use crate::{Get, GetMut, Policy};
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut};
@@ -42,34 +43,36 @@ where
     }
 }
 
-impl<K, V, R, U, F, C> Get<K, V, PolicyCell<V, R, U>>
-    for Policy<C, V, R, F>
+impl<K, V, F, C> Get<K, V> for Policy<C, V, F>
 where
-    R: Reference<V>,
-    U: Deref<Target = R>,
-    F: ReferenceFactory<V, R> + Clone + Send + Sync,
-    C: Get<K, R, U> + Ordered<R>,
+    F: ReferenceFactory<V> + Clone + Send + Sync,
+    C: Get<K, F::Item> + Ordered<F::Item>,
 {
-    unsafe fn get(&self, key: &K) -> Option<PolicyCell<V, R, U>> {
-        self.container.get(key).map(|x| PolicyCell {
-            item: x,
-            unused: PhantomData,
+    type Target = PolicyCell<V, F::Item, C::Target>;
+
+    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+        self.container.get(key).map(|x| {
+            LifeTimeGuard::new(PolicyCell {
+                item: x.unwrap(),
+                unused: PhantomData,
+            })
         })
     }
 }
 
-impl<K, V, R, W, F, C> GetMut<K, V, PolicyCell<V, R, W>>
-    for Policy<C, V, R, F>
+impl<K, V, F, C> GetMut<K, V> for Policy<C, V, F>
 where
-    R: Reference<V>,
-    W: DerefMut<Target = R>,
-    F: ReferenceFactory<V, R> + Clone + Send + Sync,
-    C: GetMut<K, R, W> + Ordered<R>,
+    F: ReferenceFactory<V> + Clone + Send + Sync,
+    C: GetMut<K, F::Item> + Ordered<F::Item>,
 {
-    unsafe fn get_mut(&mut self, key: &K) -> Option<PolicyCell<V, R, W>> {
-        self.container.get_mut(key).map(|x| PolicyCell {
-            item: x,
-            unused: PhantomData,
+    type Target = PolicyCell<V, F::Item, C::Target>;
+
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+        self.container.get_mut(key).map(|x| {
+            LifeTimeGuard::new(PolicyCell {
+                item: x.unwrap(),
+                unused: PhantomData,
+            })
         })
     }
 }
