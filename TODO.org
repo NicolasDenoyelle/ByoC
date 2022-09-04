@@ -35,10 +35,9 @@ on some predictions.
 + Multiple distributions of keys
 + Different sizes of keys and values.
 * TODO inclusive connector building block.
-
 Insertions go into the last level and shallow copies of what is in the
 last level goes in the first level.
-* (TODO) Resizable building blocks.
+* DEL Resizable building blocks.
 * TODO [Capacity / Pop / Push] based on size and not number.
 * TODO Distributed building block
 * TODO Front-ends
@@ -47,7 +46,7 @@ For instance:
 user pages are written to the cache;
 + A POSIX buffered filesystem implementation where reads and writes go to
 the cache;
-* TODO async Get and GetMut
+* DEL async Get and GetMut
 Because there might be delay fetching far data.
 * DONE Get trait with LifetimeGuard wrapper in the return type.
 * TODO Batch builder implementation.

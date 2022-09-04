@@ -23,10 +23,6 @@ use std::marker::PhantomData;
 ///     AssociativeBuilder::<_,_,_>::new(array_builder,
 ///                                      DefaultHasher::new(), 2).build();
 /// assert_eq!(container.capacity(), 4);
-/// let associative: Associative::<Array<(u64,u64)>,_> =
-///                  Associative::new(vec![Array::new(2), Array::new(2)],
-///                                   DefaultHasher::new());
-/// assert_eq!(associative.capacity(), 4);
 /// container.push(vec![(1, 2)]);
 ///
 /// // You can also chain calls:
@@ -55,6 +51,7 @@ where
     B: Build<C> + Clone,
 {
     builder: B,
+    num_sets: usize,
     set_hasher: ExclusiveHasher<H>,
     unused: PhantomData<C>,
 }
@@ -67,6 +64,7 @@ where
     fn clone(&self) -> Self {
         AssociativeBuilder {
             builder: self.builder.clone(),
+            num_sets: self.num_sets,
             set_hasher: self.set_hasher.clone(),
             unused: PhantomData,
         }
@@ -81,6 +79,7 @@ where
     pub fn new(builder: B, key_hasher: H, num_sets: usize) -> Self {
         AssociativeBuilder {
             builder,
+            num_sets,
             set_hasher: ExclusiveHasher::new(key_hasher, num_sets),
             unused: PhantomData,
         }
@@ -96,6 +95,7 @@ where
         );
         AssociativeBuilder {
             builder: self,
+            num_sets: num_keys,
             set_hasher: hasher,
             unused: PhantomData,
         }
@@ -109,9 +109,9 @@ where
     H: Hasher + Clone,
 {
     fn build(self) -> Associative<C, ExclusiveHasher<H>> {
-        Associative::new(
-            vec![self.builder.clone().build()],
-            self.set_hasher,
-        )
+        let sets = (0..self.num_sets)
+            .map(|_| self.builder.clone().build())
+            .collect();
+        Associative::new(sets, self.set_hasher)
     }
 }
