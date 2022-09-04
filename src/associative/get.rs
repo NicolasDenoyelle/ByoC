@@ -1,29 +1,30 @@
 use super::Associative;
+use crate::utils::get::LifeTimeGuard;
 use crate::{Get, GetMut};
 use std::hash::{Hash, Hasher};
-use std::ops::{Deref, DerefMut};
 
-impl<K, V, U, C, H> Get<K, V, U> for Associative<C, H>
+impl<K, V, C, H> Get<K, V> for Associative<C, H>
 where
     K: Hash + Clone,
-    U: Deref<Target = V>,
     H: Hasher + Clone,
-    C: Get<K, V, U>,
+    C: Get<K, V>,
 {
-    unsafe fn get(&self, key: &K) -> Option<U> {
+    type Target = C::Target;
+    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         let i = self.set(key.clone());
         self.containers[i].get(key)
     }
 }
 
-impl<K, V, W, C, H> GetMut<K, V, W> for Associative<C, H>
+impl<K, V, C, H> GetMut<K, V> for Associative<C, H>
 where
     K: Hash + Clone,
-    W: DerefMut<Target = V>,
     H: Hasher + Clone,
-    C: GetMut<K, V, W>,
+    C: GetMut<K, V>,
 {
-    unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
+    type Target = C::Target;
+
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         let i = self.set(key.clone());
         self.containers[i].get_mut(key)
     }

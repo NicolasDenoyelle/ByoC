@@ -1,7 +1,7 @@
 use crate::policy::Ordered;
+use crate::utils::get::LifeTimeGuard;
 use crate::{BuildingBlock, Concurrent, Get, GetMut};
 use std::marker::Sync;
-use std::ops::{Deref, DerefMut};
 use std::sync::{
     Arc, RwLock, RwLockReadGuard, RwLockWriteGuard, TryLockError,
     TryLockResult,
@@ -200,23 +200,28 @@ impl<V: Ord, C: Ordered<V>> Ordered<V> for SharedPtr<C> {}
 // Get trait implementation
 //------------------------------------------------------------------------//
 
-impl<K, V, C, U> Get<K, V, U> for SharedPtr<C>
+impl<K, V, C> Get<K, V> for SharedPtr<C>
 where
-    U: Deref<Target = V>,
-    C: Get<K, V, U>,
+    C: Get<K, V>,
 {
-    unsafe fn get(&self, key: &K) -> Option<U> {
-        self.as_ref().get(key)
+    type Target = C::Target;
+    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+        self.as_ref()
+            .get(key)
+            .map(|v| LifeTimeGuard::new(v.unwrap()))
     }
 }
 
-impl<K, V, C, W> GetMut<K, V, W> for SharedPtr<C>
+impl<K, V, C> GetMut<K, V> for SharedPtr<C>
 where
-    W: Deref<Target = V> + DerefMut,
-    C: GetMut<K, V, W>,
+    C: GetMut<K, V>,
 {
-    unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
-        self.as_mut().get_mut(key)
+    type Target = C::Target;
+
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+        self.as_mut()
+            .get_mut(key)
+            .map(|v| LifeTimeGuard::new(v.unwrap()))
     }
 }
 

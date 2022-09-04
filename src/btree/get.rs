@@ -1,4 +1,5 @@
 use super::BTree;
+use crate::utils::get::LifeTimeGuard;
 use crate::{BuildingBlock, GetMut};
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
@@ -34,11 +35,15 @@ impl<K: Copy + Ord, V: Ord> Drop for BTreeCell<K, V> {
     }
 }
 
-impl<K: Copy + Ord, V: Ord> GetMut<K, V, BTreeCell<K, V>> for BTree<K, V> {
-    unsafe fn get_mut(&mut self, key: &K) -> Option<BTreeCell<K, V>> {
-        self.take(key).map(|(key, value)| BTreeCell {
-            kv: Some((key, value)),
-            set: NonNull::new(self).unwrap(),
+impl<K: Copy + Ord, V: Ord> GetMut<K, V> for BTree<K, V> {
+    type Target = BTreeCell<K, V>;
+
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+        self.take(key).map(|(key, value)| {
+            LifeTimeGuard::new(BTreeCell {
+                kv: Some((key, value)),
+                set: NonNull::new(self).unwrap(),
+            })
         })
     }
 }

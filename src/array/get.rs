@@ -1,4 +1,5 @@
 use super::Array;
+use crate::utils::get::LifeTimeGuard;
 use crate::{Get, GetMut};
 use std::ops::{Deref, DerefMut};
 
@@ -48,43 +49,13 @@ impl<T> DerefMut for ArrayMutCell<T> {
     }
 }
 
-impl<K: Eq, V> Get<K, V, ArrayCell<V>> for Array<(K, V)> {
-    /// Get value inside a `Array`. The value is wrapped inside a
-    /// [`ArrayCell`](struct.ArrayCell.html). The `ArrayCell` can
-    /// further be dereferenced into a value reference.
-    ///
-    /// ## Safety:
-    ///
-    /// Using the return value inside the `ArrayCell` is unsafe and can
-    /// lead to undefined behavior. The user of this method must ensure that
-    /// the Array container is not modified until the `ArrayCell` is
-    /// dropped. Otherwise, the content of the `ArrayCell` might be
-    /// corrupted or even point to a non allocated area.
-    ///
-    /// ## Example:
-    ///
-    /// ```
-    /// use byoc::{BuildingBlock, Get};
-    /// use byoc::Array;
-    ///
-    /// // Make a array and populate it.
-    /// let mut v = Array::new(1);
-    /// v.push(vec![(1,1)]);
-    ///
-    /// // Get the value inside the array.
-    /// let val = unsafe { v.get(&1).unwrap() };
-    ///
-    /// // Replace with another value.
-    /// v.flush();
-    /// v.push(vec![(2,2)]);
-    ///
-    /// // Val is corrupted and should not be accessible.
-    /// assert!(*val != 1);
-    /// ```
-    unsafe fn get(&self, key: &K) -> Option<ArrayCell<V>> {
+impl<K: Eq, V> Get<K, V> for Array<(K, V)> {
+    type Target = ArrayCell<V>;
+
+    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.values.iter().find_map(move |(k, v)| {
             if k == key {
-                Some(ArrayCell { t: v })
+                Some(LifeTimeGuard::new(ArrayCell { t: v }))
             } else {
                 None
             }
@@ -92,43 +63,13 @@ impl<K: Eq, V> Get<K, V, ArrayCell<V>> for Array<(K, V)> {
     }
 }
 
-impl<K: Eq, V> GetMut<K, V, ArrayMutCell<V>> for Array<(K, V)> {
-    /// Get value inside a `Array`. The value is wrapped inside a
-    /// [`ArrayMutCell`](struct.ArrayMutCell.html). The `ArrayMutCell`
-    /// can further be dereferenced into a value reference.
-    ///
-    /// ## Safety:
-    ///
-    /// Using the return value inside the `ArrayMutCell` is unsafe and can
-    /// lead to undefined behavior. The user of this method must ensure that
-    /// the Array container is not modified until the `ArrayMutCell` is
-    /// dropped. Otherwise, the content of the `ArrayMutCell` might be
-    /// corrupted or even point to a non allocated area.
-    ///
-    /// ## Example:
-    ///
-    /// ```
-    /// use byoc::{BuildingBlock, GetMut};
-    /// use byoc::Array;
-    ///
-    /// // Make a array and populate it.
-    /// let mut v = Array::new(1);
-    /// v.push(vec![(1,1)]);
-    ///
-    /// // Get the value inside the array.
-    /// let mut val = unsafe { v.get_mut(&1).unwrap() };
-    ///
-    /// // Replace with another value.
-    /// v.flush();
-    /// v.push(vec![(2,2)]);
-    ///
-    /// // Val is corrupted and should not be accessible.
-    /// assert!(*val != 1);
-    /// ```
-    unsafe fn get_mut(&mut self, key: &K) -> Option<ArrayMutCell<V>> {
+impl<K: Eq, V> GetMut<K, V> for Array<(K, V)> {
+    type Target = ArrayMutCell<V>;
+
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.values.iter_mut().find_map(move |(k, v)| {
             if k == key {
-                Some(ArrayMutCell { t: v })
+                Some(LifeTimeGuard::new(ArrayMutCell { t: v }))
             } else {
                 None
             }

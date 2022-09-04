@@ -1,5 +1,6 @@
 use super::Sequential;
 use crate::internal::lock::RWLock;
+use crate::utils::get::LifeTimeGuard;
 use crate::{Get, GetMut};
 use std::ops::{Deref, DerefMut};
 
@@ -55,38 +56,45 @@ where
     }
 }
 
-impl<K, V, U, C> Get<K, V, SequentialCell<U>> for Sequential<C>
+impl<K, V, C> Get<K, V> for Sequential<C>
 where
-    U: Deref<Target = V>,
-    C: Get<K, V, U>,
+    C: Get<K, V>,
 {
-    unsafe fn get(&self, key: &K) -> Option<SequentialCell<U>> {
+    type Target = SequentialCell<C::Target>;
+
+    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         match self.lock.lock() {
             Ok(_) => match self.container.as_ref().get(key) {
                 None => {
                     self.lock.unlock();
                     None
                 }
-                Some(w) => Some(SequentialCell::new(w, &self.lock)),
+                Some(w) => Some(LifeTimeGuard::new(SequentialCell::new(
+                    w.unwrap(),
+                    &self.lock,
+                ))),
             },
             Err(_) => None,
         }
     }
 }
 
-impl<K, V, W, C> GetMut<K, V, SequentialCell<W>> for Sequential<C>
+impl<K, V, C> GetMut<K, V> for Sequential<C>
 where
-    W: DerefMut<Target = V>,
-    C: GetMut<K, V, W>,
+    C: GetMut<K, V>,
 {
-    unsafe fn get_mut(&mut self, key: &K) -> Option<SequentialCell<W>> {
+    type Target = SequentialCell<C::Target>;
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         match self.lock.lock_mut() {
             Ok(_) => match self.container.as_mut().get_mut(key) {
                 None => {
                     self.lock.unlock();
                     None
                 }
-                Some(w) => Some(SequentialCell::new(w, &self.lock)),
+                Some(w) => Some(LifeTimeGuard::new(SequentialCell::new(
+                    w.unwrap(),
+                    &self.lock,
+                ))),
             },
             Err(_) => None,
         }

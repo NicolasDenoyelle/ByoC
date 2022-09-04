@@ -1,23 +1,24 @@
 use super::Batch;
+use crate::utils::get::LifeTimeGuard;
 use crate::{Get, GetMut};
-use std::ops::{Deref, DerefMut};
 
-impl<K, V, U, C> Get<K, V, U> for Batch<C>
+impl<K, V, C> Get<K, V> for Batch<C>
 where
-    U: Deref<Target = V>,
-    C: Get<K, V, U>,
+    C: Get<K, V>,
 {
-    unsafe fn get(&self, key: &K) -> Option<U> {
+    type Target = C::Target;
+    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.bb.iter().find_map(|c| c.get(key))
     }
 }
 
-impl<K, V, W, C> GetMut<K, V, W> for Batch<C>
+impl<K, V, C> GetMut<K, V> for Batch<C>
 where
-    W: DerefMut<Target = V>,
-    C: GetMut<K, V, W>,
+    C: GetMut<K, V>,
 {
-    unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
+    type Target = C::Target;
+
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.bb.iter_mut().find_map(|c| c.get_mut(key))
     }
 }

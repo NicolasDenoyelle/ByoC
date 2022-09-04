@@ -1,6 +1,6 @@
 use super::Profiler;
+use crate::utils::get::LifeTimeGuard;
 use crate::{Get, GetMut};
-use std::ops::{Deref, DerefMut};
 use std::time::Instant;
 
 /// Time a function call and return `(time, output)`
@@ -14,12 +14,13 @@ macro_rules! time_it {
     }};
 }
 
-impl<K, V, U, C> Get<K, V, U> for Profiler<C>
+impl<K, V, C> Get<K, V> for Profiler<C>
 where
-    U: Deref<Target = V>,
-    C: Get<K, V, U>,
+    C: Get<K, V>,
 {
-    unsafe fn get(&self, key: &K) -> Option<U> {
+    type Target = C::Target;
+
+    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         let (time, out) = time_it!(self.cache.get(key));
         Clone::clone(&self.stats).as_mut().get.add(1, time);
         match out {
@@ -30,12 +31,13 @@ where
     }
 }
 
-impl<K, V, W, C> GetMut<K, V, W> for Profiler<C>
+impl<K, V, C> GetMut<K, V> for Profiler<C>
 where
-    W: DerefMut<Target = V>,
-    C: GetMut<K, V, W>,
+    C: GetMut<K, V>,
 {
-    unsafe fn get_mut(&mut self, key: &K) -> Option<W> {
+    type Target = C::Target;
+
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         let (time, out) = time_it!(self.cache.get_mut(key));
         self.stats.as_mut().get_mut.add(1, time);
         match out {

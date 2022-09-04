@@ -47,42 +47,13 @@ pub mod builder;
 pub mod config;
 
 /// Traits and structures specific helpers.
-pub mod utils {
-    /// [`Stream`](../../struct.Stream.html) struct helpers.
-    #[cfg(feature = "stream")]
-    pub mod stream {
-        pub use crate::stream::{
-            FileStream, Stream, StreamBase, StreamFactory,
-            TempFileStreamFactory, VecStream, VecStreamFactory,
-        };
-    }
-    /// [`Profiler`](../struct.Profiler.html) struct helpers.
-    pub mod profiler {
-        pub use crate::profiler::ProfilerOutputKind;
-    }
-    /// [`Associative`](../struct.Associative.html) struct helpers.
-    pub mod associative {
-        pub use crate::associative::ExclusiveHasher;
-    }
-    /// Objects returned by [`Get`](../trait.Get.html) and [`GetMut`](../trait.GetMut.html) traits implementations.
-    pub mod get {
-        pub use crate::array::ArrayMutCell;
-        pub use crate::btree::BTreeCell;
-        #[cfg(feature = "compression")]
-        pub use crate::compression::{CompressedCell, CompressedMutCell};
-        pub use crate::exclusive::ExclusiveCell;
-        pub use crate::policy::get::PolicyCell;
-        pub use crate::sequential::SequentialCell;
-        #[cfg(feature = "stream")]
-        pub use crate::stream::{StreamCell, StreamMutCell};
-    }
-}
+pub mod utils;
 
 //-------------------------------------------------------------------------
 // Private Utils
 //-------------------------------------------------------------------------
 
-/// Crate boilerplate code.
+/// Private crate boilerplate code.
 /// This code is not available to user but used throughout the
 /// library.
 mod internal;

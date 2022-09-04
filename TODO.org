@@ -30,7 +30,7 @@ on some predictions.
 	than wrapper.
 * DEL Rename wrapper into transform
 * DONE Compression building block.
-* TODO Documentation pass
+* DONE Documentation pass
 * TODO Benchmarks:
 + Multiple distributions of keys
 + Different sizes of keys and values.
@@ -49,5 +49,5 @@ user pages are written to the cache;
 the cache;
 * TODO async Get and GetMut
 Because there might be delay fetching far data.
-* TODO Get trait with LifetimeGuard wrapper in the return type.
+* DONE Get trait with LifetimeGuard wrapper in the return type.
 * TODO Batch builder implementation.
