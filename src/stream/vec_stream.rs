@@ -124,8 +124,9 @@ impl Stream for VecStream {}
 #[derive(Clone)]
 pub struct VecStreamFactory {}
 
-impl StreamFactory<VecStream> for VecStreamFactory {
-    fn create(&mut self) -> VecStream {
+impl StreamFactory for VecStreamFactory {
+    type Stream = VecStream;
+    fn create(&mut self) -> Self::Stream {
         VecStream::new()
     }
 }

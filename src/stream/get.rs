@@ -60,12 +60,11 @@ where
     }
 }
 
-impl<K, V, F, S> Get<K, V> for ByteStream<(K, V), S, F>
+impl<K, V, F> Get<K, V> for ByteStream<(K, V), F>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
-    S: Stream,
-    F: StreamFactory<S>,
+    F: StreamFactory,
 {
     type Target = StreamCell<V>;
 
@@ -83,12 +82,11 @@ where
     }
 }
 
-impl<K, V, F, S> GetMut<K, V> for ByteStream<(K, V), S, F>
+impl<K, V, F> GetMut<K, V> for ByteStream<(K, V), F>
 where
     K: DeserializeOwned + Serialize + Eq,
     V: DeserializeOwned + Serialize,
-    S: Stream,
-    F: StreamFactory<S>,
+    F: StreamFactory,
 {
     type Target = StreamMutCell<K, V, F::Stream>;
 

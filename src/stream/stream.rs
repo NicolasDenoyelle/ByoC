@@ -1,7 +1,6 @@
 use crate::internal::bits::log2;
-use crate::stream::{IOVec, Stream, StreamFactory};
+use crate::stream::{IOVec, StreamFactory};
 use serde::{de::DeserializeOwned, Serialize};
-use std::marker::PhantomData;
 use std::vec::Vec;
 
 /// [`BuildingBlock`](trait.BuildingBlock.html) implementation serializing its
@@ -56,23 +55,20 @@ use std::vec::Vec;
 /// let (key, value) = c.pop(1).pop().unwrap();
 /// assert_eq!(key, 2);
 /// ```
-pub struct ByteStream<T, S, F>
+pub struct ByteStream<T, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
-    F: StreamFactory<S>,
+    F: StreamFactory,
 {
     pub(super) factory: F,
-    pub(super) stream: Vec<Option<IOVec<T, S>>>,
+    pub(super) stream: Vec<Option<IOVec<T, F::Stream>>>,
     pub(super) capacity: usize,
-    pub(super) unused: PhantomData<S>,
 }
 
-impl<T, S, F> ByteStream<T, S, F>
+impl<T, F> ByteStream<T, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
-    F: StreamFactory<S>,
+    F: StreamFactory,
 {
     /// Create a new `Stream` building block with a set `capacity`.
     /// Key/value pairs of this building block will be stored on byte
@@ -81,7 +77,7 @@ where
     pub fn new(factory: F, capacity: usize) -> Self {
         let max_stream = 8 * std::mem::size_of::<usize>();
         let mut stream =
-            Vec::<Option<IOVec<T, S>>>::with_capacity(max_stream);
+            Vec::<Option<IOVec<T, F::Stream>>>::with_capacity(max_stream);
         for _ in 0..max_stream {
             stream.push(None)
         }
@@ -90,7 +86,6 @@ where
             factory,
             stream,
             capacity,
-            unused: PhantomData,
         }
     }
 

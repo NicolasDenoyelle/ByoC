@@ -128,8 +128,9 @@ impl Stream for FileStream {}
 pub struct TempFileStreamFactory {}
 
 #[cfg(feature = "tempfile")]
-impl StreamFactory<FileStream> for TempFileStreamFactory {
-    fn create(&mut self) -> FileStream {
+impl StreamFactory for TempFileStreamFactory {
+    type Stream = FileStream;
+    fn create(&mut self) -> Self::Stream {
         let named_tmpfile =
             NamedTempFile::new().expect("Temporary file creation failed.");
         let path = named_tmpfile.path().to_path_buf();

@@ -1,5 +1,5 @@
 use crate::builder::Build;
-use crate::stream::{Stream, StreamFactory};
+use crate::stream::StreamFactory;
 use crate::Stream as ByteStream;
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
@@ -20,22 +20,20 @@ use std::marker::PhantomData;
 /// let mut stream = StreamBuilder::new(VecStreamFactory{}, 2).build();
 /// stream.push(vec![(1, 2)]);
 /// ```
-pub struct StreamBuilder<T, S, F>
+pub struct StreamBuilder<T, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory + Clone,
 {
     factory: F,
     capacity: usize,
-    unused: PhantomData<(T, S)>,
+    unused: PhantomData<T>,
 }
 
-impl<T, S, F> StreamBuilder<T, S, F>
+impl<T, F> StreamBuilder<T, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory + Clone,
 {
     pub fn new(factory: F, capacity: usize) -> Self {
         StreamBuilder {
@@ -46,11 +44,10 @@ where
     }
 }
 
-impl<T, S, F> Clone for StreamBuilder<T, S, F>
+impl<T, F> Clone for StreamBuilder<T, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory + Clone,
 {
     fn clone(&self) -> Self {
         StreamBuilder {
@@ -61,13 +58,12 @@ where
     }
 }
 
-impl<T, S, F> Build<ByteStream<T, S, F>> for StreamBuilder<T, S, F>
+impl<T, F> Build<ByteStream<T, F>> for StreamBuilder<T, F>
 where
     T: DeserializeOwned + Serialize,
-    S: Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory + Clone,
 {
-    fn build(self) -> ByteStream<T, S, F> {
+    fn build(self) -> ByteStream<T, F> {
         ByteStream::new(self.factory, self.capacity)
     }
 }

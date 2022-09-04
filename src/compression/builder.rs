@@ -1,5 +1,5 @@
 use crate::builder::Build;
-use crate::stream::{Stream, StreamFactory};
+use crate::stream::StreamFactory;
 use crate::{Batch, Compressed};
 use serde::{de::DeserializeOwned, Serialize};
 use std::marker::PhantomData;
@@ -9,23 +9,21 @@ use std::marker::PhantomData;
 /// This builder will create a [`batch`](../../struct.Batch.html) of
 /// `num_batch` smaller `Compression` building blocks, each with a set
 /// `batch_capacity` on a its own stream created with `stream_factory`.
-pub struct CompressedBuilder<T, S, F>
+pub struct CompressedBuilder<T, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
-    F: StreamFactory<S>,
+    F: StreamFactory,
 {
     num_batch: usize,
     batch_capacity: usize,
     stream_factory: F,
-    unused: PhantomData<(T, S)>,
+    unused: PhantomData<T>,
 }
 
-impl<T, S, F> CompressedBuilder<T, S, F>
+impl<T, F> CompressedBuilder<T, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
-    F: StreamFactory<S>,
+    F: StreamFactory,
 {
     pub fn new(
         num_batch: usize,
@@ -41,11 +39,10 @@ where
     }
 }
 
-impl<T, S, F> Clone for CompressedBuilder<T, S, F>
+impl<T, F> Clone for CompressedBuilder<T, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
-    F: StreamFactory<S> + Clone,
+    F: StreamFactory + Clone,
 {
     fn clone(&self) -> Self {
         CompressedBuilder {
@@ -57,15 +54,15 @@ where
     }
 }
 
-impl<T, S, F> Build<Batch<Compressed<T, S>>> for CompressedBuilder<T, S, F>
+impl<T, F> Build<Batch<Compressed<T, F::Stream>>>
+    for CompressedBuilder<T, F>
 where
     T: Serialize + DeserializeOwned,
-    S: Stream,
-    F: StreamFactory<S>,
+    F: StreamFactory,
 {
-    fn build(mut self) -> Batch<Compressed<T, S>> {
+    fn build(mut self) -> Batch<Compressed<T, F::Stream>> {
         (0..self.num_batch).fold(
-            Batch::<Compressed<T, S>>::new(),
+            Batch::<Compressed<T, F::Stream>>::new(),
             |acc, _| {
                 acc.append(Compressed::new(
                     self.stream_factory.create(),

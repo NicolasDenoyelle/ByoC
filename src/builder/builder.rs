@@ -4,7 +4,7 @@ use crate::builder::builders::CompressedBuilder;
 use crate::builder::builders::StreamBuilder;
 use crate::builder::builders::{ArrayBuilder, BTreeBuilder};
 #[cfg(feature = "stream")]
-use crate::stream::{Stream, StreamFactory};
+use crate::stream::StreamFactory;
 #[cfg(feature = "stream")]
 use serde::{de::DeserializeOwned, Serialize};
 
@@ -47,25 +47,23 @@ impl Builder {
     #[cfg(feature = "stream")]
     pub fn byte_stream<
         T: DeserializeOwned + Serialize,
-        S: Stream,
-        F: StreamFactory<S> + Clone,
+        F: StreamFactory + Clone,
     >(
         factory: F,
         capacity: usize,
-    ) -> StreamBuilder<T, S, F> {
+    ) -> StreamBuilder<T, F> {
         StreamBuilder::new(factory, capacity)
     }
 
     #[cfg(feature = "compression")]
     pub fn compressed<
         T: DeserializeOwned + Serialize,
-        S: Stream,
-        F: StreamFactory<S> + Clone,
+        F: StreamFactory + Clone,
     >(
         factory: F,
         num_batch: usize,
         batch_capacity: usize,
-    ) -> CompressedBuilder<T, S, F> {
+    ) -> CompressedBuilder<T, F> {
         CompressedBuilder::new(num_batch, batch_capacity, factory)
     }
 }
