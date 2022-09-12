@@ -35,8 +35,9 @@ use std::collections::LinkedList;
 /// ```
 /// use byoc::{Batch, BuildingBlock, Array};
 ///
-/// let mut batch = Batch::new().append(Array::new(1))
-///                             .append(Array::new(1));
+/// let element_size = Array::<(u32,&str)>::element_size();
+/// let mut batch = Batch::new().append(Array::new(element_size))
+///                             .append(Array::new(element_size));
 ///
 /// assert_eq!(batch.push(vec![(0,"first"), (1,"second")]).len(), 0);
 /// assert_eq!(batch.take(&1).unwrap().1, "second");

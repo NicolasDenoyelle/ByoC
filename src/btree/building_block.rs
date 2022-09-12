@@ -8,11 +8,11 @@ where
     V: 'a + Ord,
 {
     fn capacity(&self) -> usize {
-        self.capacity
+        self.capacity * Self::element_size()
     }
 
-    fn count(&self) -> usize {
-        self.references.len()
+    fn size(&self) -> usize {
+        self.references.len() * Self::element_size()
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {

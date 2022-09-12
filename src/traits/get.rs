@@ -21,7 +21,8 @@ pub trait Get<K, V> {
     /// use std::ops::Deref;
     ///
     /// // Make a array and populate it.
-    /// let mut v = Array::new(1);
+    /// let element_size = Array::<(u32,u32)>::element_size();
+    /// let mut v = Array::new(element_size);
     /// v.push(vec![(1,1)]);
     ///
     /// // Get the value inside the array.
@@ -54,7 +55,8 @@ pub trait GetMut<K, V> {
     /// use byoc::Array;
     ///
     /// // Make a array and populate it.
-    /// let mut v = Array::new(1);
+    /// let element_size = Array::<(u32,u32)>::element_size();
+    /// let mut v = Array::new(element_size);
     /// v.push(vec![(1,1)]);
     ///
     /// // Modify a value inside the array.

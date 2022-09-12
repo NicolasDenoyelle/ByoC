@@ -62,7 +62,7 @@ mod tests {
 
     #[test]
     fn test_valid_btree_config() {
-        let capacity = 10;
+        let capacity = 1008;
         let config_str =
             format!("id='BTreeConfig'\ncapacity={}", capacity);
         let value: toml::Value =

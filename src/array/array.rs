@@ -4,6 +4,12 @@ use std::vec::Vec;
 ///
 /// [`Array`] is an unordered container built on top of a [`std::vec::Vec`].
 ///
+/// The number of elements fitting in this container is computed as the sum of
+/// its [elements size](struct.Array.html#method.element_size)
+/// where `std::mem::size_of::<(K,V)>()` is the size of one key/value pair
+/// element. Hence, only the stack size of elements is counted and data stored
+/// within a [`std::boxed::Box`] is not counted as occupying container space.
+///
 /// * Insertion complexity is `$O(n)$`.
 /// The whole array is walked to look for matching keys and avoid collisions.
 /// * Removal complexity is `$O(n)$`.
@@ -14,7 +20,7 @@ use std::vec::Vec;
 /// * Capacity and count queries are `$O(1)$`.
 ///
 /// Removal performance can be slightly better using the
-/// `take_multiple()` method.
+/// [`take_multiple()`](struct.Array.html#method.take_multiple) method.
 /// The removal complexity is `$O(k*log(k) + n*log(k))$` where `n` is the number
 /// of elements in the container and `k` is the number of keys to lookup.
 ///
@@ -33,7 +39,7 @@ use std::vec::Vec;
 /// use byoc::Array;
 ///
 /// // Array with 3 elements capacity.
-/// let mut c = Array::new(3);
+/// let mut c = Array::new(3 * Array::<(&str, i32)>::element_size());
 ///
 /// // BuildingBlock as room for 3 elements and returns an empty array.
 /// // No element is rejected.
@@ -42,7 +48,9 @@ use std::vec::Vec;
 ///                     ("third", 3)]).pop().is_none());
 ///
 /// // Array is full and pops extra inserted value (all values here).
-/// let (key, _) = c.push(vec![("fourth", 12)]).pop().unwrap();
+/// let mut popped = c.push(vec![("fourth", 12)]);
+/// assert_eq!(popped.len(), 1);
+/// let (key, _) = popped.pop().unwrap();
 /// assert_eq!(key, "fourth");
 ///
 /// // Array pops elements in order of the highest values.
@@ -58,22 +66,32 @@ use std::vec::Vec;
 /// [builder pattern](builder/struct.Builder.html#method.array) and a
 /// [configuration](config/struct.ArrayConfig.html).
 pub struct Array<T> {
+    // Capacity in number of elements. Elements are Sized.
+    pub(super) max_elements: usize,
     pub(super) capacity: usize,
     pub(super) values: Vec<T>,
 }
 
 impl<T> Array<T> {
-    pub fn new(n: usize) -> Self {
+    pub fn new(size: usize) -> Self {
+        let n = size / Self::element_size();
         Array {
-            capacity: n,
+            max_elements: n,
+            capacity: size,
             values: Vec::with_capacity(n),
         }
+    }
+
+    /// Return the size of one element in the container.
+    pub fn element_size() -> usize {
+        std::mem::size_of::<T>()
     }
 }
 
 impl<T: Clone> Clone for Array<T> {
     fn clone(&self) -> Self {
         Array {
+            max_elements: self.max_elements,
             capacity: self.capacity,
             values: self.values.clone(),
         }

@@ -41,8 +41,8 @@ where
         self.cache.capacity()
     }
 
-    fn count(&self) -> usize {
-        let (time, count) = time_it!(self.cache.count());
+    fn size(&self) -> usize {
+        let (time, count) = time_it!(self.cache.size());
         Clone::clone(&self.stats).as_mut().count.add(1, time);
         count
     }

@@ -163,8 +163,8 @@ where
         self.as_ref().capacity()
     }
 
-    fn count(&self) -> usize {
-        self.as_ref().count()
+    fn size(&self) -> usize {
+        self.as_ref().size()
     }
 
     fn contains(&self, key: &K) -> bool {

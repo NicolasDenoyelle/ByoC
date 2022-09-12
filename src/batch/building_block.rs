@@ -12,8 +12,8 @@ where
         self.bb.iter().map(|c| c.capacity()).sum()
     }
 
-    fn count(&self) -> usize {
-        self.bb.iter().map(|c| c.count()).sum()
+    fn size(&self) -> usize {
+        self.bb.iter().map(|c| c.size()).sum()
     }
 
     fn contains(&self, key: &K) -> bool {

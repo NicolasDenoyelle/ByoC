@@ -30,8 +30,8 @@ where
         self.containers[i].contains(key)
     }
 
-    fn count(&self) -> usize {
-        self.containers.iter().map(|c| c.count()).sum()
+    fn size(&self) -> usize {
+        self.containers.iter().map(|c| c.size()).sum()
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
@@ -88,7 +88,7 @@ where
         // We acquire exclusive lock on buckets in the process.
         let mut counts = Vec::<(usize, usize)>::with_capacity(n_sets + 1);
         for i in 0..n_sets {
-            let n = self.containers[i].count();
+            let n = self.containers[i].size();
             counts.push((n, i));
         }
 

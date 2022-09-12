@@ -20,10 +20,10 @@ where
         out
     }
 
-    fn count(&self) -> usize {
+    fn size(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
         let container = self.container.as_ref();
-        container.count()
+        container.size()
     }
 
     fn contains(&self, key: &K) -> bool {

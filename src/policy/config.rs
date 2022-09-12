@@ -114,12 +114,12 @@ impl BuildingBlockConfig for PolicyConfig {
 mod tests {
     use super::PolicyConfig;
     use crate::config::{BuildingBlockConfig, ConfigError};
-    use crate::BuildingBlock;
+    use crate::{Array, BuildingBlock};
     use toml;
 
     #[test]
     fn test_valid_policy_config() {
-        let array_capacity = 10;
+        let array_capacity = Array::<(u64, u64)>::element_size() * 10;
         let config_str = format!(
             "
 id='PolicyConfig'

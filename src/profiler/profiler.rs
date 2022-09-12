@@ -57,7 +57,7 @@ pub enum ProfilerOutputKind {
 ///
 /// When using the [`Profiler`] wrapper, the following events are counted:
 /// * The time spent in methods:
-/// [`count()`](trait.BuildingBlock.html#tymethod.count),
+/// [`size()`](trait.BuildingBlock.html#tymethod.count),
 /// [`contains()`](trait.BuildingBlock.html#tymethod.contains),
 /// [`take()`](trait.BuildingBlock.html#tymethod.take),
 /// [`pop()`](trait.BuildingBlock.html#tymethod.pop),
@@ -89,7 +89,8 @@ pub enum ProfilerOutputKind {
 /// use byoc::utils::profiler::ProfilerOutputKind;
 ///
 /// // Build a cache:
-/// let c = Array::new(3);
+/// let element_size = Array::<(&str, u32)>::element_size();
+/// let c = Array::new(3 * element_size);
 ///
 /// // Wrap it into a profiler.
 /// let mut c = Profiler::new("example", ProfilerOutputKind::None, c);
@@ -109,7 +110,7 @@ pub enum ProfilerOutputKind {
 /// assert_eq!(c.miss_stats().0, 1);
 ///
 /// // Access a value in the container.
-/// unsafe { c.get(&"second"); }
+/// c.get(&"second");
 /// assert_eq!(c.hit_stats().0, 2);
 /// assert_eq!(c.miss_stats().0, 1);
 /// ```
@@ -177,7 +178,7 @@ impl<C> Profiler<C> {
     }
 
     /// Get a summary of (0) the number of
-    /// [`count()`](trait.BuildingBlock.html#tymethod.count) method call
+    /// [`size()`](trait.BuildingBlock.html#tymethod.count) method call
     /// and (1) the total time spent in nanoseconds in these calls.
     pub fn count_stats(&self) -> (u64, u64) {
         self.stats.as_ref().count.read()

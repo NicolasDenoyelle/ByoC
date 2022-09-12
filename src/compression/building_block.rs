@@ -15,7 +15,7 @@ where
         self.capacity
     }
 
-    fn count(&self) -> usize {
+    fn size(&self) -> usize {
         *self.count.as_ref().deref()
     }
 

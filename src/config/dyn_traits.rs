@@ -148,8 +148,8 @@ where
     fn capacity(&self) -> usize {
         self.building_block.capacity()
     }
-    fn count(&self) -> usize {
-        self.building_block.count()
+    fn size(&self) -> usize {
+        self.building_block.size()
     }
     fn contains(&self, key: &K) -> bool {
         self.building_block.contains(key)
@@ -254,8 +254,8 @@ where
     fn capacity(&self) -> usize {
         self.building_block.capacity()
     }
-    fn count(&self) -> usize {
-        self.building_block.count()
+    fn size(&self) -> usize {
+        self.building_block.size()
     }
     fn contains(&self, key: &K) -> bool {
         self.building_block.contains(key)
@@ -406,8 +406,8 @@ where
     fn capacity(&self) -> usize {
         unsafe { self.building_block.as_ref().unwrap() }.capacity()
     }
-    fn count(&self) -> usize {
-        unsafe { self.building_block.as_ref().unwrap() }.count()
+    fn size(&self) -> usize {
+        unsafe { self.building_block.as_ref().unwrap() }.size()
     }
     fn contains(&self, key: &K) -> bool {
         unsafe { self.building_block.as_ref().unwrap() }.contains(key)

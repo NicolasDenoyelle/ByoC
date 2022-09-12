@@ -34,8 +34,17 @@ pub struct FifoCell<V> {
 /// use byoc::{Array, Policy};
 /// use byoc::policy::Fifo;
 ///
-/// let mut c = Policy::new(Array::new(3), Fifo::new());
-/// c.push(vec![("item1",()), ("item2",()), ("item0",())]);
+/// // This the type of element going in the array.
+/// // We use this to accurately set the container capacity.
+/// pub struct FifoCell<V> {
+///     value: V,
+///     counter: u64,
+/// }
+///
+/// let element_size = Array::<FifoCell<(&str, u16)>>::element_size();
+/// let mut c = Policy::new(Array::new(3 * element_size), Fifo::new());
+/// assert_eq!(c.push(vec![("item1",1u16), ("item2",2u16), ("item0",3u16)])
+///             .len(), 0);
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item2");
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item0");
@@ -118,7 +127,6 @@ impl<V> Reference<V> for FifoCell<V> {
 #[cfg(test)]
 mod tests {
     use super::FifoCell;
-
     #[test]
     fn test_fifo_ref() {
         let p0 = FifoCell {

@@ -85,11 +85,11 @@ impl BuildingBlockConfig for BatchConfig {
 mod tests {
     use super::BatchConfig;
     use crate::config::{BuildingBlockConfig, ConfigError};
-    use crate::BuildingBlock;
+    use crate::{Array, BuildingBlock};
 
     #[test]
     fn test_valid_batch_config() {
-        let array_capacity = 10;
+        let array_capacity = Array::<(u64, u64)>::element_size() * 10;
         let config_str = format!(
             "id='BatchConfig'
 [[container]]

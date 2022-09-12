@@ -14,6 +14,12 @@ use std::vec::Vec;
 /// through time. Specifically, using [`Lru`](./policy/struct.Lru.html)
 /// or [`Lrfu`](./policy/struct.Lrfu.html) policies is not safe.
 ///
+/// The number of elements fitting in the container is computed similarly
+/// to [`Array`](struct.Array.html) container as the sum of its
+/// [elements stack size](struct.Array.html#method.element_size).
+/// However, elements occupy a larger size since there are several structures
+/// involved to store elements, to order keys and to order values.
+///
 /// * Insertion complexity is `$O(log(n))$`.
 /// The whole array is walked to look for matching keys and avoid collisions.
 /// * Removal complexity is `$O(log(n))$`.
@@ -38,7 +44,7 @@ use std::vec::Vec;
 /// use byoc::BTree;
 ///
 /// // BTree with 3 elements capacity.
-/// let mut c = BTree::new(3);
+/// let mut c = BTree::new(3 * BTree::<&str, u32>::element_size());
 ///
 /// // BuildingBlock as room for 2 elements and returns an empty vector.
 /// // No element is rejected.
@@ -86,11 +92,20 @@ where
     V: Ord,
 {
     pub fn new(n: usize) -> Self {
+        let num_elements = n / Self::element_size();
         BTree {
-            capacity: n,
-            references: Vec::with_capacity(n),
+            capacity: num_elements,
+            references: Vec::with_capacity(num_elements),
             set: BTreeSet::new(),
             map: BTreeMap::new(),
         }
+    }
+
+    /// The estimated size of one element in the container.
+    pub fn element_size() -> usize {
+        std::mem::size_of::<V>()
+            + std::mem::size_of::<Rc<V>>() * 2
+            + std::mem::size_of::<K>() * 3
+            + std::mem::size_of::<usize>()
     }
 }

@@ -14,7 +14,7 @@ where
         self.capacity
     }
 
-    fn count(&self) -> usize {
+    fn size(&self) -> usize {
         self.stream
             .iter()
             .map(|s| match s {
@@ -122,7 +122,7 @@ where
     /// store all the values, the last input values not fitting in are
     /// returned.
     fn push(&mut self, mut values: Vec<(K, V)>) -> Vec<(K, V)> {
-        let n = std::cmp::min(values.len(), self.capacity - self.count());
+        let n = std::cmp::min(values.len(), self.capacity - self.size());
 
         if n > 0 {
             let mut out = values.split_off(n);

@@ -17,8 +17,8 @@ where
         Box::new(self.container.flush().map(|(k, r)| (k, r.unwrap())))
     }
 
-    fn count(&self) -> usize {
-        self.container.count()
+    fn size(&self) -> usize {
+        self.container.size()
     }
 
     fn contains(&self, key: &K) -> bool {

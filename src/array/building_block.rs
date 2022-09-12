@@ -18,8 +18,8 @@ where
         self.values.iter().any(|(k, _)| k == key)
     }
 
-    fn count(&self) -> usize {
-        self.values.len()
+    fn size(&self) -> usize {
+        self.values.len() * Self::element_size()
     }
 
     /// Remove up to `n` values from the container.
@@ -41,7 +41,7 @@ where
     /// returned.
     fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = std::cmp::min(
-            self.capacity - self.values.len(),
+            self.max_elements - self.values.len(),
             elements.len(),
         );
         let out = elements.split_off(n);

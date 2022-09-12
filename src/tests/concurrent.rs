@@ -4,16 +4,20 @@ use std::{sync::mpsc::channel, thread};
 
 fn test_after_push<C>(
     c: C,
-    count: usize,
+    size_before_push: usize,
     keys: Vec<TestKey>,
     popped_keys: Vec<TestKey>,
 ) where
     C: 'static + BuildingBlock<'static, TestKey, TestValue> + Concurrent,
 {
-    // Test container count is the incremented count.
-    assert!(c.count() == count);
-    // Test popped keys plus inserted keys is the number of keys.
-    assert!(keys.len() == c.count() + popped_keys.len());
+    // The container new size is now larger.
+    assert!(c.size() >= size_before_push);
+
+    // Cannot pop more that inserted.
+    assert!(keys.len() >= popped_keys.len());
+
+    // Test container count does not exceed capacity:
+    assert!(c.size() <= c.capacity());
 
     // Test popped keys and inside keys do not overlap,
     // All keys are distinct. They are either in or out.
@@ -24,9 +28,6 @@ fn test_after_push<C>(
             assert!(popped_keys.contains(&key));
         }
     }
-
-    // Test container count does not exceed capacity:
-    assert!(c.count() <= c.capacity());
 }
 
 fn push_concurrent<C>(c: C, num_thread: u8)
@@ -34,6 +35,8 @@ where
     C: 'static + BuildingBlock<'static, TestKey, TestValue> + Concurrent,
 {
     let capacity = c.capacity();
+    let size = c.size();
+
     let mut set: Vec<TestElement> = (0..capacity * 2)
         .map(|i| (i as TestKey, i as TestValue))
         .collect();
@@ -43,13 +46,10 @@ where
     // The base set size for each thread.
     let t_size = set.len() / num_thread as usize;
     // Elements popped out.
-    let (count, counted) = channel();
-    // Elements popped out.
     let (pop, popped) = channel();
 
     // Parallel push.
     let handles = (0..num_thread).map(|i| {
-        let count = count.clone();
         let mut container = c.clone();
         let pop = pop.clone();
         let set = if i == num_thread - 1 {
@@ -59,13 +59,8 @@ where
         };
         thread::spawn(move || {
             for (k, v) in set.into_iter() {
-                match container.push(vec![(k, v); 1]).pop() {
-                    None => {
-                        count.send(1usize).unwrap();
-                    }
-                    Some((k, _)) => {
-                        pop.send(k).unwrap();
-                    }
+                for (k, _) in container.push(vec![(k, v); 1]) {
+                    pop.send(k).unwrap();
                 }
             }
         })
@@ -75,12 +70,7 @@ where
         h.join().unwrap()
     }
 
-    test_after_push(
-        c,
-        counted.try_iter().sum(),
-        keys,
-        popped.try_iter().collect(),
-    );
+    test_after_push(c, size, keys, popped.try_iter().collect());
 }
 
 pub fn test_concurrent<C>(c: C, num_thread: u8)

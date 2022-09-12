@@ -26,8 +26,8 @@ where
         }
     }
 
-    fn count(&self) -> usize {
-        self.front.count() + self.back.count()
+    fn size(&self) -> usize {
+        self.front.size() + self.back.size()
     }
 
     /// Take the matching key/value pair out of the container.
@@ -103,7 +103,7 @@ where
     /// also returned.
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let front_capacity = self.front.capacity();
-        let front_count = self.front.count();
+        let front_count = self.front.size();
 
         let mut front_pop = if elements.len()
             <= (front_capacity - front_count)
@@ -123,7 +123,7 @@ where
         }
 
         let back_capacity = self.back.capacity();
-        let back_count = self.back.count();
+        let back_count = self.back.size();
         let mut back_pop = if elements.len()
             <= (back_capacity - back_count)
         {
