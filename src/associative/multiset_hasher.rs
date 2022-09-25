@@ -1,4 +1,4 @@
-use crate::internal::bits::log2;
+use crate::internal::math::log2;
 use std::hash::Hasher;
 
 /// A single hasher for multiple stages of associative containers.

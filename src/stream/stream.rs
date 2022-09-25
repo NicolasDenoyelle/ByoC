@@ -1,4 +1,4 @@
-use crate::internal::bits::log2;
+use crate::internal::math::log2;
 use crate::stream::{IOVec, StreamFactory};
 use serde::{de::DeserializeOwned, Serialize};
 use std::vec::Vec;

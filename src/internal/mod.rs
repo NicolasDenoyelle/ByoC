@@ -1,5 +1,5 @@
-/// Utils for bit calculation
-pub mod bits;
+/// Math utils
+pub mod math;
 /// Utils for obtaining multiple writable shallow copies of a resource.
 mod shared_ptr;
 pub use shared_ptr::SharedPtr;
