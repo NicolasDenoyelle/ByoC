@@ -1,5 +1,5 @@
 use super::ByteStream;
-use crate::internal::set::MinSet;
+use crate::internal::kmin::KMin;
 use crate::stream::{IOVec, StreamFactory};
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
@@ -88,7 +88,7 @@ where
     /// are removed one by one, by swapping them with element at the
     /// end of the stream then popping out the last element.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
-        let mut set = MinSet::new(n);
+        let mut set = KMin::new(n);
 
         // Stream values and save only the top n ones with their index.
         for (i, s) in self.stream.iter().enumerate() {

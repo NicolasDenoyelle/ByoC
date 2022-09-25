@@ -1,5 +1,5 @@
 use super::Compressed;
-use crate::internal::set::MinSet;
+use crate::internal::kmin::KMin;
 use crate::stream::Stream;
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
@@ -106,7 +106,7 @@ where
             };
 
         // Look for max values.
-        let mut victims = MinSet::new(n);
+        let mut victims = KMin::new(n);
         for x in v2.into_iter().enumerate().map(|(i, (_, v))| (v, i)) {
             victims.push(x);
         }

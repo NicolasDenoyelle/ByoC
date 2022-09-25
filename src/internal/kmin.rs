@@ -2,17 +2,17 @@ use std::collections::btree_set::IntoIter;
 use std::collections::BTreeSet;
 
 /// A set of orderable distinct elements with a maximum size.
-pub struct MinSet<T: Ord> {
+pub struct KMin<T: Ord> {
     btree: BTreeSet<T>,
     max_len: usize,
 }
 
-impl<T: Ord> MinSet<T> {
+impl<T: Ord> KMin<T> {
     /// Create a new set with at most `max_len` elements.
-    pub fn new(max_len: usize) -> Self {
-        MinSet {
+    pub fn new(k: usize) -> Self {
+        KMin {
             btree: BTreeSet::new(),
-            max_len,
+            max_len: k,
         }
     }
 
