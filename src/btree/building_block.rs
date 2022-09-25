@@ -139,8 +139,8 @@ mod tests {
 
     #[test]
     fn building_block() {
-        test_building_block(BTree::new(0));
-        test_building_block(BTree::new(10));
-        test_building_block(BTree::new(100));
+        test_building_block(BTree::new(0), true);
+        test_building_block(BTree::new(10), true);
+        test_building_block(BTree::new(100), true);
     }
 }

@@ -71,7 +71,10 @@ mod tests {
     #[test]
     fn building_block() {
         for i in [0usize, 10usize, 100usize] {
-            test_building_block(Policy::new(Array::new(i), Default {}));
+            test_building_block(
+                Policy::new(Array::new(i), Default {}),
+                true,
+            );
         }
     }
 }

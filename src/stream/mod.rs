@@ -59,6 +59,10 @@ pub trait StreamBase:
     ///
     /// * size: The new stream size in bytes.
     fn resize(&mut self, size: u64) -> std::io::Result<()>;
+
+    fn len(&mut self) -> std::io::Result<u64> {
+        self.seek(std::io::SeekFrom::End(0))
+    }
 }
 
 /// Clonable [`StreamBase`].

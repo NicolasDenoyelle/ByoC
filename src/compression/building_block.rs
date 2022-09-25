@@ -3,7 +3,6 @@ use crate::internal::kmin::KMin;
 use crate::stream::Stream;
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
-use std::ops::{Deref, DerefMut};
 
 impl<'a, K, V, S> BuildingBlock<'a, K, V> for Compressed<(K, V), S>
 where
@@ -12,11 +11,14 @@ where
     S: Stream,
 {
     fn capacity(&self) -> usize {
-        self.capacity
+        self.capacity as usize
     }
 
     fn size(&self) -> usize {
-        *self.count.as_ref().deref()
+        match self.stream.clone().len() {
+            Err(_) => 0usize,
+            Ok(s) => s as usize,
+        }
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -128,23 +130,53 @@ where
     }
 
     fn push(&mut self, mut values: Vec<(K, V)>) -> Vec<(K, V)> {
-        // Read elements into memory.
+        // Recursion guard
+        if values.is_empty() {
+            return values;
+        }
+
+        // Read elements from stream to memory.
         let mut v: Vec<(K, V)> = match self.read() {
             Err(_) => return values,
             Ok(v) => v,
         };
 
-        // Insert only fitting elements.
-        let n = std::cmp::min(self.capacity - v.len(), values.len());
-        let out = values.split_off(n);
-        if n > 0 {
-            v.append(&mut values);
+        // Append extra elements and try to write everything to the stream.
+        v.append(&mut values);
+        if self.write(&v).is_err() {
+            return values;
         }
 
-        // Rewrite vector to stream.
-        match self.write(&v) {
-            Ok(_) => out,
-            Err(_) => panic!("Could not write new elements to Compressed"),
+        // Check for capacity overflow.
+        // If there is no overflow we can return an empty vector.
+        match self.stream.len() {
+            Err(_) => return Vec::new(),
+            Ok(s) => {
+                if s <= self.capacity {
+                    return Vec::new();
+                }
+            }
+        };
+
+        // If we overflow and there was only one element to insert
+        // then we cannot insert it so we return it.
+        if values.len() == 1 {
+            return values;
+        }
+
+        // If we overflow with more than one value, we try dichotomic insertion.
+        loop {
+            let mut out = values.split_off(values.len() / 2);
+            let mut rejected = self.push(values);
+            if !rejected.is_empty() {
+                out.append(&mut rejected);
+                return out;
+            }
+            // Short circuit last recursion.
+            if out.len() <= 1 {
+                return out;
+            }
+            values = out;
         }
     }
 
@@ -159,7 +191,6 @@ where
             return Box::new(std::iter::empty());
         }
 
-        *self.count.as_mut().deref_mut() = 0;
         Box::new(v.into_iter())
     }
 }
@@ -173,7 +204,10 @@ mod tests {
     #[test]
     fn building_block() {
         for i in [0usize, 10usize, 100usize] {
-            test_building_block(Compressed::new(VecStream::new(), i));
+            test_building_block(
+                Compressed::new(VecStream::new(), i),
+                false,
+            );
         }
     }
 }

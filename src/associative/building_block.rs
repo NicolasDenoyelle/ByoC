@@ -190,9 +190,12 @@ mod tests {
 
     #[test]
     fn building_block() {
-        test_building_block(Associative::new(
-            vec![Array::new(5); 10],
-            DefaultHasher::new(),
-        ));
+        test_building_block(
+            Associative::new(
+                vec![Array::new(5); 10],
+                DefaultHasher::new(),
+            ),
+            true,
+        );
     }
 }

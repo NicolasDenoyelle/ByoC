@@ -38,7 +38,10 @@ on some predictions.
 Insertions go into the last level and shallow copies of what is in the
 last level goes in the first level.
 * DEL Resizable building blocks.
-* TODO [Capacity / Pop / Push] based on size and not number.
+* TODO [Capacity / Pop / Push] based on size and not number of elements.
+** DONE Array
+** DONE BTree
+** DONE Compression
 * TODO Distributed building block
 * TODO Front-ends
 For instance:

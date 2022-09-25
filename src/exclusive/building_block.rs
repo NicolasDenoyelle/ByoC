@@ -149,12 +149,21 @@ mod tests {
 
     #[test]
     fn building_block() {
-        test_building_block(Exclusive::new(Array::new(0), Array::new(0)));
-        test_building_block(Exclusive::new(Array::new(0), Array::new(10)));
-        test_building_block(Exclusive::new(Array::new(10), Array::new(0)));
-        test_building_block(Exclusive::new(
-            Array::new(10),
-            Array::new(100),
-        ));
+        test_building_block(
+            Exclusive::new(Array::new(0), Array::new(0)),
+            true,
+        );
+        test_building_block(
+            Exclusive::new(Array::new(0), Array::new(10)),
+            true,
+        );
+        test_building_block(
+            Exclusive::new(Array::new(10), Array::new(0)),
+            true,
+        );
+        test_building_block(
+            Exclusive::new(Array::new(10), Array::new(100)),
+            true,
+        );
     }
 }
