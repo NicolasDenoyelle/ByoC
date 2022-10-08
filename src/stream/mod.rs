@@ -7,7 +7,9 @@ pub(crate) mod builder;
 mod building_block;
 mod file_stream;
 mod io_vec;
-pub(crate) use io_vec::{IOError, IOResult, IOStructMut, IOVec};
+pub(crate) use io_vec::{IOStructMut, IOVec};
+mod error;
+pub(crate) use error::{IOError, IOResult};
 mod ordered;
 pub use file_stream::FileStream;
 #[cfg(feature = "tempfile")]
