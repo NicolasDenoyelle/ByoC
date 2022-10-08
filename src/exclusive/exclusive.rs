@@ -48,9 +48,8 @@ use std::marker::PhantomData;
 /// use byoc::{Exclusive, Array};
 ///
 /// // Create cache
-/// let element_size = Array::<(&str,u32)>::element_size();
-/// let mut front = Array::new(2 * element_size);
-/// let mut back = Array::new(4 * element_size);
+/// let mut front = Array::new(2);
+/// let mut back = Array::new(4);
 /// let mut cache = Exclusive::new(front, back);
 /// // [[][]]
 ///

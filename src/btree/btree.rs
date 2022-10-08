@@ -1,6 +1,5 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::rc::Rc;
-use std::vec::Vec;
 
 /// In-memory container with ordered keys and values.
 ///
@@ -15,10 +14,10 @@ use std::vec::Vec;
 /// or [`Lrfu`](./policy/struct.Lrfu.html) policies is not safe.
 ///
 /// The number of elements fitting in the container is computed similarly
-/// to [`Array`](struct.Array.html) container as the sum of its
-/// [elements stack size](struct.Array.html#method.element_size).
-/// However, elements occupy a larger size since there are several structures
-/// involved to store elements, to order keys and to order values.
+/// to [`Array`](struct.Array.html) container. The default behavior is to set
+/// the capacity in numbers of element. The method
+/// [`with_element_size()`](struct.BTree.html#method.with_element_size) allows
+/// to adjust the meaning of container capacity and the size of its elements.
 ///
 /// * Insertion complexity is `$O(log(n))$`.
 /// The whole array is walked to look for matching keys and avoid collisions.
@@ -44,7 +43,7 @@ use std::vec::Vec;
 /// use byoc::BTree;
 ///
 /// // BTree with 3 elements capacity.
-/// let mut c = BTree::new(3 * BTree::<&str, u32>::element_size());
+/// let mut c = BTree::new(3);
 ///
 /// // BuildingBlock as room for 2 elements and returns an empty vector.
 /// // No element is rejected.
@@ -78,12 +77,12 @@ where
 {
     // BuildingBlock capacity
     pub(super) capacity: usize,
-    // Sparse vector of references.
-    pub(super) references: Vec<(K, Rc<V>)>,
+    pub(super) total_size: usize,
+    pub(super) element_size: fn(&K, &V) -> usize,
     // Ordered set of references. Used for eviction.
     pub(super) set: BTreeSet<(Rc<V>, K)>,
     // Map of references keys and index.
-    pub(super) map: BTreeMap<K, usize>,
+    pub(super) map: BTreeMap<K, Rc<V>>,
 }
 
 impl<K, V> BTree<K, V>
@@ -91,21 +90,40 @@ where
     K: Copy + Ord,
     V: Ord,
 {
-    pub fn new(n: usize) -> Self {
-        let num_elements = n / Self::element_size();
+    /// Create a new [`BTree`] container with `size` capacity.
+    ///
+    /// The meaning of this capacity depends on the `element_size` function
+    /// set with
+    /// [`with_element_size()`](struct.BTree.html#method.with_element_size).
+    /// The default is to set every elements size to `1usize`.    
+    pub fn new(size: usize) -> Self {
         BTree {
-            capacity: num_elements,
-            references: Vec::with_capacity(num_elements),
+            capacity: size,
+            total_size: 0,
+            element_size: |_, _| 1,
             set: BTreeSet::new(),
             map: BTreeMap::new(),
         }
     }
 
-    /// The estimated size of one element in the container.
-    pub fn element_size() -> usize {
-        std::mem::size_of::<V>()
-            + std::mem::size_of::<Rc<V>>() * 2
-            + std::mem::size_of::<K>() * 3
-            + std::mem::size_of::<usize>()
+    /// Set how [`BTree`] elements size is computed.
+    ///
+    /// Whenever an element is inserted or removed from the [`BTree`],
+    /// its size is compared with the container capacity and its remaining
+    /// space to decide respectively, whether the element can be inserted or
+    /// how much space does it leaves in the container.
+    pub fn with_element_size(
+        mut self,
+        element_size: fn(&K, &V) -> usize,
+    ) -> Self {
+        if self.total_size > 0 {
+            panic!("It is not allowed to set a non empty BTree container element_size method.")
+        }
+        self.element_size = element_size;
+        self
+    }
+
+    pub(super) fn as_value(rc: Rc<V>) -> V {
+        Rc::try_unwrap(rc).map_err(|_| panic!("")).unwrap()
     }
 }

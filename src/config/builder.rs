@@ -436,11 +436,11 @@ mod tests {
         Builder, ConfigError, DynBuildingBlock, DynConcurrent, DynOrdered,
     };
     use crate::tests::{test_concurrent, test_ordered};
-    use crate::{Array, BuildingBlock};
+    use crate::BuildingBlock;
 
     #[test]
     fn test_generic_config() {
-        let capacity = Array::<(u64, u64)>::element_size() * 10;
+        let capacity = 10;
         let config_str =
             format!("id=\"ArrayConfig\"\ncapacity={}", capacity);
         let array: DynBuildingBlock<u64, u64> =
@@ -459,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_fifo_config() {
-        let capacity = Array::<(u16, u32)>::element_size() * 10;
+        let capacity = 10;
         let config_str = format!(
             "
 id='ArrayConfig'
@@ -479,7 +479,7 @@ policy.kind='Fifo'
 
     #[test]
     fn test_lrfu_config() {
-        let capacity = Array::<(u64, u64)>::element_size() * 10;
+        let capacity = 10;
         let config_str = format!(
             "
 id='ArrayConfig'
@@ -500,7 +500,7 @@ policy.Lrfu.exponent=0.5
 
     #[test]
     fn test_invalid_ordered() {
-        let capacity = Array::<(u16, u32)>::element_size() * 10;
+        let capacity = 10;
         let config_str = format!(
             "
 id='BTreeConfig'
@@ -518,7 +518,7 @@ policy.kind='Fifo'
 
     #[test]
     fn test_valid_ordered() {
-        let capacity = Array::<(u16, u32)>::element_size() * 10;
+        let capacity = 10;
         let config_str = format!(
             "
 id='ArrayConfig'
@@ -534,7 +534,7 @@ capacity={}
 
     #[test]
     fn test_invalid_concurrent() {
-        let capacity = Array::<(u64, u64)>::element_size() * 10;
+        let capacity = 10;
         let config_str = format!(
             "
 id='ArrayConfig'
@@ -552,7 +552,7 @@ capacity={}
 
     #[test]
     fn test_valid_concurrent() {
-        let capacity = Array::<(u16, u32)>::element_size() * 10;
+        let capacity = 10;
         let config_str = format!(
             "
 id='SequentialConfig'

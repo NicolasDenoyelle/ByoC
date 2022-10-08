@@ -30,9 +30,7 @@ use std::hash::{Hash, Hasher};
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// // Build a Array cache of 2 sets. Each set hold one element.
-/// let element_size = Array::<(u32,u32)>::element_size();
-/// let mut c = Associative::new(vec![Array::new(2 * element_size),
-///                                   Array::new(2 * element_size)],
+/// let mut c = Associative::new(vec![Array::new(2), Array::new(2)],
 ///                              DefaultHasher::new());
 ///
 /// // BuildingBlock as room for first and second element and returns None.

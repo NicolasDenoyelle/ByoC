@@ -89,8 +89,7 @@ pub enum ProfilerOutputKind {
 /// use byoc::utils::profiler::ProfilerOutputKind;
 ///
 /// // Build a cache:
-/// let element_size = Array::<(&str, u32)>::element_size();
-/// let c = Array::new(3 * element_size);
+/// let c = Array::new(3);
 ///
 /// // Wrap it into a profiler.
 /// let mut c = Profiler::new("example", ProfilerOutputKind::None, c);

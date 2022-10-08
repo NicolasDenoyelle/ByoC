@@ -18,8 +18,7 @@ use crate::internal::SharedPtr;
 /// use byoc::{Array, Sequential};
 ///
 /// // Build a concurrent Array cache.
-/// let element_size = Array::<(u16,u32)>::element_size();
-/// let mut c1 = Sequential::new(Array::new(element_size));
+/// let mut c1 = Sequential::new(Array::new(1));
 /// let mut c2 = Concurrent::clone(&c1);
 ///
 /// assert!(c1.push(vec![(0u16, 4)]).pop().is_none());

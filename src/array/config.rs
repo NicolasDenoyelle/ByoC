@@ -61,11 +61,11 @@ impl BuildingBlockConfig for ArrayConfig {
 mod tests {
     use super::ArrayConfig;
     use crate::config::{BuildingBlockConfig, ConfigError};
-    use crate::{Array, BuildingBlock};
+    use crate::BuildingBlock;
 
     #[test]
     fn test_valid_array_config() {
-        let capacity = Array::<(u64, u64)>::element_size() * 10;
+        let capacity = 10;
         let config_str =
             format!("id='ArrayConfig'\ncapacity={}", capacity);
         let value: toml::Value =

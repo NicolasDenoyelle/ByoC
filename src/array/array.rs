@@ -5,10 +5,8 @@ use std::vec::Vec;
 /// [`Array`] is an unordered container built on top of a [`std::vec::Vec`].
 ///
 /// The number of elements fitting in this container is computed as the sum of
-/// its [elements size](struct.Array.html#method.element_size)
-/// where `std::mem::size_of::<(K,V)>()` is the size of one key/value pair
-/// element. Hence, only the stack size of elements is counted and data stored
-/// within a [`std::boxed::Box`] is not counted as occupying container space.
+/// its [elements size](struct.Array.html#method.with_element_size)
+/// where the default size for a key/value pair is 1.
 ///
 /// * Insertion complexity is `$O(n)$`.
 /// The whole array is walked to look for matching keys and avoid collisions.
@@ -39,7 +37,7 @@ use std::vec::Vec;
 /// use byoc::Array;
 ///
 /// // Array with 3 elements capacity.
-/// let mut c = Array::new(3 * Array::<(&str, i32)>::element_size());
+/// let mut c = Array::new(3);
 ///
 /// // BuildingBlock as room for 3 elements and returns an empty array.
 /// // No element is rejected.
@@ -66,34 +64,53 @@ use std::vec::Vec;
 /// [builder pattern](builder/struct.Builder.html#method.array) and a
 /// [configuration](config/struct.ArrayConfig.html).
 pub struct Array<T> {
-    // Capacity in number of elements. Elements are Sized.
-    pub(super) max_elements: usize,
     pub(super) capacity: usize,
+    pub(super) total_size: usize,
     pub(super) values: Vec<T>,
+    pub(super) element_size: fn(&T) -> usize,
 }
 
 impl<T> Array<T> {
+    /// Create a new [`Array`] container with `size` capacity.
+    ///
+    /// The meaning of this capacity depends on the `element_size` function
+    /// set with
+    /// [`with_element_size()`](struct.Array.html#method.with_element_size).
+    /// The default is to set every elements size to `1usize`.
     pub fn new(size: usize) -> Self {
-        let n = size / Self::element_size();
         Array {
-            max_elements: n,
+            total_size: 0,
             capacity: size,
-            values: Vec::with_capacity(n),
+            values: Vec::new(),
+            element_size: |_| 1,
         }
     }
 
-    /// Return the size of one element in the container.
-    pub fn element_size() -> usize {
-        std::mem::size_of::<T>()
+    /// Set how [`Array`] elements size is computed.
+    ///
+    /// Whenever an element is inserted or removed from the [`Array`],
+    /// its size is compared with the container capacity and its remaining
+    /// space to decide respectively, whether the element can be inserted or
+    /// how much space does it leaves in the container.
+    pub fn with_element_size(
+        mut self,
+        element_size: fn(&T) -> usize,
+    ) -> Self {
+        if self.total_size > 0 {
+            panic!("It is not allowed to set a non empty Array container element_size method.")
+        }
+        self.element_size = element_size;
+        self
     }
 }
 
 impl<T: Clone> Clone for Array<T> {
     fn clone(&self) -> Self {
         Array {
-            max_elements: self.max_elements,
             capacity: self.capacity,
+            total_size: self.total_size,
             values: self.values.clone(),
+            element_size: self.element_size,
         }
     }
 }

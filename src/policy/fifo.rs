@@ -41,8 +41,7 @@ pub struct FifoCell<V> {
 ///     counter: u64,
 /// }
 ///
-/// let element_size = Array::<FifoCell<(&str, u16)>>::element_size();
-/// let mut c = Policy::new(Array::new(3 * element_size), Fifo::new());
+/// let mut c = Policy::new(Array::new(3), Fifo::new());
 /// assert_eq!(c.push(vec![("item1",1u16), ("item2",2u16), ("item0",3u16)])
 ///             .len(), 0);
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
