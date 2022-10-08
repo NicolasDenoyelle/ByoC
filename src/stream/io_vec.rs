@@ -449,6 +449,14 @@ where
         }
     }
 
+    /// The total size in bytes.
+    pub fn size(&self) -> IOResult<usize> {
+        match self.stream.clone().seek(SeekFrom::End(0)) {
+            Ok(s) => Ok(s as usize),
+            Err(e) => Err(IOError::Seek(e)),
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         let mut stream = self.stream.clone();
 

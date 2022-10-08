@@ -36,8 +36,11 @@ use std::vec::Vec;
 /// use byoc::Stream;
 /// use byoc::utils::stream::VecStreamFactory;
 ///
+/// // The size of one element in the stream is the nearest superior power
+/// // of two size of elements inserted.
+/// let element_size = std::mem::size_of::<(i32, i32)>();
 /// // Array with 3 elements capacity.
-/// let mut c = Stream::new(VecStreamFactory{}, 3);
+/// let mut c = Stream::new(VecStreamFactory{}, 3 * element_size);
 ///
 /// // BuildingBlock as room for 3 elements and returns an empty vector.
 /// // No element is rejected.
@@ -94,8 +97,12 @@ where
     /// The power of two is the size of the chunk that will hold the
     /// serialized value of the `size` provided as input.
     pub(super) fn chunk_size(size: usize) -> (usize, usize) {
-        let i = log2(size as u64) + 1;
-        let i = std::mem::size_of::<usize>() * 8 - i as usize;
-        (i, 1usize + (!0usize >> i))
+        let i = log2(size as u64) as usize;
+        if (1usize << i) == size {
+            (i, size)
+        } else {
+            assert!(i < 64usize); // Size overflow.
+            (i + 1usize, 1usize << (i + 1))
+        }
     }
 }

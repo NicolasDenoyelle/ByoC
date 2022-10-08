@@ -42,6 +42,7 @@ last level goes in the first level.
 ** DONE Array
 ** DONE BTree
 ** DONE Compression
+** DONE Stream
 * TODO Distributed building block
 * TODO Front-ends
 For instance:
