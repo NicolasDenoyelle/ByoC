@@ -9,6 +9,9 @@ where
     C: Ordered<F::Item> + BuildingBlock<'a, K, F::Item>,
     F: 'a + ReferenceFactory<V>,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the size of the container wrapped in this [`Policy`] container.
     fn capacity(&self) -> usize {
         self.container.capacity()
     }

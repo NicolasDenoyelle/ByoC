@@ -6,6 +6,16 @@ where
     K: 'a + Ord,
     V: 'a + Ord,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the size set by the constructor
+    /// [`Array::new()`](struct.Array.html#method.new).
+    /// The meaning of this methods depends on the meaning of the
+    /// elements size that can be set with the method
+    /// [`with_element_size()`](struct.Array.html#method.with_element_size).
+    /// For instance, capacity can be the number of elements in the array
+    /// when all elements size is one, or it can be the maximum stack
+    /// size when elements size is the size of the element on the stack.
     fn capacity(&self) -> usize {
         self.capacity
     }

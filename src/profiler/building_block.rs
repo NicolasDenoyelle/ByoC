@@ -37,6 +37,10 @@ where
     V: 'a,
     C: BuildingBlock<'a, K, V>,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the size of the container wrapped in this [`Profiler`]
+    /// container.
     fn capacity(&self) -> usize {
         self.cache.capacity()
     }

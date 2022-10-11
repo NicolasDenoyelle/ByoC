@@ -10,6 +10,10 @@ where
     V: 'a + DeserializeOwned + Serialize + Ord,
     F: 'a + StreamFactory,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the sum of the serialized size rounded up to the next power of
+    /// two of elements in the container.
     fn capacity(&self) -> usize {
         self.capacity
     }

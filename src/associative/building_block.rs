@@ -10,6 +10,10 @@ where
     C: BuildingBlock<'a, K, V>,
     H: Hasher + Clone,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the sum of the capacities of the containers that this
+    /// [`Associative`] container is composed of.
     fn capacity(&self) -> usize {
         self.containers.iter().map(|c| c.capacity()).sum()
     }

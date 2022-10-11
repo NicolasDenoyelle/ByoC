@@ -9,6 +9,12 @@ where
     V: 'a + Serialize + DeserializeOwned + Ord,
     S: Stream,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This the in-memory size of the uncompressed container.
+    /// This size is the maximum size occupied ever by the container.
+    /// The compressed size on the
+    /// [`Stream`](struct.Stream.html) is likely less.
     fn capacity(&self) -> usize {
         self.capacity as usize
     }

@@ -8,6 +8,10 @@ where
     L: BuildingBlock<'a, K, V>,
     R: BuildingBlock<'a, K, V>,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the sum of the capacities of the two containers that this
+    /// [`Exclusive`] container is composed of.
     fn capacity(&self) -> usize {
         self.front.capacity() + self.back.capacity()
     }

@@ -7,6 +7,10 @@ where
     V: 'a,
     C: BuildingBlock<'a, K, V>,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the size of the container wrapped in this [`Sequential`]
+    /// container.
     fn capacity(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
         self.container.as_ref().capacity()

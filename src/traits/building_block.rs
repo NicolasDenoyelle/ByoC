@@ -17,7 +17,7 @@
 /// [`BuildingBlock` implementors](trait.BuildingBlock.html#implementors)
 /// for more details on structuring building blocks together.
 pub trait BuildingBlock<'a, K: 'a, V: 'a> {
-    /// Get the maximum "size" occupied by the container.
+    /// Get the maximum "size" that elements in the container can fit.
     ///
     /// This value emulate the container maximum memory footprint.
     /// The real meaning of this value depends on the implementation.

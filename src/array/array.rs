@@ -71,12 +71,15 @@ pub struct Array<T> {
 }
 
 impl<T> Array<T> {
-    /// Create a new [`Array`] container with `size` capacity.
+    /// Create a new [`Array`] container with `size`
+    /// [`capacity`](struct.Array.html#method.capacity).
     ///
     /// The meaning of this capacity depends on the `element_size` function
     /// set with
     /// [`with_element_size()`](struct.Array.html#method.with_element_size).
-    /// The default is to set every elements size to `1usize`.
+    /// The default is to set every elements size to `1usize` and therefore,
+    /// `size` stands for the maximum number of elements fitting in the
+    /// [`Array`].
     pub fn new(size: usize) -> Self {
         Array {
             total_size: 0,
@@ -92,6 +95,9 @@ impl<T> Array<T> {
     /// its size is compared with the container capacity and its remaining
     /// space to decide respectively, whether the element can be inserted or
     /// how much space does it leaves in the container.
+    /// This function decides how to compute each element size and therefore
+    /// it also decides of the meaning of the container
+    /// [`capacity`](struct.Array.html#method.capacity).
     pub fn with_element_size(
         mut self,
         element_size: fn(&T) -> usize,
