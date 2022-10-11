@@ -1,31 +1,38 @@
 use super::BTree;
 use crate::BuildingBlock;
-use std::rc::Rc;
+use std::{collections::BTreeMap, rc::Rc};
 
 impl<'a, K, V> BuildingBlock<'a, K, V> for BTree<K, V>
 where
     K: 'a + Copy + Ord,
     V: 'a + Ord,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the size set by the constructor
+    /// [`BTree::new()`](struct.BTree.html#method.new).
+    /// The meaning of this methods depends on the meaning of the
+    /// elements size that can be set with the method
+    /// [`with_element_size()`](struct.struct..html#method.with_element_size).
+    /// For instance, capacity can be the number of elements in the BTree
+    /// when all elements size is one, or it can be the maximum stack
+    /// size when elements size is the size of the element on the stack.
     fn capacity(&self) -> usize {
         self.capacity
     }
 
-    fn count(&self) -> usize {
-        self.references.len()
+    fn size(&self) -> usize {
+        self.total_size
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        self.map.clear();
+        let mut elements = BTreeMap::new();
+        std::mem::swap(&mut elements, &mut self.map);
         self.set.clear();
+        self.total_size = 0;
+
         Box::new(
-            self.references
-                .drain(..)
-                .map(|(k, v)| {
-                    (k, Rc::try_unwrap(v).map_err(|_| panic!("")).unwrap())
-                })
-                .collect::<Vec<(K, V)>>()
-                .into_iter(),
+            elements.into_iter().map(|(k, rc)| (k, Self::as_value(rc))),
         )
     }
 
@@ -40,27 +47,26 @@ where
     /// key/value pairs.
     fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
         let mut out = Vec::new();
-        let mut n = self.references.len();
 
         for (key, value) in values.into_iter() {
-            if n >= self.capacity {
+            let size = (self.element_size)(&key, &value);
+            if size + self.total_size > self.capacity {
                 out.push((key, value));
             } else if self.map.get(&key).is_some() {
                 out.push((key, value))
             } else {
+                self.total_size += size;
                 let value = Rc::new(value);
                 let _value = Rc::clone(&value);
-                self.references.push((key, value));
-                assert!(self.map.insert(key, n).is_none());
+                assert!(self.map.insert(key, value).is_none());
                 assert!(self.set.insert((_value, key)));
-                n += 1;
             }
         }
         out
     }
 
-    /// Remove up to `n` values from the container.
-    /// If less than `n` values are stored in the container,
+    /// Remove up to `n` size values from the container.
+    /// If less than `n` size is occupied by values in the container,
     /// the returned vector contains all the container values and
     /// the container is left empty.
     /// This building block implements the trait
@@ -68,65 +74,44 @@ where
     /// the highest values are popped out. This is implemented by
     /// retrieving the last values stored in a binary tree.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
-        let mut ret = Vec::new();
-
-        for _ in 0..n {
-            let k = match self.set.iter().rev().next() {
-                None => break,
-                Some((_, k)) => *k,
-            };
-
-            let n = self.references.len() - 1;
-            let j = self.map.remove(&k).unwrap();
-            assert!(self
-                .set
-                .remove(&(Rc::clone(&self.references[j].1), k)));
-
-            // If we don't remove the last element, we need to update the
-            // position of the element it is swapped with.
-            if j != n {
-                let (k, _) = self
-                    .references
-                    .iter()
-                    .rev()
-                    .map(|(k, r)| (*k, Rc::clone(r)))
-                    .next()
-                    .unwrap();
-                self.map.insert(k, j);
+        // List keys to evict.
+        let mut size = 0;
+        let mut split: Option<(Rc<V>, K)> = None;
+        for (rc, k) in self.set.iter().rev() {
+            size += (self.element_size)(k, rc.as_ref());
+            if size >= n {
+                split = Some((rc.clone(), *k));
+                break;
             }
-
-            let (k, r) = self.references.swap_remove(j);
-            ret.push((
-                k,
-                Rc::try_unwrap(r).map_err(|_| panic!("")).unwrap(),
-            ));
         }
-        ret
+
+        match split {
+            None => self.flush().collect(),
+            Some(s) => {
+                self.total_size -= size;
+                let out_set = self.set.split_off(&s);
+                // Drop Rc<V> clone to avoid panicking when unwrapping the value
+                drop(s);
+                let mut out = Vec::with_capacity(out_set.len());
+                for (rc, k) in out_set.into_iter() {
+                    // Drop Rc<V> clone to avoid panicking when unwrapping the
+                    // value below
+                    drop(rc);
+                    let rc = self.map.remove(&k).unwrap();
+                    out.push((k, Self::as_value(rc)));
+                }
+                out
+            }
+        }
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
         match self.map.remove(key) {
             None => None,
-            Some(i) => {
-                let n = self.references.len() - 1;
-                assert!(self
-                    .set
-                    .remove(&(Rc::clone(&self.references[i].1), *key)));
-                if i != n {
-                    let (k, _) = self
-                        .references
-                        .iter()
-                        .rev()
-                        .map(|(k, r)| (*k, Rc::clone(r)))
-                        .next()
-                        .unwrap();
-                    self.map.insert(k, i);
-                }
-                let (k, r) = self.references.swap_remove(i);
-                Some((
-                    k,
-                    Rc::try_unwrap(r).map_err(|_| panic!("")).unwrap(),
-                ))
+            Some(rc) => {
+                self.total_size -= (self.element_size)(key, rc.as_ref());
+                self.set.remove(&(rc.clone(), *key));
+                Some((*key, Self::as_value(rc)))
             }
         }
     }
@@ -135,12 +120,34 @@ where
 #[cfg(test)]
 mod tests {
     use super::BTree;
-    use crate::tests::test_building_block;
+    use crate::tests::{test_building_block, TestElement};
 
     #[test]
-    fn building_block() {
-        test_building_block(BTree::new(0));
-        test_building_block(BTree::new(10));
-        test_building_block(BTree::new(100));
+    fn building_block_default() {
+        test_building_block(BTree::new(0), true);
+        test_building_block(BTree::new(10), true);
+        test_building_block(BTree::new(100), true);
+    }
+
+    #[test]
+    fn building_block_stack_size() {
+        test_building_block(
+            BTree::new(0).with_element_size(|_, _| {
+                std::mem::size_of::<TestElement>()
+            }),
+            true,
+        );
+        test_building_block(
+            BTree::new(10).with_element_size(|_, _| {
+                std::mem::size_of::<TestElement>()
+            }),
+            true,
+        );
+        test_building_block(
+            BTree::new(100).with_element_size(|_, _| {
+                std::mem::size_of::<TestElement>()
+            }),
+            true,
+        );
     }
 }

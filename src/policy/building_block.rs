@@ -9,6 +9,9 @@ where
     C: Ordered<F::Item> + BuildingBlock<'a, K, F::Item>,
     F: 'a + ReferenceFactory<V>,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the size of the container wrapped in this [`Policy`] container.
     fn capacity(&self) -> usize {
         self.container.capacity()
     }
@@ -17,8 +20,8 @@ where
         Box::new(self.container.flush().map(|(k, r)| (k, r.unwrap())))
     }
 
-    fn count(&self) -> usize {
-        self.container.count()
+    fn size(&self) -> usize {
+        self.container.size()
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -71,7 +74,10 @@ mod tests {
     #[test]
     fn building_block() {
         for i in [0usize, 10usize, 100usize] {
-            test_building_block(Policy::new(Array::new(i), Default {}));
+            test_building_block(
+                Policy::new(Array::new(i), Default {}),
+                true,
+            );
         }
     }
 }

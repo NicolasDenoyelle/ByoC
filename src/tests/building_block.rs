@@ -11,28 +11,37 @@ pub fn rand(a: u64, b: u64) -> u64 {
     a + (random::<u64>() % (b - a))
 }
 
-fn test_push<'a, C>(c: &mut C, kv: TestElements)
+fn test_push<'a, C>(c: &mut C, kv: TestElements, check_capacity: bool)
 where
     C: BuildingBlock<'a, TestKey, TestValue>,
 {
-    let num_before_insertion = c.count();
-    let max_capacity = c.capacity();
-    let num_insertion = kv.len();
-    let extra = c.push(kv.clone());
-    let num_extra = extra.len();
-    let num_inserted = num_insertion - num_extra;
+    let input = kv.clone();
+    let size_before_insertion = c.size();
+    let capacity = c.capacity();
+    let output = c.push(kv);
+    let size_after_insertion = c.size();
 
-    // There is less elements not inserted than elements to insert.
-    assert!(num_extra <= num_insertion);
-    // The count in container does not exceed capacity.
-    assert!(num_inserted + num_before_insertion <= max_capacity);
-    // The count is updated correctly.
-    assert_eq!(c.count(), num_inserted + num_before_insertion);
+    if check_capacity {
+        // Size before insertion is less than capacity.
+        assert!(size_before_insertion <= capacity);
+
+        // Size after insertion is less than capacity.
+        assert!(size_after_insertion <= capacity);
+
+        // There is not more space cleared than needed.
+        // assert!(output.len() <= input.len());
+
+        // If nothing needs to be cleared, there is less room in the container
+        // after adding elements to it.
+        if output.is_empty() && !input.is_empty() {
+            assert!(size_after_insertion > size_before_insertion);
+        }
+    }
 
     // Elements inserted can be found in the container.
-    for &(k, v) in kv.iter() {
+    for &(k, v) in input.iter() {
         // If not in extra, must be in container
-        if !extra.iter().any(|(_k, _v)| (_k, _v) == (&k, &v)) {
+        if !output.iter().any(|(_k, _v)| (_k, _v) == (&k, &v)) {
             assert!(c.contains(&k));
         }
     }
@@ -97,17 +106,20 @@ where
     {
         c.flush();
     }
-    assert_eq!(c.count(), 0);
+    assert_eq!(c.size(), 0);
     let (inserted, _) = insert(c, elements);
 
     for (k, v) in c.flush() {
         assert!(inserted.iter().any(|(_k, _v)| { _k == &k && _v == &v }));
     }
-    assert_eq!(c.count(), 0);
+    assert_eq!(c.size(), 0);
 }
 
-fn test_take<'a, C>(c: &mut C, elements: TestElements)
-where
+fn test_take<'a, C>(
+    c: &mut C,
+    elements: TestElements,
+    check_capacity: bool,
+) where
     C: BuildingBlock<'a, TestKey, TestValue>,
 {
     #[allow(unused_must_use)]
@@ -116,33 +128,41 @@ where
     }
     let (inserted, _) = insert(c, elements);
 
-    let count = c.count();
-    for (i, (k, v)) in inserted.iter().enumerate() {
+    let size = c.size();
+    for (k, v) in inserted.iter() {
         let out = c.take(k);
         assert!(out.is_some());
         let (_k, _v) = out.unwrap();
         assert_eq!(k, &_k);
         assert_eq!(v, &_v);
-        assert_eq!(count - i - 1, c.count());
+        if check_capacity {
+            assert!(size > c.size());
+        }
     }
 }
 
-fn test_pop<'a, C>(c: &mut C, n: usize)
+fn test_pop<'a, C>(c: &mut C, n: usize, check_capacity: bool)
 where
     C: BuildingBlock<'a, TestKey, TestValue>,
 {
-    let count = c.count();
-    let popped = c.pop(n);
+    let old_size = c.size();
+    c.pop(n);
+    let new_size = c.size();
 
-    // Less elements are popped than requested
-    assert!(popped.len() <= n);
-    // Less elements are popped than present in the container.
-    assert!(popped.len() <= count);
-    // New count is the difference between old count and popped.
-    assert_eq!(c.count(), count - popped.len());
+    if check_capacity {
+        // Popping should not increase container size.
+        assert!(old_size >= new_size);
+
+        // If we popped less than requested, then the container
+        // must be empty.
+        let popped_size = old_size - new_size;
+        if popped_size < n {
+            assert_eq!(new_size, 0);
+        }
+    }
 }
 
-fn test_n<'a, C>(c: &mut C, n: usize)
+fn test_n<'a, C>(c: &mut C, n: usize, check_capacity: bool)
 where
     C: BuildingBlock<'a, TestKey, TestValue>,
 {
@@ -151,35 +171,35 @@ where
         .collect();
 
     // Push Test
-    test_push(c, Vec::new());
+    test_push(c, Vec::new(), check_capacity);
     if !elements.is_empty() {
-        test_push(c, vec![elements[0]]);
-        test_push(c, vec![elements[0]]);
+        test_push(c, vec![elements[0]], check_capacity);
+        test_push(c, vec![elements[0]], check_capacity);
     }
-    test_push(c, elements.clone());
+    test_push(c, elements.clone(), check_capacity);
     if !elements.is_empty() {
-        test_push(c, vec![elements[0]]);
+        test_push(c, vec![elements[0]], check_capacity);
     }
-    test_push(c, elements.clone());
+    test_push(c, elements.clone(), check_capacity);
 
     // Flush Test
     test_flush(c, elements.clone());
 
     // Take Test
-    test_take(c, elements.clone());
+    test_take(c, elements.clone(), check_capacity);
 
     // Pop Test
     let (inserted, _) = insert(c, elements);
-    test_pop(c, 0);
-    test_pop(c, 1);
+    test_pop(c, 0, check_capacity);
+    test_pop(c, 1, check_capacity);
     if !inserted.is_empty() {
-        test_pop(c, inserted.len() - 1);
-        test_pop(c, 1);
+        test_pop(c, inserted.len() - 1, check_capacity);
+        test_pop(c, 1, check_capacity);
     }
 
     // Flush Test
     drop(c.flush());
-    assert_eq!(c.count(), 0);
+    assert_eq!(c.size(), 0);
 
     // take_multiple() Test
     let elements: TestElements = (0..n as u64)
@@ -209,13 +229,13 @@ where
     }
 }
 
-pub fn test_building_block<'a, C>(mut c: C)
+pub fn test_building_block<'a, C>(mut c: C, check_capacity: bool)
 where
     C: BuildingBlock<'a, TestKey, TestValue>,
 {
     let capacity = c.capacity();
-    test_n(&mut c, 0);
-    test_n(&mut c, capacity / 2);
-    test_n(&mut c, capacity);
-    test_n(&mut c, capacity * 2);
+    test_n(&mut c, 0, check_capacity);
+    test_n(&mut c, capacity / 2, check_capacity);
+    test_n(&mut c, capacity, check_capacity);
+    test_n(&mut c, capacity * 2, check_capacity);
 }

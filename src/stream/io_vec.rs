@@ -2,39 +2,11 @@
 //! [stream](../utils/stream/trait.Stream.html) and
 //! utils for reading and writing a stream in fixed sized chunks.
 
-use crate::stream::Stream;
+use crate::stream::{IOError, IOResult, Stream};
 use serde::{de::DeserializeOwned, Serialize};
 use std::io::{BufReader, BufWriter, Read, Seek, SeekFrom, Write};
 use std::marker::PhantomData;
 use std::vec::Vec;
-
-//----------------------------------------------------------------------------//
-// In-memory representation of a chunk.
-//----------------------------------------------------------------------------//
-
-#[derive(Debug)]
-pub enum IOError {
-    /// Error returned by call to `seek()` from `std::io::Seek` trait.
-    Seek(std::io::Error),
-    /// Error returned by call to `read()` from `std::io::Read` trait.
-    Read(std::io::Error),
-    /// Error returned by call to `write()` from `std::io::Write` trait.
-    Write(std::io::Error),
-    /// Error returned by lz4 encoder builder.
-    Encode(std::io::Error),
-    /// Error returned by lz4 decoder.
-    Decode(std::io::Error),
-    /// Error returned by call to `serialize()` from `bincode::serialize()`.
-    Serialize(bincode::Error),
-    /// Error returned by call to `deserialize()` from `bincode::deserialize()`.
-    Deserialize(bincode::Error),
-    /// Error related to some size.
-    InvalidSize,
-}
-
-/// Result type of [`byoc::utils::io`](index.html)
-/// See [`IOError`](enum.IOError.html).
-pub type IOResult<T> = Result<T, IOError>;
 
 /// A dynamically sized chunk of data.
 /// The size is set once at initialization and can never be changed.
@@ -446,6 +418,14 @@ where
         match stream.seek(SeekFrom::End(0)) {
             Err(e) => Err(IOError::Seek(e)),
             Ok(pos) => Ok(pos as usize / self.chunk_size),
+        }
+    }
+
+    /// The total size in bytes.
+    pub fn size(&self) -> IOResult<usize> {
+        match self.stream.clone().seek(SeekFrom::End(0)) {
+            Ok(s) => Ok(s as usize),
+            Err(e) => Err(IOError::Seek(e)),
         }
     }
 

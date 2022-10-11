@@ -37,12 +37,16 @@ where
     V: 'a,
     C: BuildingBlock<'a, K, V>,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the size of the container wrapped in this [`Profiler`]
+    /// container.
     fn capacity(&self) -> usize {
         self.cache.capacity()
     }
 
-    fn count(&self) -> usize {
-        let (time, count) = time_it!(self.cache.count());
+    fn size(&self) -> usize {
+        let (time, count) = time_it!(self.cache.size());
         Clone::clone(&self.stats).as_mut().count.add(1, time);
         count
     }

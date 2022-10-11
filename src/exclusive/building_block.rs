@@ -8,6 +8,10 @@ where
     L: BuildingBlock<'a, K, V>,
     R: BuildingBlock<'a, K, V>,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the sum of the capacities of the two containers that this
+    /// [`Exclusive`] container is composed of.
     fn capacity(&self) -> usize {
         self.front.capacity() + self.back.capacity()
     }
@@ -26,8 +30,8 @@ where
         }
     }
 
-    fn count(&self) -> usize {
-        self.front.count() + self.back.count()
+    fn size(&self) -> usize {
+        self.front.size() + self.back.size()
     }
 
     /// Take the matching key/value pair out of the container.
@@ -103,7 +107,7 @@ where
     /// also returned.
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let front_capacity = self.front.capacity();
-        let front_count = self.front.count();
+        let front_count = self.front.size();
 
         let mut front_pop = if elements.len()
             <= (front_capacity - front_count)
@@ -123,7 +127,7 @@ where
         }
 
         let back_capacity = self.back.capacity();
-        let back_count = self.back.count();
+        let back_count = self.back.size();
         let mut back_pop = if elements.len()
             <= (back_capacity - back_count)
         {
@@ -149,12 +153,21 @@ mod tests {
 
     #[test]
     fn building_block() {
-        test_building_block(Exclusive::new(Array::new(0), Array::new(0)));
-        test_building_block(Exclusive::new(Array::new(0), Array::new(10)));
-        test_building_block(Exclusive::new(Array::new(10), Array::new(0)));
-        test_building_block(Exclusive::new(
-            Array::new(10),
-            Array::new(100),
-        ));
+        test_building_block(
+            Exclusive::new(Array::new(0), Array::new(0)),
+            true,
+        );
+        test_building_block(
+            Exclusive::new(Array::new(0), Array::new(10)),
+            true,
+        );
+        test_building_block(
+            Exclusive::new(Array::new(10), Array::new(0)),
+            true,
+        );
+        test_building_block(
+            Exclusive::new(Array::new(10), Array::new(100)),
+            true,
+        );
     }
 }

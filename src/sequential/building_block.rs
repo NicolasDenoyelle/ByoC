@@ -7,6 +7,10 @@ where
     V: 'a,
     C: BuildingBlock<'a, K, V>,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the size of the container wrapped in this [`Sequential`]
+    /// container.
     fn capacity(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
         self.container.as_ref().capacity()
@@ -20,10 +24,10 @@ where
         out
     }
 
-    fn count(&self) -> usize {
+    fn size(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
         let container = self.container.as_ref();
-        container.count()
+        container.size()
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -71,7 +75,7 @@ mod tests {
 
     #[test]
     fn building_block() {
-        test_building_block(Sequential::new(Array::new(0)));
-        test_building_block(Sequential::new(Array::new(100)));
+        test_building_block(Sequential::new(Array::new(0)), true);
+        test_building_block(Sequential::new(Array::new(100)), true);
     }
 }

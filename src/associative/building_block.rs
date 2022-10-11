@@ -10,6 +10,10 @@ where
     C: BuildingBlock<'a, K, V>,
     H: Hasher + Clone,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the sum of the capacities of the containers that this
+    /// [`Associative`] container is composed of.
     fn capacity(&self) -> usize {
         self.containers.iter().map(|c| c.capacity()).sum()
     }
@@ -30,8 +34,8 @@ where
         self.containers[i].contains(key)
     }
 
-    fn count(&self) -> usize {
-        self.containers.iter().map(|c| c.count()).sum()
+    fn size(&self) -> usize {
+        self.containers.iter().map(|c| c.size()).sum()
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
@@ -88,7 +92,7 @@ where
         // We acquire exclusive lock on buckets in the process.
         let mut counts = Vec::<(usize, usize)>::with_capacity(n_sets + 1);
         for i in 0..n_sets {
-            let n = self.containers[i].count();
+            let n = self.containers[i].size();
             counts.push((n, i));
         }
 
@@ -190,9 +194,12 @@ mod tests {
 
     #[test]
     fn building_block() {
-        test_building_block(Associative::new(
-            vec![Array::new(5); 10],
-            DefaultHasher::new(),
-        ));
+        test_building_block(
+            Associative::new(
+                vec![Array::new(5); 10],
+                DefaultHasher::new(),
+            ),
+            true,
+        );
     }
 }

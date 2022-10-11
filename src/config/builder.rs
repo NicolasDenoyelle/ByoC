@@ -537,7 +537,7 @@ capacity={}
         let capacity = 10;
         let config_str = format!(
             "
-id='BTreeConfig'
+id='ArrayConfig'
 capacity={}
 ",
             capacity
@@ -557,7 +557,7 @@ capacity={}
             "
 id='SequentialConfig'
 [container]
-id='BTreeConfig'
+id='ArrayConfig'
 capacity={}
 ",
             capacity

@@ -8,12 +8,16 @@ where
     V: 'a + Ord,
     C: BuildingBlock<'a, K, V>,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the sum of the capacities of the containers that this
+    /// [`Batch`] container is composed of.
     fn capacity(&self) -> usize {
         self.bb.iter().map(|c| c.capacity()).sum()
     }
 
-    fn count(&self) -> usize {
-        self.bb.iter().map(|c| c.count()).sum()
+    fn size(&self) -> usize {
+        self.bb.iter().map(|c| c.size()).sum()
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -90,11 +94,23 @@ mod tests {
 
     #[test]
     fn building_block() {
-        test_building_block(Batch::<Array<(u16, u32)>>::new());
-        test_building_block(Batch::from([Array::new(0)]));
-        test_building_block(Batch::from([Array::new(0), Array::new(0)]));
-        test_building_block(Batch::from([Array::new(0), Array::new(10)]));
-        test_building_block(Batch::from([Array::new(10), Array::new(0)]));
-        test_building_block(Batch::from([Array::new(10), Array::new(10)]));
+        test_building_block(Batch::<Array<(u16, u32)>>::new(), true);
+        test_building_block(Batch::from([Array::new(0)]), true);
+        test_building_block(
+            Batch::from([Array::new(0), Array::new(0)]),
+            true,
+        );
+        test_building_block(
+            Batch::from([Array::new(0), Array::new(10)]),
+            true,
+        );
+        test_building_block(
+            Batch::from([Array::new(10), Array::new(0)]),
+            true,
+        );
+        test_building_block(
+            Batch::from([Array::new(10), Array::new(10)]),
+            true,
+        );
     }
 }

@@ -1,19 +1,21 @@
-use crate::internal::SharedPtr;
 use crate::stream::{IOError, IOResult, Stream};
 use lz4::{Decoder, EncoderBuilder};
 use serde::{de::DeserializeOwned, Serialize};
 use std::io::{Read, SeekFrom, Write};
 use std::marker::PhantomData;
-use std::ops::DerefMut;
 
 /// Compressed [`BuildingBlock`](trait.BuildingBlock.html) on a byte
 /// [stream](utils/stream/trait.Stream.html).
 ///
 /// This building blocks stores its elements in a serialized vector,
-/// compressed on a stream. Compression/decompression is managed with `lz4`
-/// backend. When performing read only operations, the whole content is
+/// compressed on a stream. Compression/decompression is managed with
+/// [`lz4`](../lz4/index.html) backend.
+/// When performing read only operations, the whole content is
 /// decompressed. When performing write operations, the whole content
 /// is also compressed back to the stream after modification.
+///
+/// The container capacity is the in-memory size of the serialized container
+/// elements before compression. The compressed size will likely be smaller.
 ///
 /// By itself, this building is rather performing poorly both memory and
 /// speed wise. It is supposed to be used embedded in another container
@@ -48,10 +50,9 @@ use std::ops::DerefMut;
 /// use byoc::{Compressed, BuildingBlock};
 /// use byoc::utils::stream::VecStream;
 ///
-/// let mut compressed = Compressed::new(VecStream::new(), 1);
+/// let mut compressed = Compressed::new(VecStream::new(), 1usize<<10);
 /// assert_eq!(compressed.push(vec![(0,String::from("first")),
-///                                 (1,String::from("second"))]).len(), 1);
-/// assert!(compressed.take(&1).is_none());
+///                                 (1,String::from("second"))]).len(), 0);
 /// assert_eq!(compressed.take(&0).unwrap().1, "first");
 /// ```
 ///
@@ -59,36 +60,33 @@ use std::ops::DerefMut;
 /// [configuration](config/struct.CompressedConfig.html).
 pub struct Compressed<T: Serialize + DeserializeOwned, S: Stream> {
     pub(super) stream: S,
-    pub(super) capacity: usize,
-    pub(super) count: SharedPtr<usize>,
+    pub(super) capacity: u64,
     pub(super) unused: PhantomData<T>,
 }
 
 impl<T: Serialize + DeserializeOwned, S: Stream> Compressed<T, S> {
+    /// Create a container backed by a compressed
+    /// [`Stream`](utils/stream/trait.Stream.html).
+    ///
+    ///  `capacity`: The container maximum compressed size in bytes.
     pub fn new(stream: S, capacity: usize) -> Self {
-        let mut c = Compressed {
+        let capacity = capacity as u64;
+        Compressed {
             stream,
             capacity,
-            count: SharedPtr::from(0usize),
             unused: PhantomData,
-        };
-        *c.count.as_mut().deref_mut() = match c.read() {
-            Ok(v) => v.len(),
-            Err(_) => 0usize,
-        };
-        c
+        }
     }
 
     pub(super) fn shallow_copy(&self) -> Self {
         Compressed {
             stream: self.stream.clone(),
             capacity: self.capacity,
-            count: self.count.clone(),
             unused: PhantomData,
         }
     }
 
-    pub(super) fn read(&self) -> IOResult<Vec<T>> {
+    pub(super) fn read_bytes(&self) -> IOResult<Vec<u8>> {
         let mut stream = self.stream.clone();
 
         // Rewind stream
@@ -106,9 +104,13 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressed<T, S> {
         let mut bytes: Vec<u8> = Vec::new();
 
         match decoder.read_to_end(&mut bytes) {
-            Ok(_) => {}
-            Err(e) => return Err(IOError::Decode(e)),
-        };
+            Ok(_) => Ok(bytes),
+            Err(e) => Err(IOError::Decode(e)),
+        }
+    }
+
+    pub(super) fn read(&self) -> IOResult<Vec<T>> {
+        let bytes = self.read_bytes()?;
 
         // Deserialize bytes into an element.
         if !bytes.is_empty() {
@@ -121,10 +123,32 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressed<T, S> {
         }
     }
 
+    /// Compress and write a slice of values to this stream without
+    /// checking if it overflows capacity.
+    /// This write overwrite the existing stream.
     pub(super) fn write(&mut self, val: &[T]) -> IOResult<()> {
-        let n = val.len();
+        // If we attempt to write an empty vector, we can skip a bunch of steps.
+        if val.is_empty() {
+            if let Err(e) = self.stream.resize(0u64) {
+                return Err(IOError::Seek(e));
+            }
+            return Ok(());
+        }
 
-        // Resize to zero if content is shorter than previous content.
+        // Serialize elements.
+        let mut bytes = match bincode::serialize(val) {
+            Err(e) => return Err(IOError::Serialize(e)),
+            Ok(v) => v,
+        };
+
+        // Make sure it does not overflow the capacity.
+        if bytes.len() > self.capacity as usize {
+            return Err(IOError::InvalidSize);
+        }
+
+        // Resize stream to zero.
+        // If new content is shorter than previous content, we don't get to
+        // read invalid elements next time we read the compressed stream.
         if let Err(e) = self.stream.resize(0u64) {
             return Err(IOError::Seek(e));
         }
@@ -133,18 +157,8 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressed<T, S> {
         if let Err(e) = self.stream.seek(SeekFrom::Start(0u64)) {
             return Err(IOError::Seek(e));
         }
-        // Resize to zero if content is shorter than previous content.
-        if let Err(e) = self.stream.resize(0u64) {
-            return Err(IOError::Seek(e));
-        }
 
-        // Serialize element.
-        let mut bytes = match bincode::serialize(val) {
-            Err(e) => return Err(IOError::Serialize(e)),
-            Ok(v) => v,
-        };
-
-        // Compress bytes.
+        // Compress bytes directly to the stream.
         let mut encoder =
             match EncoderBuilder::new().build(&mut self.stream) {
                 Ok(e) => e,
@@ -168,8 +182,6 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressed<T, S> {
         if let Err(e) = w.flush() {
             return Err(IOError::Encode(e));
         }
-
-        *self.count.as_mut().deref_mut() = n;
         Ok(())
     }
 }

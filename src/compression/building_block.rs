@@ -1,9 +1,7 @@
 use super::Compressed;
-use crate::internal::kmin::KMin;
-use crate::stream::Stream;
+use crate::stream::{IOError, Stream};
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
-use std::ops::{Deref, DerefMut};
 
 impl<'a, K, V, S> BuildingBlock<'a, K, V> for Compressed<(K, V), S>
 where
@@ -11,12 +9,21 @@ where
     V: 'a + Serialize + DeserializeOwned + Ord,
     S: Stream,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This the in-memory size of the uncompressed container.
+    /// This size is the maximum size occupied ever by the container.
+    /// The compressed size on the
+    /// [`Stream`](struct.Stream.html) is likely less.
     fn capacity(&self) -> usize {
-        self.capacity
+        self.capacity as usize
     }
 
-    fn count(&self) -> usize {
-        *self.count.as_ref().deref()
+    fn size(&self) -> usize {
+        match self.read_bytes() {
+            Err(_) => 0usize,
+            Ok(vec) => vec.len(),
+        }
     }
 
     fn contains(&self, key: &K) -> bool {
@@ -51,7 +58,10 @@ where
         let ret = v.swap_remove(i);
         match self.write(&v) {
             Ok(_) => Some(ret),
-            Err(_) => None,
+            // The initial stream is left in an invalid state.
+            Err(_) => {
+                panic!("An error occurred while rewriting the stream")
+            }
         }
     }
 
@@ -89,63 +99,117 @@ where
         match self.write(&v) {
             Ok(_) => out,
             Err(_) => {
-                panic!("Could not write updated elements to Compressed")
+                panic!("An error occurred while rewriting the stream")
             }
         }
     }
 
     #[allow(clippy::type_complexity)]
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
-        let mut out = Vec::with_capacity(n);
+        // Read elements into memory.
+        let mut v = match self.read() {
+            Ok(v) => v,
+            _ => return Vec::new(),
+        };
 
-        // Read elements into memory (twice).
-        let (mut v1, v2): (Vec<(K, V)>, Vec<(K, V)>) =
-            match (self.read(), self.read()) {
-                (Ok(v1), Ok(v2)) => (v1, v2),
-                _ => return out,
-            };
+        // Sort elements by value.
+        v.sort_by(|(k_a, v_a), (k_b, v_b)| {
+            (v_a, k_a).partial_cmp(&(v_b, k_b)).unwrap()
+        });
 
-        // Look for max values.
-        let mut victims = KMin::new(n);
-        for x in v2.into_iter().enumerate().map(|(i, (_, v))| (v, i)) {
-            victims.push(x);
+        // Find where to cut elements
+        let mut size = 0usize;
+        let mut split: Option<usize> = None;
+        for (i, e) in v.iter().enumerate().rev() {
+            match bincode::serialized_size(e) {
+                Err(_) => break,
+                Ok(s) => size += s as usize,
+            }
+            if size >= n {
+                split = Some(i);
+                break;
+            }
         }
 
-        let mut victims: Vec<usize> =
-            victims.into_iter().map(|(_, i)| i).collect();
-        victims.sort_unstable();
-
-        // Make a vector of max values.
-        for i in victims.into_iter().rev() {
-            out.push(v1.swap_remove(i));
+        // If there was an error computing serialized size of the first
+        // element, we don't pop anything.
+        if size == 0 {
+            return Vec::new();
         }
 
-        // Rewrite vector without popped elements to stream.
-        match self.write(&v1) {
-            Ok(_) => out,
-            Err(_) => Vec::new(),
+        match split {
+            // If we walked the entire vector without being able to
+            // clear requested size, we pop the whole container.
+            None => match self.stream.resize(0) {
+                Err(_) => Vec::new(),
+                Ok(_) => v,
+            },
+            // We split the container elements to free requested space.
+            Some(i) => {
+                let out = v.split_off(i);
+                match self.write(&v) {
+                    Ok(_) => out,
+                    Err(_) => panic!(
+                        "An error occurred while rewriting the stream"
+                    ),
+                }
+            }
         }
     }
 
-    fn push(&mut self, mut values: Vec<(K, V)>) -> Vec<(K, V)> {
-        // Read elements into memory.
-        let mut v: Vec<(K, V)> = match self.read() {
+    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
+        // Read and decompress bytes from the stream.
+        let bytes = match self.read_bytes() {
             Err(_) => return values,
-            Ok(v) => v,
+            Ok(bytes) => bytes,
         };
 
-        // Insert only fitting elements.
-        let n = std::cmp::min(self.capacity - v.len(), values.len());
-        let out = values.split_off(n);
-        if n > 0 {
-            v.append(&mut values);
+        // Compute total serialized size.
+        let mut size = bytes.len() as u64;
+
+        // Deserialize bytes into a vector.
+        let mut vec = if !bytes.is_empty() {
+            match bincode::deserialize_from(bytes.as_slice()) {
+                Ok(vec) => vec,
+                Err(_) => return values,
+            }
+        } else {
+            Vec::new()
+        };
+        let i = vec.len();
+
+        // Walk elements and sort those going inside or outside the container
+        let mut out = Vec::<(K, V)>::new();
+        for kv in values.into_iter() {
+            match bincode::serialized_size(&kv) {
+                Err(_) => out.push(kv),
+                Ok(s) => {
+                    if size + s >= self.capacity {
+                        out.push(kv);
+                    } else {
+                        vec.push(kv);
+                        size += s;
+                    }
+                }
+            };
         }
 
-        // Rewrite vector to stream.
-        match self.write(&v) {
-            Ok(_) => out,
-            Err(_) => panic!("Could not write new elements to Compressed"),
+        // Write new vector to stream and return not inserted keys.
+        match self.write(&vec) {
+            Ok(_) => {}
+            // This error may happen for a container of a small capacity when
+            // the size of one element is less than the capacity but the size
+            // of a serialized vector of one element is more than the capacity.
+            // In that case we don't insert anything.
+            Err(IOError::InvalidSize) => {
+                out.append(&mut vec.split_off(i));
+            }
+            Err(_) => {
+                panic!("An error occurred while rewriting the stream")
+            }
         }
+
+        out
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
@@ -159,7 +223,6 @@ where
             return Box::new(std::iter::empty());
         }
 
-        *self.count.as_mut().deref_mut() = 0;
         Box::new(v.into_iter())
     }
 }
@@ -173,7 +236,10 @@ mod tests {
     #[test]
     fn building_block() {
         for i in [0usize, 10usize, 100usize] {
-            test_building_block(Compressed::new(VecStream::new(), i));
+            test_building_block(
+                Compressed::new(VecStream::new(), i),
+                true,
+            );
         }
     }
 }

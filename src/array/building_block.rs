@@ -6,11 +6,22 @@ where
     K: 'a + Ord,
     V: 'a + Ord,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the size set by the constructor
+    /// [`Array::new()`](struct.Array.html#method.new).
+    /// The meaning of this methods depends on the meaning of the
+    /// elements size that can be set with the method
+    /// [`with_element_size()`](struct.Array.html#method.with_element_size).
+    /// For instance, capacity can be the number of elements in the array
+    /// when all elements size is one, or it can be the maximum stack
+    /// size when elements size is the size of the element on the stack.
     fn capacity(&self) -> usize {
         self.capacity
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        self.total_size = 0;
         Box::new(self.values.split_off(0).into_iter())
     }
 
@@ -18,8 +29,8 @@ where
         self.values.iter().any(|(k, _)| k == key)
     }
 
-    fn count(&self) -> usize {
-        self.values.len()
+    fn size(&self) -> usize {
+        self.total_size
     }
 
     /// Remove up to `n` values from the container.
@@ -33,20 +44,29 @@ where
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
         self.values.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
         let i = self.values.len();
-        self.values.split_off(i - std::cmp::min(i, n))
+        let out = self.values.split_off(i - std::cmp::min(i, n));
+        let out_size: usize =
+            out.iter().map(|e| (self.element_size)(e)).sum();
+        self.total_size -= out_size;
+        out
     }
 
     /// Insert key/value pairs in the container. If the container cannot
     /// store all the values, the last input values not fitting in are
     /// returned.
     fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        let n = std::cmp::min(
-            self.capacity - self.values.len(),
-            elements.len(),
-        );
-        let out = elements.split_off(n);
+        let mut i = 0;
+        for e in elements.iter() {
+            let size = (self.element_size)(e);
+            if self.total_size + size > self.capacity {
+                break;
+            }
+            self.total_size += size;
+            i += 1;
+        }
 
-        if n > 0 {
+        let out = elements.split_off(i);
+        if i > 0 {
             self.values.append(&mut elements);
         }
         out
@@ -61,7 +81,11 @@ where
             }
         }) {
             None => None,
-            Some(i) => Some(self.values.swap_remove(i)),
+            Some(i) => {
+                self.total_size -=
+                    (self.element_size)(self.values.get(i).unwrap());
+                Some(self.values.swap_remove(i))
+            }
         }
     }
 
@@ -72,6 +96,8 @@ where
         for i in (0..self.values.len()).rev() {
             if let Ok(j) = keys.binary_search(&self.values[i].0) {
                 keys.remove(j);
+                self.total_size -=
+                    (self.element_size)(self.values.get(i).unwrap());
                 ret.push(self.values.swap_remove(i));
             }
         }
@@ -82,12 +108,31 @@ where
 #[cfg(test)]
 mod tests {
     use super::Array;
-    use crate::tests::test_building_block;
+    use crate::tests::{test_building_block, TestElement};
 
     #[test]
-    fn building_block() {
-        test_building_block(Array::new(0));
-        test_building_block(Array::new(10));
-        test_building_block(Array::new(100));
+    fn building_block_default() {
+        test_building_block(Array::new(0), true);
+        test_building_block(Array::new(10), true);
+        test_building_block(Array::new(100), true);
+    }
+
+    #[test]
+    fn building_block_stack_size() {
+        test_building_block(
+            Array::new(0)
+                .with_element_size(|_| std::mem::size_of::<TestElement>()),
+            true,
+        );
+        test_building_block(
+            Array::new(10)
+                .with_element_size(|_| std::mem::size_of::<TestElement>()),
+            true,
+        );
+        test_building_block(
+            Array::new(100)
+                .with_element_size(|_| std::mem::size_of::<TestElement>()),
+            true,
+        );
     }
 }

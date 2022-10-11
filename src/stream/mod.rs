@@ -7,7 +7,9 @@ pub(crate) mod builder;
 mod building_block;
 mod file_stream;
 mod io_vec;
-pub(crate) use io_vec::{IOError, IOResult, IOStructMut, IOVec};
+pub(crate) use io_vec::{IOStructMut, IOVec};
+mod error;
+pub(crate) use error::{IOError, IOResult};
 mod ordered;
 pub use file_stream::FileStream;
 #[cfg(feature = "tempfile")]
@@ -59,6 +61,17 @@ pub trait StreamBase:
     ///
     /// * size: The new stream size in bytes.
     fn resize(&mut self, size: u64) -> std::io::Result<()>;
+
+    fn len(&mut self) -> std::io::Result<u64> {
+        self.seek(std::io::SeekFrom::End(0))
+    }
+
+    fn is_empty(&mut self) -> std::io::Result<bool> {
+        match self.len() {
+            Ok(l) => Ok(l > 0),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 /// Clonable [`StreamBase`].

@@ -30,7 +30,7 @@ use std::marker::PhantomData;
 /// use byoc::policy::Fifo;
 ///
 /// let mut c = Policy::new(Array::new(3), Fifo::new());
-/// c.push(vec![("item1",()), ("item2",()), ("item0",())]);
+/// c.push(vec![("item1",1u16), ("item2",2u16), ("item0",3u16)]);
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item2");
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item0");

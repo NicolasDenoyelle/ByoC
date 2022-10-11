@@ -10,16 +10,20 @@ where
     V: 'a + DeserializeOwned + Serialize + Ord,
     F: 'a + StreamFactory,
 {
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This is the sum of the serialized size rounded up to the next power of
+    /// two of elements in the container.
     fn capacity(&self) -> usize {
         self.capacity
     }
 
-    fn count(&self) -> usize {
+    fn size(&self) -> usize {
         self.stream
             .iter()
-            .map(|s| match s {
+            .map(|option_io_vec| match option_io_vec {
                 None => 0usize,
-                Some(s) => s.len().unwrap_or(0usize),
+                Some(io_vec) => io_vec.size().unwrap_or(0usize),
             })
             .sum()
     }
@@ -121,35 +125,47 @@ where
     /// Insert key/value pairs in the container. If the container cannot
     /// store all the values, the last input values not fitting in are
     /// returned.
-    fn push(&mut self, mut values: Vec<(K, V)>) -> Vec<(K, V)> {
-        let n = std::cmp::min(values.len(), self.capacity - self.count());
+    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
+        let mut out = Vec::<(K, V)>::with_capacity(values.len());
 
-        if n > 0 {
-            let mut out = values.split_off(n);
-            for value in values.into_iter() {
-                let size = match bincode::serialized_size(&value) {
-                    Err(_) => {
-                        out.push(value);
-                        continue;
-                    }
-                    Ok(s) => s as usize,
-                };
-
-                let (i, chunk_size) = Self::chunk_size(size);
-                if self.stream[i].is_none() {
-                    let store = self.factory.create();
-                    self.stream[i] = Some(IOVec::new(store, chunk_size));
-                }
-                let mut value = vec![value];
-                match self.stream[i].as_mut().unwrap().append(&mut value) {
-                    Ok(_) => {}
-                    Err(_) => out.push(value.pop().unwrap()),
-                }
+        let mut total_size = 0usize;
+        for s in self.stream.iter() {
+            match s {
+                None => continue,
+                Some(io_vec) => match io_vec.size() {
+                    Ok(s) => total_size += s,
+                    Err(_) => return values,
+                },
             }
-            out
-        } else {
-            values
         }
+
+        for value in values.into_iter() {
+            let size = match bincode::serialized_size(&value) {
+                Err(_) => {
+                    out.push(value);
+                    continue;
+                }
+                Ok(s) => s as usize,
+            };
+
+            let (i, chunk_size) = Self::chunk_size(size);
+            if chunk_size + total_size > self.capacity {
+                out.push(value);
+                continue;
+            }
+
+            if self.stream[i].is_none() {
+                let store = self.factory.create();
+                self.stream[i] = Some(IOVec::new(store, chunk_size));
+            }
+
+            let mut value = vec![value];
+            match self.stream[i].as_mut().unwrap().append(&mut value) {
+                Ok(_) => total_size += chunk_size,
+                Err(_) => out.push(value.pop().unwrap()),
+            }
+        }
+        out
     }
 
     #[allow(clippy::needless_collect)]
@@ -173,7 +189,10 @@ mod tests {
     #[test]
     fn building_block() {
         for i in [0usize, 10usize, 100usize] {
-            test_building_block(ByteStream::new(VecStreamFactory {}, i));
+            test_building_block(
+                ByteStream::new(VecStreamFactory {}, i),
+                true,
+            );
         }
     }
 }

@@ -17,12 +17,37 @@
 /// [`BuildingBlock` implementors](trait.BuildingBlock.html#implementors)
 /// for more details on structuring building blocks together.
 pub trait BuildingBlock<'a, K: 'a, V: 'a> {
-    /// Get the maximum number of elements fitting in the container.
-    /// The actual number may be smaller depending on the implementation.
+    /// Get the maximum "size" that elements in the container can fit.
+    ///
+    /// This value emulate the container maximum memory footprint.
+    /// The real meaning of this value depends on the implementation.
+    /// For instance, it could represent the maximum disk footprint of the file
+    /// where elements are stored, or the maximum memory footprint of elements
+    /// in device memory.
+    ///
+    /// As a rule of thumbs,
+    /// adding elements to a container should be O(n) in space complexity
+    /// while metadata should occupy O(1) (or something negligible,
+    /// e.g O(log(n))) space complexity. At any point in time, the
+    /// [`size()`](trait.BuildingBlock.html#tymethod.size) should be less or
+    /// equal than [`capacity()`](trait.BuildingBlock.html#tymethod.capacity).
     fn capacity(&self) -> usize;
 
-    /// Get the number of elements in the container.    
-    fn count(&self) -> usize;
+    /// Get the "size" occupied by this container.
+    ///
+    /// This value emulate the container memory footprint.
+    /// The real meaning of this value depends on the implementation.
+    /// Here the footprint may decouple the size of container metadata,
+    /// versus the footprint of elements where they are stored, to only
+    /// report the latter.
+    ///
+    /// This is hard to test because it depends on the medium where the
+    /// container is stored. We may expect that insertion without overflow
+    /// are going to increase container size, that removal of elements decreases
+    /// it and that container [`size()`](trait.BuildingBlock.html#tymethod.size)
+    /// will never exceed its
+    /// [`capacity()`](trait.BuildingBlock.html#tymethod.capacity).
+    fn size(&self) -> usize;
 
     /// Check if container contains a matchig key.
     fn contains(&self, key: &K) -> bool;
@@ -74,8 +99,8 @@ impl<'a, K: 'a, V: 'a> BuildingBlock<'a, K, V>
     fn capacity(&self) -> usize {
         (**self).capacity()
     }
-    fn count(&self) -> usize {
-        (**self).count()
+    fn size(&self) -> usize {
+        (**self).size()
     }
     fn contains(&self, key: &K) -> bool {
         (**self).contains(key)
