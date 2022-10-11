@@ -65,6 +65,13 @@ pub trait StreamBase:
     fn len(&mut self) -> std::io::Result<u64> {
         self.seek(std::io::SeekFrom::End(0))
     }
+
+    fn is_empty(&mut self) -> std::io::Result<bool> {
+        match self.len() {
+            Ok(l) => Ok(l > 0),
+            Err(e) => Err(e),
+        }
+    }
 }
 
 /// Clonable [`StreamBase`].
