@@ -14,11 +14,8 @@ use std::marker::PhantomData;
 /// decompressed. When performing write operations, the whole content
 /// is also compressed back to the stream after modification.
 ///
-/// The container capacity is the compressed capacity. When the container
-/// is expanded inside the computer memory, it may take significantly more
-/// space. The container capacity is checked not to overflow on insertion but
-/// it may overflow on removals (because the compressed buffer with less
-/// elements may be bigger).
+/// The container capacity is the in-memory size of the serialized container
+/// elements before compression. The compressed size will likely be smaller.
 ///
 /// By itself, this building is rather performing poorly both memory and
 /// speed wise. It is supposed to be used embedded in another container
@@ -89,7 +86,7 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressed<T, S> {
         }
     }
 
-    pub(super) fn read(&self) -> IOResult<Vec<T>> {
+    pub(super) fn read_bytes(&self) -> IOResult<Vec<u8>> {
         let mut stream = self.stream.clone();
 
         // Rewind stream
@@ -107,9 +104,13 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressed<T, S> {
         let mut bytes: Vec<u8> = Vec::new();
 
         match decoder.read_to_end(&mut bytes) {
-            Ok(_) => {}
-            Err(e) => return Err(IOError::Decode(e)),
-        };
+            Ok(_) => Ok(bytes),
+            Err(e) => Err(IOError::Decode(e)),
+        }
+    }
+
+    pub(super) fn read(&self) -> IOResult<Vec<T>> {
+        let bytes = self.read_bytes()?;
 
         // Deserialize bytes into an element.
         if !bytes.is_empty() {
@@ -126,7 +127,28 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressed<T, S> {
     /// checking if it overflows capacity.
     /// This write overwrite the existing stream.
     pub(super) fn write(&mut self, val: &[T]) -> IOResult<()> {
-        // Resize to zero if content is shorter than previous content.
+        // If we attempt to write an empty vector, we can skip a bunch of steps.
+        if val.is_empty() {
+            if let Err(e) = self.stream.resize(0u64) {
+                return Err(IOError::Seek(e));
+            }
+            return Ok(());
+        }
+
+        // Serialize elements.
+        let mut bytes = match bincode::serialize(val) {
+            Err(e) => return Err(IOError::Serialize(e)),
+            Ok(v) => v,
+        };
+
+        // Make sure it does not overflow the capacity.
+        if bytes.len() > self.capacity as usize {
+            return Err(IOError::InvalidSize);
+        }
+
+        // Resize stream to zero.
+        // If new content is shorter than previous content, we don't get to
+        // read invalid elements next time we read the compressed stream.
         if let Err(e) = self.stream.resize(0u64) {
             return Err(IOError::Seek(e));
         }
@@ -135,18 +157,8 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressed<T, S> {
         if let Err(e) = self.stream.seek(SeekFrom::Start(0u64)) {
             return Err(IOError::Seek(e));
         }
-        // Resize to zero if content is shorter than previous content.
-        if let Err(e) = self.stream.resize(0u64) {
-            return Err(IOError::Seek(e));
-        }
 
-        // Serialize element.
-        let mut bytes = match bincode::serialize(val) {
-            Err(e) => return Err(IOError::Serialize(e)),
-            Ok(v) => v,
-        };
-
-        // Compress bytes.
+        // Compress bytes directly to the stream.
         let mut encoder =
             match EncoderBuilder::new().build(&mut self.stream) {
                 Ok(e) => e,
