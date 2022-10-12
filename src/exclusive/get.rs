@@ -46,7 +46,7 @@ where
     }
 }
 
-impl<'b, K, V, L, R> Get<K, V> for Exclusive<K, V, L, R>
+impl<'b, K, V, L, R> Get<K, V> for Exclusive<'b, K, V, L, R>
 where
     K: 'b,
     V: 'b,
@@ -67,23 +67,25 @@ where
     }
 }
 
-impl<'b, K, V, L, R> GetMut<K, V> for Exclusive<K, V, L, R>
+impl<'b, K, V, L, R> GetMut<K, V> for Exclusive<'b, K, V, L, R>
 where
     K: 'b,
     V: 'b,
     L: GetMut<K, V> + BuildingBlock<'b, K, V>,
-    R: GetMut<K, V> + BuildingBlock<'b, K, V>,
+    R: BuildingBlock<'b, K, V>,
 {
-    type Target = ExclusiveCell<V, L::Target, R::Target>;
+    type Target = L::Target;
 
     fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
-        match self.front.get_mut(key) {
-            Some(x) => {
-                Some(LifeTimeGuard::new(ExclusiveCell::Ltype(x.unwrap())))
-            }
-            None => self.back.get_mut(key).map(|y| {
-                LifeTimeGuard::new(ExclusiveCell::Rtype(y.unwrap()))
-            }),
+        // Lookup in the front stage of the cache.
+        // If element is there return it.
+        if self.front.contains(key) {
+            return self.front.get_mut(key);
+        };
+
+        match self.downgrade(key) {
+            true => self.front.get_mut(key),
+            false => None,
         }
     }
 }

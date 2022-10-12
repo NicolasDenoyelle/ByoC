@@ -1,3 +1,4 @@
+use crate::BuildingBlock;
 use std::marker::PhantomData;
 
 /// Connector between two [`BuildingBlock`](trait.BuildingBlock.html) without
@@ -80,13 +81,25 @@ use std::marker::PhantomData;
 /// [`Exclusive`] can also be built from a
 /// [builder pattern](builder/trait.Build.html#method.exclusive) and a
 /// [configuration](config/struct.ExclusiveConfig.html).
-pub struct Exclusive<K, V, L, R> {
+pub struct Exclusive<'a, K, V, L, R>
+where
+    K: 'a,
+    V: 'a,
+    L: BuildingBlock<'a, K, V>,
+    R: BuildingBlock<'a, K, V>,
+{
     pub(super) front: L,
     pub(super) back: R,
-    pub(super) unused: PhantomData<(K, V)>,
+    pub(super) unused: PhantomData<&'a (K, V)>,
 }
 
-impl<K, V, L, R> Exclusive<K, V, L, R> {
+impl<'a, K, V, L, R> Exclusive<'a, K, V, L, R>
+where
+    K: 'a,
+    V: 'a,
+    L: BuildingBlock<'a, K, V>,
+    R: BuildingBlock<'a, K, V>,
+{
     /// Construct a Exclusive Cache.
     pub fn new(front: L, back: R) -> Self {
         Exclusive {
@@ -115,14 +128,31 @@ impl<K, V, L, R> Exclusive<K, V, L, R> {
     pub fn back_mut(&mut self) -> &mut R {
         &mut self.back
     }
-}
 
-impl<K, V, L, R> From<(L, R)> for Exclusive<K, V, L, R> {
-    fn from(lr: (L, R)) -> Self {
-        Exclusive {
-            front: lr.0,
-            back: lr.1,
-            unused: PhantomData,
+    /// Move an element from the back container to the front container
+    /// and return whether the element was here at all.
+    pub(super) fn downgrade(&mut self, key: &K) -> bool {
+        // Lookup in the back stage of the cache.
+        let x = match self.back.take(key) {
+            // If element is not there, there's no downgrade possible.
+            None => return false,
+            Some(x) => x,
+        };
+
+        // Insert element in the front stage of the cache.
+        let popped = self.front.push(vec![x]);
+        if popped.is_empty() {
+            return true;
         }
+
+        // If Some elements were popped we try to insert them at the back.
+        let popped = self.back.push(popped);
+        if popped.is_empty() {
+            return true;
+        }
+
+        // If we have yet more elements popping out, we have nowhere to put them
+        // and we cannot roll back, so we have to abort.
+        panic!("Failure to move an element from the back container of the exclusive cache to the front. This happened because we tried to move an element from the back container to the front, then the front container popped elements to make room for the former element, and finally, the back container was not able to fit the popped elements.")
     }
 }

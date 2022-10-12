@@ -1,7 +1,7 @@
 use super::Exclusive;
 use crate::BuildingBlock;
 
-impl<'a, K, V, L, R> BuildingBlock<'a, K, V> for Exclusive<K, V, L, R>
+impl<'a, K, V, L, R> BuildingBlock<'a, K, V> for Exclusive<'a, K, V, L, R>
 where
     K: 'a + Ord,
     V: 'a,
@@ -23,11 +23,7 @@ where
     /// The front is looked first and if the key is not
     /// found, it is searched in the back.
     fn contains(&self, key: &K) -> bool {
-        if self.front.contains(key) {
-            true
-        } else {
-            self.back.contains(key)
-        }
+        self.front.contains(key) || self.back.contains(key)
     }
 
     fn size(&self) -> usize {

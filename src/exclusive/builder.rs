@@ -1,4 +1,5 @@
 use crate::builder::Build;
+use crate::BuildingBlock;
 use crate::Exclusive;
 use std::marker::PhantomData;
 
@@ -69,13 +70,17 @@ where
     }
 }
 
-impl<K, V, L, LB, R, RB> Build<Exclusive<K, V, L, R>>
+impl<'a, K, V, L, LB, R, RB> Build<Exclusive<'a, K, V, L, R>>
     for ExclusiveBuilder<L, LB, R, RB>
 where
+    K: 'a,
+    V: 'a,
+    L: BuildingBlock<'a, K, V>,
+    R: BuildingBlock<'a, K, V>,
     LB: Build<L>,
     RB: Build<R>,
 {
-    fn build(self) -> Exclusive<K, V, L, R> {
+    fn build(self) -> Exclusive<'a, K, V, L, R> {
         Exclusive::new(self.lbuilder.build(), self.rbuilder.build())
     }
 }
