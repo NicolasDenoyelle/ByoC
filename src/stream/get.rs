@@ -68,7 +68,7 @@ where
 {
     type Target = StreamCell<V>;
 
-    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.stream.iter().filter_map(|s| s.as_ref()).find_map(|s| {
             s.iter().find_map(|item| {
                 let (k, item) = item.unwrap();

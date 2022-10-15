@@ -7,8 +7,8 @@ where
     C: Get<K, V>,
 {
     type Target = C::Target;
-    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
-        self.bb.iter().find_map(|c| c.get(key))
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+        self.bb.iter_mut().find_map(|c| c.get(key))
     }
 }
 

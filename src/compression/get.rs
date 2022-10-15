@@ -94,7 +94,7 @@ where
 {
     type Target = CompressedCell<V>;
 
-    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         // Read elements into memory.
         match self.read() {
             Err(_) => None,

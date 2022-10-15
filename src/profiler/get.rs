@@ -20,7 +20,7 @@ where
 {
     type Target = C::Target;
 
-    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         let (time, out) = time_it!(self.cache.get(key));
         Clone::clone(&self.stats).as_mut().get.add(1, time);
         match out {

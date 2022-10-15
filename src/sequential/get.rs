@@ -62,9 +62,9 @@ where
 {
     type Target = SequentialCell<C::Target>;
 
-    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         match self.lock.lock() {
-            Ok(_) => match self.container.as_ref().get(key) {
+            Ok(_) => match self.container.as_mut().get(key) {
                 None => {
                     self.lock.unlock();
                     None

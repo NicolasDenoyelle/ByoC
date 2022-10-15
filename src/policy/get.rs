@@ -50,7 +50,7 @@ where
 {
     type Target = PolicyCell<V, F::Item, C::Target>;
 
-    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.container.get(key).map(|x| {
             LifeTimeGuard::new(PolicyCell {
                 item: x.unwrap(),

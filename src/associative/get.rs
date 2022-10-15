@@ -10,7 +10,7 @@ where
     C: Get<K, V>,
 {
     type Target = C::Target;
-    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         let i = self.set(key.clone());
         self.containers[i].get(key)
     }

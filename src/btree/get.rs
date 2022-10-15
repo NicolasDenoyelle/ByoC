@@ -1,6 +1,6 @@
 use super::BTree;
 use crate::utils::get::LifeTimeGuard;
-use crate::{BuildingBlock, GetMut};
+use crate::{BuildingBlock, Get, GetMut};
 use std::ops::{Deref, DerefMut};
 use std::ptr::NonNull;
 
@@ -48,13 +48,24 @@ impl<K: Copy + Ord, V: Ord> GetMut<K, V> for BTree<K, V> {
     }
 }
 
+impl<K: Copy + Ord, V: Ord> Get<K, V> for BTree<K, V> {
+    type Target = BTreeCell<K, V>;
+
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+        self.get_mut(key)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::BTree;
-    use crate::tests::test_get_mut;
+    use crate::tests::{test_get, test_get_mut};
 
     #[test]
     fn get() {
+        test_get(BTree::new(0));
+        test_get(BTree::new(10));
+        test_get(BTree::new(100));
         test_get_mut(BTree::new(0));
         test_get_mut(BTree::new(10));
         test_get_mut(BTree::new(100));

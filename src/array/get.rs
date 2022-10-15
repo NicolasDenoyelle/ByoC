@@ -52,7 +52,7 @@ impl<T> DerefMut for ArrayMutCell<T> {
 impl<K: Eq, V> Get<K, V> for Array<(K, V)> {
     type Target = ArrayCell<V>;
 
-    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.values.iter().find_map(move |(k, v)| {
             if k == key {
                 Some(LifeTimeGuard::new(ArrayCell { t: v }))

@@ -205,8 +205,8 @@ where
     C: Get<K, V>,
 {
     type Target = C::Target;
-    fn get(&self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
-        self.as_ref()
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
+        self.as_mut()
             .get(key)
             .map(|v| LifeTimeGuard::new(v.unwrap()))
     }
