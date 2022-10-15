@@ -9,7 +9,7 @@ use std::cmp::{Ord, Ordering};
 /// with a Least Recently Used (Lru) eviction policy.
 ///
 /// See /// See [`Lru`](struct.Lru.html)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LruCell<V, T: Timestamp> {
     value: V,

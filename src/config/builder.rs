@@ -7,6 +7,7 @@ use crate::btree::config::BTreeConfig;
 use crate::compression::config::CompressedConfig;
 use crate::config::{DynBuildingBlock, DynOrdered};
 use crate::exclusive::config::ExclusiveConfig;
+// use crate::inclusive::config::InclusiveConfig;
 use crate::policy::config::PolicyKind;
 use crate::policy::timestamp::Counter;
 use crate::policy::{Fifo, Lrfu, Lru};
@@ -26,6 +27,7 @@ static CONFIGS: [&str; 9] = [
     "BTreeConfig",
     "CompressedConfig",
     "ExclusiveConfig",
+    // "InclusiveConfig",
     "ProfilerConfig",
     "SequentialConfig",
     "StreamConfig",
@@ -112,6 +114,9 @@ impl BuildingBlockConfig for GenericConfig {
             "ExclusiveConfig" => {
                 Self::from_config::<ExclusiveConfig>(value)
             }
+            // "InclusiveConfig" => {
+            //     Self::from_config::<InclusiveConfig>(value)
+            // }
             "ProfilerConfig" => Self::from_config::<ProfilerConfig>(value),
             "SequentialConfig" => {
                 Self::from_config::<SequentialConfig>(value)
@@ -175,6 +180,11 @@ Possible values are: {:?}.",
                     .unwrap()
                     .build()
             }
+            // "InclusiveConfig" => {
+            //     Self::into_config::<InclusiveConfig>(self.toml_config)
+            //         .unwrap()
+            //         .build()
+            // }
             "ProfilerConfig" => {
                 Self::into_config::<ProfilerConfig>(self.toml_config)
                     .unwrap()

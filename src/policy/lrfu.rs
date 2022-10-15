@@ -66,7 +66,7 @@ impl<T: Timestamp + Copy> Stats<T> {
 /// based on the Least Recently Frequently Used (Lrfu) policy.
 ///
 /// See [`Lrfu`](struct.Lrfu.html)
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LrfuCell<V, T: Timestamp + Copy> {
     /// Reference value.

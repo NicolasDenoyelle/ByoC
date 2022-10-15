@@ -55,6 +55,7 @@ pub mod builders {
     #[cfg(feature = "compression")]
     pub use crate::compression::builder::CompressedBuilder;
     pub use crate::exclusive::builder::ExclusiveBuilder;
+    pub use crate::inclusive::builder::InclusiveBuilder;
     pub use crate::policy::builder::PolicyBuilder;
     pub use crate::profiler::builder::ProfilerBuilder;
     pub use crate::sequential::builder::SequentialBuilder;
@@ -64,6 +65,7 @@ pub mod builders {
 
 use crate::associative::builder::AssociativeBuilder;
 use crate::exclusive::builder::ExclusiveBuilder;
+use crate::inclusive::builder::InclusiveBuilder;
 use crate::policy::builder::PolicyBuilder;
 use crate::policy::{Ordered, ReferenceFactory};
 use crate::profiler::builder::ProfilerBuilder;
@@ -115,6 +117,16 @@ pub trait Build<C> {
         Self: Sized,
     {
         ExclusiveBuilder::new(self, rbuilder)
+    }
+
+    fn inclusive<R, RB: Build<R>>(
+        self,
+        rbuilder: RB,
+    ) -> InclusiveBuilder<C, Self, R, RB>
+    where
+        Self: Sized,
+    {
+        InclusiveBuilder::new(self, rbuilder)
     }
 
     /// [`Policy`](../../struct.Policy.html)
