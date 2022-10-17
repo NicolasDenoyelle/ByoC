@@ -51,25 +51,34 @@ where
         out
     }
 
-    /// Insert key/value pairs in the container. If the container cannot
-    /// store all the values, the last input values not fitting in are
-    /// returned.
     fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        let mut i = 0;
-        for e in elements.iter() {
-            let size = (self.element_size)(e);
-            if self.total_size + size > self.capacity {
+        let mut split = 0;
+        let mut size = 0;
+        for (i, s) in
+            elements.iter().map(|e| (self.element_size)(e)).enumerate()
+        {
+            if size + s > self.capacity {
                 break;
             }
-            self.total_size += size;
-            i += 1;
+            split = i + 1;
+            size += s;
         }
 
-        let out = elements.split_off(i);
-        if i > 0 {
+        if split < elements.len() {
+            self.values.append(&mut elements.split_off(split));
+            std::mem::swap(&mut elements, &mut self.values);
+            self.total_size = size;
+            elements
+        } else if size + self.total_size > self.capacity {
+            let out = self.pop(size + self.total_size - self.capacity);
             self.values.append(&mut elements);
+            self.total_size += size;
+            out
+        } else {
+            self.values.append(&mut elements);
+            self.total_size += size;
+            Vec::new()
         }
-        out
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
