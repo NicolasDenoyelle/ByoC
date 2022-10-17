@@ -1,6 +1,6 @@
 use std::collections::LinkedList;
 
-/// Chunk a big [`BuildingBlock`](trait.BuildingBlock.html) into small batches.
+/// Chunk a big `BuildingBlock` into small batches.
 ///
 /// This container is implemented as an array of building blocks.
 /// The goal of this container is to cut the cost of accessing a
@@ -10,6 +10,8 @@ use std::collections::LinkedList;
 /// Therefore, chunking such a containers into small batches will help
 /// reducing the memory footprint and enable managing data that would otherwise
 /// be unmanageable due to its size.
+///
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
 ///
 /// The [`pop(n)`](trait.BuildingBlock.html#tymethod.pop) method will try to
 /// pop `n` elements from each batch into main memory and keep the top `k`
@@ -23,6 +25,8 @@ use std::collections::LinkedList;
 /// The [`take_multiple()`](trait.BuildingBlock.html#tymethod.take_multiple)
 /// sibling method will iterate batches until all vector of keys to lookup for
 /// has been emptyied by the batches with matches.
+///
+/// ## [`Get`](trait.Get.html) Implementation
 ///
 /// [`Get`](trait.Get.html) and [`Concurrent`](trait.Concurrent.html)
 /// traits are inherited from the type of container used to build this

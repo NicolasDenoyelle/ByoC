@@ -1,7 +1,8 @@
 use std::hash::{Hash, Hasher};
 
-/// Associative [`BuildingBlock`](trait.BuildingBlock.html) wrapper with
-/// multiple sets/buckets.
+/// Associative `BuildingBlock` wrapper with multiple sets/buckets.
+///
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
 ///
 /// This building block is implemented as an array of building blocks.
 /// Keys inserted in this container must be hashable to find in which bucket
@@ -17,6 +18,8 @@ use std::hash::{Hash, Hasher};
 /// and [`push()`](trait.BuildingBlock.html#tymethod.push) operations whereas
 /// balancing buckets can be done by looking at the count of each bucket once
 /// and [popping](trait.BuildingBlock.html#tymethod.pop) once per bucket.
+///
+/// ## [`Get`](trait.Get.html) Implementation
 ///
 /// [`Get`](trait.Get.html) and [`Concurrent`](trait.Concurrent.html)
 /// traits are inherited from the type of container used to build this

@@ -81,10 +81,12 @@ where
     /// If there were less than `n` values in the back,
     /// then more values from the front are popped.
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+        let old_size = self.back.size();
         let mut v = self.back.pop(n);
+        let evicted_size = old_size - self.back.size();
 
-        if v.len() < n {
-            v.append(&mut self.front.pop(n - v.len()));
+        if evicted_size < n {
+            v.append(&mut self.front.pop(n - evicted_size));
         }
         v
     }

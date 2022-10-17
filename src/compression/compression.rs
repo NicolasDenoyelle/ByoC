@@ -4,42 +4,48 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::io::{Read, SeekFrom, Write};
 use std::marker::PhantomData;
 
-/// Compressed [`BuildingBlock`](trait.BuildingBlock.html) on a byte
-/// [stream](utils/stream/trait.Stream.html).
+/// Compressed `BuildingBlock` on a byte `Stream`.
 ///
 /// This building blocks stores its elements in a serialized vector,
 /// compressed on a stream. Compression/decompression is managed with
 /// [`lz4`](../lz4/index.html) backend.
-/// When performing read only operations, the whole content is
-/// decompressed. When performing write operations, the whole content
-/// is also compressed back to the stream after modification.
-///
-/// The container capacity is the in-memory size of the serialized container
-/// elements before compression. The compressed size will likely be smaller.
-///
 /// By itself, this building is rather performing poorly both memory and
 /// speed wise. It is supposed to be used embedded in another container
 /// such as a [`Batch`](struct.Batch.html) or an
 /// [`Associative`](struct.Associative.html) container to split the memory
-/// footprint into smaller chunks and accelerating lookups. The
-/// [builder](./builder/compression/struct.CompressedBuilder.html) of this
+/// footprint into smaller chunks and accelerating lookups.
+///
+/// The [builder](./builder/compression/struct.CompressedBuilder.html) of this
 /// building block will automatically embed it into a `Batch` building block.
 ///
-/// Every operation that uses this container will require to unpack and
-/// deserialize the data it contains. If the operation requires mutable access
-/// on the container, then, it will also serialize and compress the data back
-/// into the underlying [stream](utils/stream/trait.Stream.html). These
-/// operations are not optimized to limit memory overhead. The whole stream is
-/// unpacked in the main memory. It is up to the overall cache architecture to
-/// chunk the data into batches that fit into memory.
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
+///
+/// The container capacity is the in-memory size of the serialized container
+/// elements before compression. The compressed size will likely be smaller.
+///
+/// When performing read only operations, the whole content is
+/// decompressed and deserialized into a vector of key/value pairs.
+/// From here, operations complexity is the same as an
+/// [`Array`](struct.Array.html) container.
+/// When performing write operations, the whole content
+/// is also serialized then compressed back to the underlying
+/// [stream](utils/stream/trait.Stream.html) after modification.
+///
+/// These operations are not optimized to limit memory overhead.
+/// The whole stream is unpacked in the main memory.
+/// It is up to the overall cache architecture to chunk the data into batches
+/// that fit into memory.
+///
+/// ## [`Get`](trait.Get.html) Implementation
 ///
 /// [`Get`](trait.Get.html) trait will return a local copy of the value
 /// compressed in the container. [`GetMut`](trait.GetMut.html) trait will wrap
 /// this value into a cell that contains a reference to the owning container
 /// such that the value can be written back to the compressed stream when the
 /// cell is dropped. Since writing back to the stream requires to unpack,
-/// deserialize, update, serialize and compress the data, this operation can
-/// be costly and with a large memory overhead. To avoid having to unpack and
+/// deserialize (read), update, serialize and compress the data (write),
+/// this operation can be costly and with a large memory overhead.
+/// To avoid having to unpack and
 /// deserialize the stream both to read the value and then to update it, the
 /// containing cell also stores a copy of the unpacked and deserialized stream
 /// which makes it a potentially large object.

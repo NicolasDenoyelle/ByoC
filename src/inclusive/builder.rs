@@ -3,6 +3,35 @@ use crate::builder::Build;
 use crate::BuildingBlock;
 use std::marker::PhantomData;
 
+/// `Inclusive` container builder.
+///
+/// This builder can be consumed later to connect two containers together
+/// with a [`Inclusive`](../../struct.Inclusive.html) connector.
+/// It is created from two other builders that will build the front hand
+/// side of the connection and the back hand side of the connection.
+///
+/// ## Examples
+///
+/// ```
+/// use byoc::BuildingBlock;
+/// use byoc::builder::Build;
+/// use byoc::builder::builders::{
+///     ArrayBuilder, BTreeBuilder, InclusiveBuilder
+/// };
+///
+/// let array_builder = ArrayBuilder::new(2);
+/// let btree_builder = BTreeBuilder::new(2);
+/// let inclusive_builder =
+///     InclusiveBuilder::new(array_builder, btree_builder);
+/// let mut container = inclusive_builder.build();
+/// container.push(vec![(1, 2)]);
+///
+/// // You can also chain calls.
+/// let mut container = ArrayBuilder::new(2)
+///     .inclusive(BTreeBuilder::new(2))
+///     .build();
+/// container.push(vec![(1, 2)]);
+/// ```
 pub struct InclusiveBuilder<L, LB, R, RB>
 where
     LB: Build<L>,

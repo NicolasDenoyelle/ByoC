@@ -46,8 +46,7 @@
 mod builder;
 pub use builder::Builder;
 
-/// [`Build`](./traits/trait.Build.html) trait implementers that can be
-/// obtained from [`Builder`] struct.
+/// `Build` trait implementers that can be obtained from `Builder` struct.
 pub mod builders {
     pub use crate::array::builder::ArrayBuilder;
     pub use crate::associative::builder::AssociativeBuilder;
@@ -73,8 +72,7 @@ use crate::sequential::builder::SequentialBuilder;
 use crate::utils::profiler::ProfilerOutputKind;
 use std::hash::Hasher;
 
-/// [Building Block](../../trait.BuildingBlock.html) building
-/// capability.
+/// `BuildingBlock` building capability.
 pub trait Build<C> {
     fn build(self) -> C;
 
@@ -119,6 +117,19 @@ pub trait Build<C> {
         ExclusiveBuilder::new(self, rbuilder)
     }
 
+    /// Connection between two building blocks with a
+    /// [`Inclusive`](../../struct.Inclusive.html)
+    /// [building block](../../trait.BuildingBlock.html).
+    ///
+    /// ```
+    /// use byoc::BuildingBlock;
+    /// use byoc::builder::{Build,Builder};
+    ///
+    /// let front = Builder::array(10000);
+    /// let back = Builder::array(10000);
+    /// let mut container = front.inclusive(back).build();
+    /// container.push(vec![(1,2)]);
+    /// ```
     fn inclusive<R, RB: Build<R>>(
         self,
         rbuilder: RB,
@@ -179,8 +190,7 @@ pub trait Build<C> {
 }
 
 /// Replicate a builder into multiple builders to later build
-/// an [`Associative`](../struct.Associative.html)
-/// container.
+/// an `Associative` container.
 pub trait AssociativeBuild<C>: Build<C> + Clone {
     /// Replicate a builder into multiple builders to later build
     /// an [`Associative`](../struct.Associative.html)

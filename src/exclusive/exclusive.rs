@@ -1,13 +1,18 @@
 use crate::BuildingBlock;
 use std::marker::PhantomData;
 
-/// Connector between two [`BuildingBlock`](trait.BuildingBlock.html) without
-/// duplicates.
+/// Multilevel `BuildingBlock` withoutduplicates between levels.
 ///
 /// This building block behaves has a two level cache where the front container
 /// serves as a cache to the back container. In this variant, elements move
 /// from the front to the back of the container and no copy is held in the
 /// back container when that happens.
+///
+/// [`Exclusive`] can also be built from a
+/// [builder pattern](builder/trait.Build.html#method.exclusive) and a
+/// [configuration](config/struct.ExclusiveConfig.html).
+///
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
 ///
 /// Insertions happen at the front of the container. If the front side does not
 /// have enough room for all the elements to insert, a sufficient amount of
@@ -25,22 +30,22 @@ use std::marker::PhantomData;
 /// Evictions try to remove elements from the back container first with
 /// the aforementioned container
 /// ([`pop()`](../trait.BuildingBlock.html#tymethod.pop) method.
-/// If the amount of element in the back container is less than the amount to
-/// pop, then the method is also called on the front container.
+/// If the freed size in the back container is less than the amount to
+/// pop, then the method is also called on the front container to attempt to
+/// free remaining size.
 ///
 /// Elements lookup and removal based on a key happen first at the front and
 /// if not all the keys were match, then the remaining unmatched keys
 /// are looked up in the back container.
 ///
+/// ## [`Get`](trait.Get.html) Implementation
+///
 /// [`Get`](trait.Get.html) and [`GetMut`](trait.GetMut.html) traits require
-/// that both the front and the back container implement these traits.
-/// When their associated methods are called, elements do not directly move
-/// from the front to the back and vice versa. Instead, they are searched first
-/// in the front container and then in the back container and returned from
-/// there if a key match was found. It is up to the user to bring accessed
-/// elements to the front of the cache by using
-/// [`take()`](../trait.BuildingBlock.html#tymethod.take) and
-/// [`push()`](../trait.BuildingBlock.html#tymethod.push) methods instead.
+/// that only the front container implement these traits.
+/// When their associated methods are called, if the element is not found in
+/// the front, but is found in the back, it is moved from the front to the back.
+/// Theredore, if the target element is found, it is returned from the front
+/// container always.
 ///
 /// ## Examples
 ///
@@ -77,10 +82,6 @@ use std::marker::PhantomData;
 /// assert!(cache.push(vec![("first", 1)]).pop().is_none());
 /// // [[("first", 1), ("second", 0)][("third", 3)]]
 /// ```
-///
-/// [`Exclusive`] can also be built from a
-/// [builder pattern](builder/trait.Build.html#method.exclusive) and a
-/// [configuration](config/struct.ExclusiveConfig.html).
 pub struct Exclusive<'a, K, V, L, R>
 where
     K: 'a,

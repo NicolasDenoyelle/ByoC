@@ -77,7 +77,7 @@ pub trait GenericValue:
 impl<T: Ord + Serialize + DeserializeOwned + Clone> GenericValue for T {}
 
 /// Trait used to instantiate a configuration object from a toml configuration
-/// and build a [`BuildingBlock'](../trait.BuildingBlock.html) container.
+/// and build a `BuildingBlock` container.
 ///
 /// The resulting configuration object obtained with the
 /// [`from_toml()`](trait.BuildingBlockConfig.html#tymethod.from_toml) method

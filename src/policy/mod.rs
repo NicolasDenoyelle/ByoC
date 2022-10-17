@@ -62,7 +62,7 @@ pub trait ReferenceFactory<V> {
     fn wrap(&mut self, v: V) -> Self::Item;
 }
 
-/// Containers that can be used with a [`Policy`](../struct.Policy.html)
+/// Containers that can be used with a `Policy`.
 ///
 /// This is a marker trait for [`BuildingBlock`](trait.BuildingBlock.html).
 /// When this trait is implemented, the building blocks will try to

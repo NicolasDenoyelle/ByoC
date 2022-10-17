@@ -67,8 +67,7 @@ impl<V> DerefMut for InclusiveCell<V> {
     }
 }
 
-/// Multilevel [`BuildingBlock`](trait.BuildingBlock.html) mirroring values in
-/// the first level [`BuildingBlock`](trait.BuildingBlock.html).
+/// Multilevel `BuildingBlock` mirroring values in its first level.
 ///
 /// This building block behaves has a two level cache where the front container
 /// serves as a cache to the back container. In this variant, when an element

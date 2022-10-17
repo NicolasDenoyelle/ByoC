@@ -44,8 +44,8 @@ pub enum ProfilerOutputKind {
     File(String),
 }
 
-/// [`BuildingBlock`](trait.BuildingBlock.html) wrapper to collect
-/// accesses, misses, hits and statistics about methods access time.
+/// `BuildingBlock` wrapper to collect accesses, misses, hits and statistics
+/// about methods access time.
 ///
 /// [`Profiler`] is a building block wrapper that inherits the root traits from
 /// [this crate](index.html), of the
@@ -53,26 +53,8 @@ pub enum ProfilerOutputKind {
 /// The resulting profiled statistics is dumped when the [`Profiler`] is
 /// dropped. The destination where to write the dump is specified by a
 /// [`ProfilerOutputKind`](utils/profiler/enum.ProfilerOutputKind.html) enum.
-/// It can be either `stdout`, a file or nothing.
-///
-/// When using the [`Profiler`] wrapper, the following events are counted:
-/// * The time spent in methods:
-/// [`size()`](trait.BuildingBlock.html#tymethod.count),
-/// [`contains()`](trait.BuildingBlock.html#tymethod.contains),
-/// [`take()`](trait.BuildingBlock.html#tymethod.take),
-/// [`pop()`](trait.BuildingBlock.html#tymethod.pop),
-/// [`push()`](trait.BuildingBlock.html#tymethod.push),
-/// [`flush()`](trait.BuildingBlock.html#tymethod.contains),
-/// [`get()`](trait.Get.html#tymethod.get),
-/// [`get_mut()`](trait.GetMut.html#tymethod.get_mut).
-/// * The time spent iterating on flushed items,
-/// * cache hits and misses: when calling
-/// [`contains()`](trait.BuildingBlock.html#tymethod.contains),
-/// [`take()`](trait.BuildingBlock.html#tymethod.take),
-/// [`get()`](trait.Get.html#tymethod.get) or
-/// [`get_mut()`](trait.GetMut.html#tymethod.get_mut), if the key to lookup
-/// is indeed in the container, the hit count is incremented, else, the miss
-/// count is incremented.
+/// It can be either `stdout`, a file or nothing. The statistics contain the
+/// time spent in container methods and hits and misses when looking up keys.
 ///
 /// This building block can also be built with a
 /// [builder](builder/trait.Build.html#method.profile) pattern or from a
@@ -80,6 +62,33 @@ pub enum ProfilerOutputKind {
 /// Everything is counted in an atomic type so that it is safe to use the
 /// [`Concurrent`](trait.Concurrent.html) trait if the wrapped container
 /// implements it.
+///
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
+///
+/// This is a simple wrapper calling into the wrapped container methods while
+/// counting statistics in each method:
+/// * [`size()`](trait.BuildingBlock.html#tymethod.count):
+/// Time spent in the method,
+/// * [`contains()`](trait.BuildingBlock.html#tymethod.contains):
+/// Time spent in the method, plus a miss if the key was not found, else a hit
+/// * [`take()`](trait.BuildingBlock.html#tymethod.take):
+/// Time spent in the method, plus a miss if the key was not found, else a hit
+/// * [`pop()`](trait.BuildingBlock.html#tymethod.pop),
+/// Time spent in the method,
+/// * [`push()`](trait.BuildingBlock.html#tymethod.push):
+/// Time spent in the method,
+/// * [`flush()`](trait.BuildingBlock.html#tymethod.contains),
+/// Time spent in the method, plus for each flushed item iterated, the iteration
+/// time.
+///
+/// ## [`Get`](trait.Get.html) Implementation
+///
+/// This is a simple wrapper calling into the wrapped container methods while
+/// counting statistics in each method:
+/// [`get()`](trait.Get.html#tymethod.get):
+/// Time spent in the method, plus a miss if the key was not found, else a hit
+/// [`get_mut()`](trait.GetMut.html#tymethod.get_mut):
+/// Time spent in the method, plus a miss if the key was not found, else a hit
 ///
 /// ## Examples
 ///

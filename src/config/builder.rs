@@ -210,8 +210,7 @@ Possible values are: {:?}.",
     }
 }
 
-/// [`BuildingBlock`](../trait.BuildingBlock.html) builder from a generic
-/// configuration.
+/// `BuildingBlock` builder from a generic configuration.
 ///
 /// This structure is the entry point to build a cache from a configuration
 /// file. It is instantiated from a [`toml`](../../toml/index.html)

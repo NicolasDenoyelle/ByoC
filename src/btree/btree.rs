@@ -13,6 +13,8 @@ use std::rc::Rc;
 /// through time. Specifically, using [`Lru`](./policy/struct.Lru.html)
 /// or [`Lrfu`](./policy/struct.Lrfu.html) policies is not safe.
 ///
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
+///
 /// The number of elements fitting in the container is computed similarly
 /// to [`Array`](struct.Array.html) container. The default behavior is to set
 /// the capacity in numbers of element. The method
@@ -27,6 +29,8 @@ use std::rc::Rc;
 /// The whole array is sorted to remove the top `k` elements.
 /// * Keys lookup complexity is `$O(log(n))$`.
 /// * Capacity and count queries are `$O(1)$`.
+///
+/// ## [`Get`](trait.Get.html) Implementation
 ///
 /// [`BTree`] does not implement [`Get`](trait.Get.html) trait because
 /// accessing modifying values is likely to modify their order and break the

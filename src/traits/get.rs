@@ -1,8 +1,7 @@
 use crate::utils::get::LifeTimeGuard;
 use std::ops::{Deref, DerefMut};
 
-/// This is a companion trait for
-/// [`BuildingBlock`](trait.BuildingBlock.html)
+/// This is a companion trait for `BuildingBlock`
 /// trait to have read-only access to values inside of a building block.
 ///
 /// When a building block implements this trait, it provides access to
@@ -37,8 +36,7 @@ pub trait Get<K, V> {
     fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>>;
 }
 
-/// This is a companion trait for
-/// [`BuildingBlock`](trait.BuildingBlock.html)
+/// This is a companion trait for `BuildingBlock`
 /// trait to have access to a mutable values inside of a building block.
 ///
 /// When a building block implements this trait, it provides access to
