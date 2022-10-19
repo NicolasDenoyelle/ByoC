@@ -1,6 +1,7 @@
 use super::BTree;
 use crate::BuildingBlock;
-use std::{collections::BTreeMap, rc::Rc};
+use std::collections::BTreeMap;
+use std::rc::Rc;
 
 impl<'a, K, V> BuildingBlock<'a, K, V> for BTree<K, V>
 where
@@ -45,23 +46,73 @@ where
     /// returned. This container does not accept keys matching keys
     /// already inside the container and will return the corresponding
     /// key/value pairs.
-    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
-        let mut out = Vec::new();
+    fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        // Find out if we have too many elements and where to split them.
+        let mut split = 0;
+        let mut size = 0;
+        for (i, s) in elements
+            .iter()
+            .map(|(k, v)| (self.element_size)(k, v))
+            .enumerate()
+        {
+            if size + s > self.capacity {
+                break;
+            }
+            split = i + 1;
+            size += s;
+        }
 
-        for (key, value) in values.into_iter() {
-            let size = (self.element_size)(&key, &value);
-            if size + self.total_size > self.capacity {
-                out.push((key, value));
-            } else if self.map.get(&key).is_some() {
-                out.push((key, value))
+        // Remove extra elements from the container.
+        let mut out: Vec<(K, V)> = if split < elements.len() {
+            // Here there is more elements to insert than the container
+            // capacity.
+
+            // Remove extra elements from input.
+            let mut out = elements.split_off(split);
+            // Clear container.
+            let mut map = BTreeMap::<K, Rc<V>>::new();
+            std::mem::swap(&mut self.map, &mut map);
+            self.set.clear();
+
+            // Move all elements that were in the container in the returned
+            // vector.
+            for (k, rc) in map.into_iter() {
+                match Rc::<V>::try_unwrap(rc) {
+                    Ok(v) => out.push((k, v)),
+                    Err(_) => panic!(
+                        "Looks like we forgot to delete an Rc value."
+                    ),
+                }
+            }
+
+            // The container is cleared entirely.
+            self.total_size = 0;
+            out
+        } else if size + self.total_size > self.capacity {
+            // Pop out the extra size. The container size is updated.
+            self.pop(size + self.total_size - self.capacity)
+        } else {
+            // Nothing to pop or remove from input elements.
+            Vec::new()
+        };
+
+        // Insert new elements in the container.
+        for (k, v) in elements.into_iter() {
+            let value = Rc::new(v);
+            if self.set.insert((Rc::clone(&value), k)) {
+                self.map.insert(k, value);
             } else {
-                self.total_size += size;
-                let value = Rc::new(value);
-                let _value = Rc::clone(&value);
-                assert!(self.map.insert(key, value).is_none());
-                assert!(self.set.insert((_value, key)));
+                match Rc::<V>::try_unwrap(value) {
+                    Ok(v) => out.push((k, v)),
+                    Err(_) => panic!(
+                        "Looks like we forgot to delete an Rc value."
+                    ),
+                }
             }
         }
+
+        // Update size.
+        self.total_size += size;
         out
     }
 
