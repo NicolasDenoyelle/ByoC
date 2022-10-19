@@ -3,14 +3,15 @@ use crate::stream::{IOVec, StreamFactory};
 use serde::{de::DeserializeOwned, Serialize};
 use std::vec::Vec;
 
-/// [`BuildingBlock`](trait.BuildingBlock.html) implementation serializing its
-/// elements in a byte [`Stream`](utils/stream/trait.Stream.html).
+/// `BuildingBlock` implementation serializing its elements in a byte `Stream`.
 ///
 /// The byte stream of a `Stream` can be any kind of byte stream
 /// implementing the trait
 /// [`Stream`](utils/stream/trait.Stream.html) such as a
 /// [file](utils/stream/struct.FileStream.html) or a
 /// [vector](utils/stream/struct.VecStream.html).
+///
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
 ///
 /// This building block implementation behaves similarly as the
 /// [`Array`](struct.Array.html) building block implementation.
@@ -29,6 +30,13 @@ use std::vec::Vec;
 /// such as [`VecStreamFactory`](stream/struct.VecStreamFactory.html) or
 /// [`TempFileStreamFactory`](utils/stream/struct.TempFileStreamFactory.html).
 ///
+/// ## [`Get`](trait.Get.html) Implementation
+///
+/// Elements accessed with [`get()`](trait.Get.html#method.get) and
+/// [`get_mut()`](trait.GetMut.html#method.get_mut) are read into the host
+/// memory and wrapped in a cell that contains a reference to the stream it
+/// comes from. If the element is modified using `DerefMut` trait, then it
+/// is written back to the same stream when it is dropped.
 /// ## Examples
 ///
 /// ```

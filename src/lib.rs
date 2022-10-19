@@ -27,6 +27,8 @@ mod compression;
 pub use compression::Compressed;
 mod exclusive;
 pub use exclusive::Exclusive;
+mod inclusive;
+pub use inclusive::Inclusive;
 mod profiler;
 pub use profiler::Profiler;
 pub mod policy;

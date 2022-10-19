@@ -1,8 +1,7 @@
 use crate::internal::lock::RWLock;
 use crate::internal::SharedPtr;
 
-/// [`Concurrent`](trait.Concurrent.html)
-/// [`BuildingBlock`](trait.BuildingBlock.html) wrapper with a lock.
+/// `Concurrent` `BuildingBlock` wrapper with a lock.
 ///
 /// This wrapper can be used to makes a container thread safe by
 /// sequentializing its access.
@@ -10,6 +9,16 @@ use crate::internal::SharedPtr;
 /// This building block can also be built with a
 /// [builder](builder/trait.Build.html#method.into_sequential) pattern or from a
 /// [configuration](config/configs/struct.SequentialConfig.html).
+///
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
+///
+/// This is a simple wrapper with a read/write lock. Shared methods call
+/// lock the lock for reading while exclusive accesses lock the lock for writing
+/// for the length of the method call.
+///
+/// ## [`Get`](trait.Get.html) Implementation
+///
+/// Same as for [`BuildingBlock`](trait.BuildingBlock.html) Implementation.
 ///
 /// ## Examples
 ///
@@ -23,8 +32,8 @@ use crate::internal::SharedPtr;
 ///
 /// assert!(c1.push(vec![(0u16, 4)]).pop().is_none());
 /// let (key, value) = c2.push(vec![(1u16, 12)]).pop().unwrap();
-/// assert_eq!(key, 1u16);
-/// assert_eq!(value, 12);
+/// assert_eq!(key, 0u16);
+/// assert_eq!(value, 4);
 ///```
 pub struct Sequential<C> {
     pub(super) container: SharedPtr<C>,

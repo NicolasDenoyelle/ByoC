@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 
 /// Implementation of [`Reference`](trait.Reference.html) with
 /// a First In First Out eviction policy.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct FifoCell<V> {
     value: V,

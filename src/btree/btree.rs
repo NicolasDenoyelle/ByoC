@@ -13,6 +13,8 @@ use std::rc::Rc;
 /// through time. Specifically, using [`Lru`](./policy/struct.Lru.html)
 /// or [`Lrfu`](./policy/struct.Lrfu.html) policies is not safe.
 ///
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
+///
 /// The number of elements fitting in the container is computed similarly
 /// to [`Array`](struct.Array.html) container. The default behavior is to set
 /// the capacity in numbers of element. The method
@@ -27,6 +29,8 @@ use std::rc::Rc;
 /// The whole array is sorted to remove the top `k` elements.
 /// * Keys lookup complexity is `$O(log(n))$`.
 /// * Capacity and count queries are `$O(1)$`.
+///
+/// ## [`Get`](trait.Get.html) Implementation
 ///
 /// [`BTree`] does not implement [`Get`](trait.Get.html) trait because
 /// accessing modifying values is likely to modify their order and break the
@@ -47,24 +51,22 @@ use std::rc::Rc;
 ///
 /// // BuildingBlock as room for 2 elements and returns an empty vector.
 /// // No element is rejected.
-/// assert!(c.push(vec![("first", 4), ("second", 2)]).pop().is_none());
+/// assert!(c.push(vec![("first", 1), ("second", 2)]).pop().is_none());
 ///
-/// // Insertion of existing keys is rejected and elements not fitting
-/// // in the container are returned.
-/// let out = c.push(vec![("second", 4), ("third", 3), ("fourth", 4)]);
-/// // Already in the container.
-/// assert_eq!(out[0].0, "second");
-/// // Overflow
-/// assert_eq!(out[1].0, "fourth");
+/// // Overflow pops enough size. Then duplicate or rejected as well.
+/// let out = c.push(vec![("first", 1), ("third", 3)]);
 /// assert_eq!(out.len(), 2);
+/// // Overflow
+/// assert_eq!(out[0].0, "second");
+/// // Already in the container.
+/// assert_eq!(out[1].0, "first");
 ///
 /// // BTree pops elements in order of the highest values.
 /// let (key, value) = c.pop(1).pop().unwrap();
-/// assert_eq!(key, "first");
-/// let (key, value) = c.pop(1).pop().unwrap();
 /// assert_eq!(key, "third");
 /// let (key, value) = c.pop(1).pop().unwrap();
-/// assert_eq!(key, "second");
+/// assert_eq!(key, "first");
+/// assert!(c.pop(1).is_empty());
 /// ```
 ///
 /// [`BTree`] can also be built from a

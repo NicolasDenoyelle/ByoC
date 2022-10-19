@@ -1,4 +1,4 @@
-/// [`Stream`](../../struct.Stream.html) struct helpers.
+/// `Stream` struct helpers.
 #[cfg(feature = "stream")]
 pub mod stream {
     pub use crate::stream::{
@@ -7,20 +7,19 @@ pub mod stream {
     };
 }
 
-/// [`Profiler`](../struct.Profiler.html) struct helpers.
+/// `Profiler` struct helpers.
 pub mod profiler {
     pub use crate::profiler::ProfilerOutputKind;
 }
 
-/// [`Associative`](../struct.Associative.html) struct helpers.
+/// `Associative` struct helpers.
 pub mod associative {
     pub use crate::associative::ExclusiveHasher;
 }
 
 mod lifetime;
 
-/// Objects returned by [`Get`](../../trait.Get.html) and
-/// [`GetMut`](../../trait.GetMut.html) traits implementations.
+/// Objects returned by `Get` and `GetMut` traits implementations.
 pub mod get {
     pub use super::lifetime::LifeTimeGuard;
 }

@@ -1,5 +1,4 @@
-/// This is a companion trait for
-/// [`BuildingBlock`](trait.BuildingBlock.html) to make it thread safe.
+/// This is a companion trait for `BuildingBlock` to make it thread safe.
 ///
 /// Mark a [`building block`](trait.BuildingBlock.html) as thread safe.
 /// When this trait is implemented, the implementer guarantees that the

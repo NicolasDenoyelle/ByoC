@@ -51,11 +51,11 @@ use toml;
 /// requirements of a container, the key has to satisfy at least all of the
 /// containers keys trait bounds.
 pub trait GenericKey:
-    Ord + Copy + Hash + Serialize + DeserializeOwned
+    Ord + Copy + Hash + Serialize + DeserializeOwned + Clone
 {
 }
-impl<T: Ord + Copy + Hash + Serialize + DeserializeOwned> GenericKey
-    for T
+impl<T: Ord + Copy + Hash + Serialize + DeserializeOwned + Clone>
+    GenericKey for T
 {
 }
 
@@ -70,11 +70,14 @@ impl<T: Ord + Copy + Hash + Serialize + DeserializeOwned> GenericKey
 /// at runtime. Therefore, to ensure in advance that a value will fit with the
 /// requirements of a container, the value has to satisfy at least all of the
 /// containers keys trait bounds.
-pub trait GenericValue: Ord + Serialize + DeserializeOwned {}
-impl<T: Ord + Serialize + DeserializeOwned> GenericValue for T {}
+pub trait GenericValue:
+    Ord + Serialize + DeserializeOwned + Clone
+{
+}
+impl<T: Ord + Serialize + DeserializeOwned + Clone> GenericValue for T {}
 
 /// Trait used to instantiate a configuration object from a toml configuration
-/// and build a [`BuildingBlock'](../trait.BuildingBlock.html) container.
+/// and build a `BuildingBlock` container.
 ///
 /// The resulting configuration object obtained with the
 /// [`from_toml()`](trait.BuildingBlockConfig.html#tymethod.from_toml) method
@@ -138,6 +141,7 @@ pub mod configs {
     #[cfg(feature = "compression")]
     pub use crate::compression::config::CompressedConfig;
     pub use crate::exclusive::config::ExclusiveConfig;
+    // pub use crate::inclusive::config::InclusiveConfig;
     pub use crate::profiler::config::ProfilerConfig;
     pub use crate::sequential::config::SequentialConfig;
     #[cfg(feature = "stream")]

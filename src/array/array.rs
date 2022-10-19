@@ -4,6 +4,8 @@ use std::vec::Vec;
 ///
 /// [`Array`] is an unordered container built on top of a [`std::vec::Vec`].
 ///
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
+///
 /// The number of elements fitting in this container is computed as the sum of
 /// its [elements size](struct.Array.html#method.with_element_size)
 /// where the default size for a key/value pair is 1.
@@ -22,13 +24,15 @@ use std::vec::Vec;
 /// The removal complexity is `$O(k*log(k) + n*log(k))$` where `n` is the number
 /// of elements in the container and `k` is the number of keys to lookup.
 ///
-/// This container implements the [`Ordered`](../policy/trait.Ordered.html)
-/// trait and can be safely used with a custom [policy](policy/index.html).
+/// ## [`Get`](trait.Get.html) Implementation
 ///
 /// Elements within the array can be accessed with the [`Get`](trait.Get.html)
 /// [`GetMut`](trait.GetMut.html) traits. These traits return a pointer to
 /// an element inside the underlying [`std::vec::Vec`] and are safe to use
 /// as long as the borrow rule are respected.
+///
+/// This container implements the [`Ordered`](../policy/trait.Ordered.html)
+/// trait and can be safely used with a custom [policy](policy/index.html).
 ///
 /// ## Examples
 ///
@@ -45,15 +49,15 @@ use std::vec::Vec;
 ///                     ("second", 2),
 ///                     ("third", 3)]).pop().is_none());
 ///
-/// // Array is full and pops extra inserted value (all values here).
+/// // Array is full and pops a victim before inserting value.
 /// let mut popped = c.push(vec![("fourth", 12)]);
 /// assert_eq!(popped.len(), 1);
 /// let (key, _) = popped.pop().unwrap();
-/// assert_eq!(key, "fourth");
+/// assert_eq!(key, "first");
 ///
 /// // Array pops elements in order of the highest values.
 /// let (key, value) = c.pop(1).pop().unwrap();
-/// assert_eq!(key, "first");
+/// assert_eq!(key, "fourth");
 /// let (key, value) = c.pop(1).pop().unwrap();
 /// assert_eq!(key, "third");
 /// let (key, value) = c.pop(1).pop().unwrap();

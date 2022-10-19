@@ -5,8 +5,9 @@ use std::marker::PhantomData;
 // Reference wrapper                                                      //
 //------------------------------------------------------------------------//
 
-/// Eviction policy for [`Ordered`](policy/trait.Ordered.html)
-/// [`BuildingBlock`](trait.BuildingBlock.html).
+/// Eviction policy for `Ordered` `BuildingBlock`.
+///
+/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
 ///
 /// This structure implements a wrapper around building blocks that
 /// wraps its values into an orderable cell.
@@ -14,6 +15,8 @@ use std::marker::PhantomData;
 /// the underlying [`BuildingBlock`](trait.BuildingBlock.html)
 /// implements [`Ordered`](../trait.Ordered.html) trait,
 /// the policy of this wrapper decides which element is going to be evicted.
+///
+/// ## [`Get`](trait.Get.html) Implementation
 ///
 /// It is critical to note that accessing values wrapped into
 /// an order cell might change the order of elements in the container, and

@@ -4,7 +4,7 @@ use crate::policy::Ordered;
 use crate::{BuildingBlock, Concurrent};
 use std::cmp::Ord;
 
-/// A Boxed [`BuildingBlock`](../trait.BuildingBlock.html) trait.
+/// A Boxed `BuildingBlock` trait.
 ///
 /// This object is built from a [config](index.html)
 /// [`Builder`](struct.Builder.html). This object is a wrapper around a boxed
@@ -171,8 +171,7 @@ where
     }
 }
 
-/// A wrapper around a [`DynBuildingBlock`] that provides the
-/// [`Ordered`](../policy/trait.Ordered.html) trait.
+/// A wrapper around a `DynBuildingBlock` that provides the `Ordered` trait.
 ///
 /// This object is obtained from building a [config](index.html)
 /// [`Builder`](struct.Builder.html) object into a [`DynBuildingBlock`]
@@ -288,8 +287,7 @@ impl<C: Concurrent> Concurrent for DynOrdered<C> {
     }
 }
 
-/// A wrapper around a [`DynBuildingBlock`] that provides the
-/// [`Concurrent`](../trait.Concurrent.html) trait.
+/// A wrapper around a `DynBuildingBlock` that provides the `Concurrent` trait.
 ///
 /// This object is obtained from building a [config](index.html)
 /// [`Builder`](struct.Builder.html) object into a [`DynBuildingBlock`]
