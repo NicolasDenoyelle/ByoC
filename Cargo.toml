@@ -25,7 +25,7 @@ rand = "0.8.3"
 
 [dependencies]
 tempfile = { version = "3.2.0", optional = true }
-serde = { version = "1.0.125", optional = true, default-features = false }
+serde = { version = "1.0.125", optional = true, features = ["derive"] }
 bincode = { version = "1.3.3", optional = true }
 lz4 = { version = "1.23.2", optional = true }
 toml = { version = "0.5", optional = true }
@@ -33,12 +33,12 @@ toml = { version = "0.5", optional = true }
 [features]
 default = []
 # Enable instantiating building block containers from a configuration file.
-config = [ "toml", "serde", "serde/derive" ]
+config = [ "toml", "serde" ]
 # Enable building block implementation into a stream of bytes.
 # Converting structure to bytes requires to be able to serialize and
 # deserialize from the stream (serde + bincode).
 # Additionally, tempfile is used to generate the files where the key/value
 # are stored.
-stream = [ "serde", "serde/derive", "bincode", "tempfile" ]
+stream = [ "serde", "bincode", "tempfile" ]
 # Enable building block implementations compressing data into a stream.
 compression = [ "stream", "lz4" ]
