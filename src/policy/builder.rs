@@ -13,9 +13,9 @@ use std::marker::PhantomData;
 ///
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
+/// use byoc::builder::{Build,PolicyBuild};
 /// use byoc::policy::Fifo;
-/// use byoc::builder::builders::{ArrayBuilder, PolicyBuilder};
+/// use byoc::builder::{ArrayBuilder, PolicyBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
 /// let mut container =
@@ -78,3 +78,32 @@ where
         Policy::new(self.builder.build(), self.policy)
     }
 }
+
+/// Attach an ordering policy to a container [`Build`].
+///
+/// ```
+/// use byoc::BuildingBlock;
+/// use byoc::builder::{Build,Builder,PolicyBuild};
+/// use byoc::policy::Fifo;
+///
+/// let mut container = Builder::array(10000)
+///                    .with_policy(Fifo::new())
+///                    .build();
+/// container.push(vec![(1,2)]);
+/// ```
+pub trait PolicyBuild<C>: Build<C> {
+    /// [`Policy`](../../struct.Policy.html)
+    /// wrapping capability.
+    fn with_policy<V, F: ReferenceFactory<V>>(
+        self,
+        policy: F,
+    ) -> PolicyBuilder<C, V, F, Self>
+    where
+        Self: Sized,
+        C: Ordered<F::Item>,
+    {
+        PolicyBuilder::new(self, policy)
+    }
+}
+
+impl<C, B: Build<C>> PolicyBuild<C> for B {}

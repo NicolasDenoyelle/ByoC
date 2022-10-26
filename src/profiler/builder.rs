@@ -14,8 +14,8 @@ use std::marker::PhantomData;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::utils::profiler::ProfilerOutputKind;
-/// use byoc::builder::Build;
-/// use byoc::builder::builders::{ArrayBuilder, ProfilerBuilder};
+/// use byoc::builder::{Build,ProfilerBuild};
+/// use byoc::builder::{ArrayBuilder, ProfilerBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
 /// let mut container =
@@ -84,3 +84,35 @@ where
         )
     }
 }
+
+/// Add profiling to a container [`Build`].
+///
+/// ```
+/// use byoc::BuildingBlock;
+/// use byoc::builder::{Build,Builder,ProfilerBuild};
+/// use byoc::utils::profiler::ProfilerOutputKind;
+///
+/// let mut container = Builder::array(10000)
+///                    .profile("test", ProfilerOutputKind::Stdout)
+///                    .build();
+/// container.push(vec![(1,2)]);
+/// ```
+pub trait ProfilerBuild<C>: Build<C> {
+    /// [Profile](../../struct.Profiler.html) the preceding
+    /// building block.
+    ///
+    /// The output profile will be identified by its `name` and will
+    /// be available in `output` once the container is dropped.
+    fn profile(
+        self,
+        name: &str,
+        output: ProfilerOutputKind,
+    ) -> ProfilerBuilder<C, Self>
+    where
+        Self: Sized,
+    {
+        ProfilerBuilder::new(name, output, self)
+    }
+}
+
+impl<C, B: Build<C>> ProfilerBuild<C> for B {}

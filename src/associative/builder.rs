@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 /// use byoc::BuildingBlock;
 /// use byoc::{Array, Associative};
 /// use byoc::builder::{AssociativeBuild, Build};
-/// use byoc::builder::builders::{ArrayBuilder, AssociativeBuilder};
+/// use byoc::builder::{ArrayBuilder, AssociativeBuilder};
 /// use std::collections::hash_map::DefaultHasher;
 ///
 /// let array_builder = ArrayBuilder::new(2);
@@ -115,3 +115,38 @@ where
         Associative::new(sets, self.set_hasher)
     }
 }
+
+/// Replicate a [`Build`] into multiple builders to later build
+/// an `Associative` container.
+///
+/// ```
+/// use byoc::BuildingBlock;
+/// use byoc::builder::{AssociativeBuild, Build, Builder};
+/// use std::collections::hash_map::DefaultHasher;
+///
+/// let mut container = Builder::array(10000)
+///                    .into_associative(DefaultHasher::new(), 8)
+///                    .build();
+/// container.push(vec![(1,2)]);
+/// ```
+pub trait AssociativeBuild<C>: Build<C> + Clone {
+    /// Replicate a builder into multiple builders to later build
+    /// an [`Associative`](../struct.Associative.html)
+    /// container.
+    ///
+    /// * `key_hasher`: The hasher to hash container keys and find
+    /// the target bucket.
+    /// * `num_sets`: The number of sets or bucket in the container.
+    /// the target bucket.
+    fn into_associative<H: Hasher + Clone>(
+        self,
+        key_hasher: H,
+        num_sets: usize,
+    ) -> AssociativeBuilder<C, H, Self>
+    where
+        Self: Sized,
+    {
+        AssociativeBuilder::new(self, key_hasher, num_sets)
+    }
+}
+impl<C, B: Build<C> + Clone> AssociativeBuild<C> for B {}

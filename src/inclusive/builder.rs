@@ -14,8 +14,8 @@ use std::marker::PhantomData;
 ///
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::builder::builders::{
+/// use byoc::builder::{Build,InclusiveBuild};
+/// use byoc::builder::{
 ///     ArrayBuilder, BTreeBuilder, InclusiveBuilder
 /// };
 ///
@@ -84,3 +84,31 @@ where
         Inclusive::new(self.lbuilder.build(), self.rbuilder.build())
     }
 }
+
+/// Connect two containers [`Build`] into an `Inclusive` container.
+///
+/// ```
+/// use byoc::BuildingBlock;
+/// use byoc::builder::{Build,Builder,InclusiveBuild};
+///
+/// let front = Builder::array(10000);
+/// let back = Builder::array(10000);
+/// let mut container = front.inclusive(back).build();
+/// container.push(vec![(1,2)]);
+/// ```
+pub trait InclusiveBuild<C>: Build<C> {
+    /// Connection between two building blocks with a
+    /// [`Inclusive`](../../struct.Inclusive.html)
+    /// [building block](../../trait.BuildingBlock.html).
+    fn inclusive<R, RB: Build<R>>(
+        self,
+        rbuilder: RB,
+    ) -> InclusiveBuilder<C, Self, R, RB>
+    where
+        Self: Sized,
+    {
+        InclusiveBuilder::new(self, rbuilder)
+    }
+}
+
+impl<C, B: Build<C>> InclusiveBuild<C> for B {}

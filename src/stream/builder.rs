@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
 /// use byoc::utils::stream::VecStreamFactory;
-/// use byoc::builder::builders::StreamBuilder;
+/// use byoc::builder::StreamBuilder;
 ///
 /// let mut stream = StreamBuilder::new(VecStreamFactory{}, 2).build();
 /// stream.push(vec![(1, 2)]);

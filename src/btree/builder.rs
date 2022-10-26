@@ -12,7 +12,7 @@ use std::marker::PhantomData;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::builder::builders::BTreeBuilder;
+/// use byoc::builder::BTreeBuilder;
 ///
 /// let mut btree = BTreeBuilder::new(2).build();
 /// btree.push(vec![(1, 2)]);
