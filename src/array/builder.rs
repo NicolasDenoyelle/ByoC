@@ -11,7 +11,7 @@ use std::marker::PhantomData;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::builder::builders::ArrayBuilder;
+/// use byoc::builder::ArrayBuilder;
 ///
 /// let mut array = ArrayBuilder::new(2).build();
 /// array.push(vec![(1, 2)]);

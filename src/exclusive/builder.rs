@@ -14,8 +14,8 @@ use std::marker::PhantomData;
 ///
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::builder::builders::{
+/// use byoc::builder::{Build,ExclusiveBuild};
+/// use byoc::builder::{
 ///     ArrayBuilder, BTreeBuilder, ExclusiveBuilder
 /// };
 ///
@@ -84,3 +84,31 @@ where
         Exclusive::new(self.lbuilder.build(), self.rbuilder.build())
     }
 }
+
+/// Connect two containers [`Build`] into an `Exclusive` container.
+///
+/// ```
+/// use byoc::BuildingBlock;
+/// use byoc::builder::{Build,Builder,ExclusiveBuild};
+///
+/// let front = Builder::array(10000);
+/// let back = Builder::array(10000);
+/// let mut container = front.exclusive(back).build();
+/// container.push(vec![(1,2)]);
+/// ```
+pub trait ExclusiveBuild<C>: Build<C> {
+    /// Connection between two building blocks with a
+    /// [`Exclusive`](../../struct.Exclusive.html)
+    /// [building block](../../trait.BuildingBlock.html).
+    fn exclusive<R, RB: Build<R>>(
+        self,
+        rbuilder: RB,
+    ) -> ExclusiveBuilder<C, Self, R, RB>
+    where
+        Self: Sized,
+    {
+        ExclusiveBuilder::new(self, rbuilder)
+    }
+}
+
+impl<C, B: Build<C>> ExclusiveBuild<C> for B {}

@@ -1,8 +1,8 @@
 #[cfg(feature = "compression")]
-use crate::builder::builders::CompressedBuilder;
+use crate::builder::CompressedBuilder;
 #[cfg(feature = "stream")]
-use crate::builder::builders::StreamBuilder;
-use crate::builder::builders::{ArrayBuilder, BTreeBuilder};
+use crate::builder::StreamBuilder;
+use crate::builder::{ArrayBuilder, BTreeBuilder};
 #[cfg(feature = "stream")]
 use crate::stream::StreamFactory;
 #[cfg(feature = "stream")]
@@ -19,8 +19,10 @@ use serde::{de::DeserializeOwned, Serialize};
 ///
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::builder::Builder;
+/// use byoc::builder::{Builder,
+///                     Build,
+///                     ExclusiveBuild,
+///                     SequentialBuild};
 ///
 /// // Build a multi-layer concurrent cache where the first layer stores
 /// // up to two elements in an `Array` type container and the second layer
