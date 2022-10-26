@@ -35,6 +35,10 @@ pub mod policy;
 pub use policy::policy::Policy;
 mod sequential;
 pub use sequential::Sequential;
+#[cfg(feature = "socket")]
+mod socket;
+#[cfg(feature = "socket")]
+pub use socket::{SocketClient, SocketServer};
 #[cfg(feature = "stream")]
 mod stream;
 #[cfg(feature = "stream")]

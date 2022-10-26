@@ -1,5 +1,5 @@
+use super::Array;
 use crate::builder::Build;
-use crate::Array;
 use std::marker::PhantomData;
 
 /// `Array` builder.
