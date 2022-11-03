@@ -1,4 +1,4 @@
-use crate::policy::{Ordered, Reference, ReferenceFactory};
+use super::{Ordered, Reference, ReferenceFactory};
 use crate::BuildingBlock;
 use crate::Policy;
 

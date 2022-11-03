@@ -31,7 +31,7 @@ mod inclusive;
 pub use inclusive::Inclusive;
 mod profiler;
 pub use profiler::Profiler;
-pub mod policy;
+mod policy;
 pub use policy::policy::Policy;
 mod sequential;
 pub use sequential::Sequential;

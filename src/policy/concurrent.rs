@@ -1,4 +1,4 @@
-use crate::policy::{Ordered, ReferenceFactory};
+use super::{Ordered, ReferenceFactory};
 use crate::{Concurrent, Policy};
 use std::marker::PhantomData;
 
