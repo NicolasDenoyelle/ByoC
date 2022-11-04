@@ -7,6 +7,7 @@ use std::marker::PhantomData;
 use std::net::TcpStream;
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 fn mismatch_panic() -> ! {
     panic!("SocketClient Request and SocketServer Response mismatch.");
@@ -36,7 +37,7 @@ where
     key: K,
     value: V,
     is_updated: bool,
-    stream: TcpStream,
+    stream: Arc<Mutex<TcpStream>>,
     unused: PhantomData<K>,
 }
 
@@ -45,10 +46,7 @@ where
     K: Serialize + Clone,
     V: Serialize + Clone,
 {
-    pub fn new(key: K, value: V, stream: &TcpStream) -> Self {
-        let stream = stream
-            .try_clone()
-            .expect("Failed to clone TcpStream for sending WriteBack");
+    pub fn new(key: K, value: V, stream: Arc<Mutex<TcpStream>>) -> Self {
         SocketClientCell {
             key,
             value,
@@ -91,18 +89,12 @@ where
             return;
         }
 
-        let output_stream = match self.stream.try_clone() {
-            Ok(s) => s,
-            Err(_) => {
-                panic!("Fail to clone TcpStream for sending WriteBack")
-            }
-        };
-
+        let mut stream = self.stream.lock().unwrap();
         let request = Request::<K, V>::WriteBack((
             self.key.clone(),
             self.value.clone(),
         ));
-        bincode::serialize_into(output_stream, &request).expect(
+        bincode::serialize_into(&mut *stream, &request).expect(
             "SocketClientCell failed to WriteBack to SocketServer",
         );
     }
@@ -117,9 +109,13 @@ where
 
     fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         match self.process_request(Request::<K, V>::GetMut(key.clone())) {
-            Response::GetMut(Some(v)) => Some(LifeTimeGuard::new(
-                SocketClientCell::new(key.clone(), v, &self.stream),
-            )),
+            Response::GetMut(Some(v)) => {
+                Some(LifeTimeGuard::new(SocketClientCell::new(
+                    key.clone(),
+                    v,
+                    Arc::clone(&self.stream),
+                )))
+            }
             Response::GetMut(None) => None,
             _ => mismatch_panic(),
         }
