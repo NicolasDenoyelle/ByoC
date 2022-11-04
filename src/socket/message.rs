@@ -55,6 +55,18 @@ impl<T: MessageHeader + std::fmt::Debug> Message for T {
     }
 }
 
+fn deserialize_into<R: std::io::Read + ?Sized, V: DeserializeOwned>(
+    stream: &mut R,
+    size: usize,
+) -> bincode::Result<V> {
+    let mut buf = vec![0u8; size];
+    stream
+        .read_exact(buf.as_mut_slice())
+        .map_err(|ioerror| Box::new(bincode::ErrorKind::Io(ioerror)))?;
+    println!("Received {}: {:?}", std::any::type_name::<V>(), buf);
+    bincode::deserialize(buf.as_slice())
+}
+
 #[derive(PartialEq, Eq, Deserialize, Serialize, Debug)]
 pub(super) enum RequestHeader {
     Capacity,
@@ -157,57 +169,25 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned>
             RequestHeader::Flush => Ok(Self::Flush),
             RequestHeader::Pop(s) => Ok(Self::Pop(s)),
             RequestHeader::Contains(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice())
-                    .map(|v| Self::Contains(v))
+                deserialize_into(stream, s).map(|v| Self::Contains(v))
             }
             RequestHeader::Take(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice()).map(|v| Self::Take(v))
+                deserialize_into(stream, s).map(|v| Self::Take(v))
             }
             RequestHeader::TakeMultiple(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice())
-                    .map(|v| Self::TakeMultiple(v))
+                deserialize_into(stream, s).map(|v| Self::TakeMultiple(v))
             }
             RequestHeader::Push(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice()).map(|v| Self::Push(v))
+                deserialize_into(stream, s).map(|v| Self::Push(v))
             }
             RequestHeader::Get(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice()).map(|v| Self::Get(v))
+                deserialize_into(stream, s).map(|v| Self::Get(v))
             }
             RequestHeader::GetMut(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice())
-                    .map(|v| Self::GetMut(v))
+                deserialize_into(stream, s).map(|v| Self::GetMut(v))
             }
             RequestHeader::WriteBack(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice())
-                    .map(|v| Self::WriteBack(v))
+                deserialize_into(stream, s).map(|v| Self::WriteBack(v))
             }
         }
     }
@@ -326,56 +306,25 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned>
             }
             ResponseHeader::Error(err) => Ok(Self::Error(err)),
             ResponseHeader::Take(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice()).map(|v| Self::Take(v))
+                deserialize_into(stream, s).map(|v| Self::Take(v))
             }
             ResponseHeader::TakeMultiple(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice())
-                    .map(|v| Self::TakeMultiple(v))
+                deserialize_into(stream, s).map(|v| Self::TakeMultiple(v))
             }
             ResponseHeader::Pop(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice()).map(|v| Self::Pop(v))
+                deserialize_into(stream, s).map(|v| Self::Pop(v))
             }
             ResponseHeader::Push(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice()).map(|v| Self::Push(v))
+                deserialize_into(stream, s).map(|v| Self::Push(v))
             }
             ResponseHeader::Flush(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice())
-                    .map(|v| Self::Flush(v))
+                deserialize_into(stream, s).map(|v| Self::Flush(v))
             }
             ResponseHeader::Get(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice()).map(|v| Self::Get(v))
+                deserialize_into(stream, s).map(|v| Self::Get(v))
             }
             ResponseHeader::GetMut(s) => {
-                let mut buf = vec![0u8; s];
-                stream.read_exact(buf.as_mut_slice()).map_err(
-                    |ioerror| Box::new(bincode::ErrorKind::Io(ioerror)),
-                )?;
-                bincode::deserialize(buf.as_slice())
-                    .map(|v| Self::GetMut(v))
+                deserialize_into(stream, s).map(|v| Self::GetMut(v))
             }
         }
     }
