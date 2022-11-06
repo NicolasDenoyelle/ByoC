@@ -148,39 +148,86 @@ where
     ) -> Response<K, V> {
         match request {
             Request::Capacity => {
+                if let Some(v) = self.outgoing.take() {
+                    drop(v);
+                }
                 Response::Capacity(self.container.capacity())
             }
-            Request::Size => Response::Size(self.container.size()),
+            Request::Size => {
+                if let Some(v) = self.outgoing.take() {
+                    drop(v);
+                }
+                Response::Size(self.container.size())
+            }
             Request::Contains(k) => {
+                if let Some(v) = self.outgoing.take() {
+                    drop(v);
+                }
                 Response::Contains(self.container.contains(&k))
             }
-            Request::Take(k) => Response::Take(self.container.take(&k)),
-            Request::TakeMultiple(mut vec) => Response::TakeMultiple(
-                self.container.take_multiple(&mut vec),
-            ),
-            Request::Pop(size) => Response::Pop(self.container.pop(size)),
-            Request::Push(vec) => Response::Push(self.container.push(vec)),
+            Request::Take(k) => {
+                if let Some(v) = self.outgoing.take() {
+                    drop(v);
+                }
+
+                Response::Take(self.container.take(&k))
+            }
+            Request::TakeMultiple(mut vec) => {
+                if let Some(v) = self.outgoing.take() {
+                    drop(v);
+                }
+                Response::TakeMultiple(
+                    self.container.take_multiple(&mut vec),
+                )
+            }
+            Request::Pop(size) => {
+                if let Some(v) = self.outgoing.take() {
+                    drop(v);
+                }
+                Response::Pop(self.container.pop(size))
+            }
+            Request::Push(vec) => {
+                if let Some(v) = self.outgoing.take() {
+                    drop(v);
+                }
+                Response::Push(self.container.push(vec))
+            }
             Request::Flush => {
+                if let Some(v) = self.outgoing.take() {
+                    drop(v);
+                }
                 Response::Flush(self.container.flush().collect())
             }
-            Request::Get(k) => match self.container.get(&k) {
-                None => Response::Get(None),
-                Some(r) => Response::Get(Some(r.clone())),
-            },
-            Request::GetMut(k) => match self.container.get_mut(&k) {
-                None => Response::GetMut(None),
-                Some(r) => {
-                    let v = r.clone();
-                    self.outgoing.replace((k, r.unwrap()));
-                    Response::GetMut(Some(v))
+            Request::Get(k) => {
+                if let Some(v) = self.outgoing.take() {
+                    drop(v);
                 }
-            },
+                match self.container.get(&k) {
+                    None => Response::Get(None),
+                    Some(r) => Response::Get(Some(r.clone())),
+                }
+            }
+            Request::GetMut(k) => {
+                if let Some(v) = self.outgoing.take() {
+                    drop(v);
+                }
+                match self.container.get_mut(&k) {
+                    None => Response::GetMut(None),
+                    Some(r) => {
+                        let v = r.clone();
+                        self.outgoing.replace((k, r.unwrap()));
+                        Response::GetMut(Some(v))
+                    }
+                }
+            }
             Request::WriteBack((k, v)) => match self.outgoing.take() {
                 Some((key, mut target)) => {
                     if key != k {
-                        Response::Error(ResponseError::InvalidWriteBackKey)
+                        self.outgoing.replace((key, target));
+                        Response::WriteBackAcknowledgment
                     } else {
                         *target = v;
+                        drop(target);
                         Response::WriteBackAcknowledgment
                     }
                 }

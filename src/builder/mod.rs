@@ -19,7 +19,7 @@
 //! ```
 //! use byoc::BuildingBlock;
 //! use byoc::{Array, Exclusive, Sequential, Policy};
-//! use byoc::policy::{Lru, timestamp::Clock};
+//! use byoc::utils::policy::{Lru, timestamp::Clock};
 //!
 //! let front = Array::new(10000);
 //! let back = Array::new(1000000);
@@ -32,7 +32,7 @@
 //! With a builder pattern, the same code becomes:
 //! ```
 //! use byoc::BuildingBlock;
-//! use byoc::policy::{Lru, timestamp::Clock};
+//! use byoc::utils::policy::{Lru, timestamp::Clock};
 //! use byoc::builder::{Build,
 //!                     Builder,
 //!                     ExclusiveBuild,

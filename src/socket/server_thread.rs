@@ -227,66 +227,64 @@ impl ServerThreadHandle {
 #[cfg(test)]
 mod tests {
     use crate::socket::error::ResponseError;
-    use crate::socket::message::{
-        Message, Request, Response, ResponseHeader,
-    };
+    use crate::socket::message::{Message, Request, Response};
     use crate::utils::socket::{ServerThreadBuilder, ServerThreadHandle};
 
     use crate::{
         Array, BuildingBlock, Concurrent, Get, GetMut, Sequential,
     };
-    use std::{io::Read, net::TcpStream, time::Duration};
+    use std::{net::TcpStream, time::Duration};
 
     fn match_response(
         request: &Request<i32, i32>,
         container: &mut Sequential<Array<(i32, i32)>>,
-    ) -> Response<i32, i32> {
+    ) -> Option<Response<i32, i32>> {
         match request {
             Request::Capacity => {
                 let result = container.capacity();
-                Response::Capacity(result)
+                Some(Response::Capacity(result))
             }
             Request::Size => {
                 let result = container.size();
-                Response::Size(result)
+                Some(Response::Size(result))
             }
             Request::Contains(k) => {
                 let result = container.contains(k);
-                Response::Contains(result)
+                Some(Response::Contains(result))
             }
             Request::Take(k) => {
                 let result = container.take(k);
-                Response::Take(result)
+                Some(Response::Take(result))
             }
             Request::TakeMultiple(vec) => {
                 let result = container.take_multiple(&mut vec.clone());
-                Response::TakeMultiple(result)
+                Some(Response::TakeMultiple(result))
             }
             Request::Pop(size) => {
                 let result = container.pop(*size);
-                Response::Pop(result)
+                Some(Response::Pop(result))
             }
             Request::Push(vec) => {
                 let result = container.push(vec.clone());
-                Response::Push(result)
+                Some(Response::Push(result))
             }
             Request::Flush => {
                 let result = container.flush().collect();
-                Response::Flush(result)
+                Some(Response::Flush(result))
             }
             Request::Get(k) => {
                 let result = container.get(k).map(|r| *r);
-                Response::Get(result)
+                Some(Response::Get(result))
             }
             Request::GetMut(k) => {
                 let result = container.get_mut(k).map(|r| *r);
-                Response::GetMut(result)
+                Some(Response::GetMut(result))
             }
             Request::WriteBack((k, _)) => match container.get(k) {
-                Some(_) => Response::WriteBackAcknowledgment,
-                None => {
-                    Response::Error(ResponseError::WriteBackWithNoOutgoing)
-                }
+                Some(_) => None,
+                None => Some(Response::Error(
+                    ResponseError::WriteBackWithNoOutgoing,
+                )),
             },
         }
     }
@@ -328,168 +326,6 @@ mod tests {
         server.stop_and_join().unwrap();
     }
 
-    fn test_server_response_header(
-        request: Request<i32, i32>,
-        client: &mut TcpStream,
-        container: &Sequential<Array<(i32, i32)>>,
-    ) {
-        let mut container = Clone::clone(container);
-        let expected_response = match_response(&request, &mut container);
-        let expected_response_header =
-            ResponseHeader::from_response(&expected_response).unwrap();
-
-        request.send(client).unwrap();
-        let response_header = ResponseHeader::receive(client).unwrap();
-        let read_size = match (response_header, expected_response_header) {
-            (
-                ResponseHeader::Capacity(lhs),
-                ResponseHeader::Capacity(rhs),
-            ) => {
-                if lhs != rhs {
-                    panic!("Capacity response header mismatch.")
-                }
-                0usize
-            }
-            (ResponseHeader::Size(lhs), ResponseHeader::Size(rhs)) => {
-                if lhs != rhs {
-                    panic!("Size response header mismatch.")
-                }
-                0usize
-            }
-            (
-                ResponseHeader::Contains(lhs),
-                ResponseHeader::Contains(rhs),
-            ) => {
-                if lhs != rhs {
-                    panic!("Contains response header mismatch.")
-                }
-                0usize
-            }
-            (
-                ResponseHeader::WriteBackAcknowledgment,
-                ResponseHeader::WriteBackAcknowledgment,
-            ) => 0usize,
-            (ResponseHeader::Error(lhs), ResponseHeader::Error(rhs)) => {
-                if lhs != rhs {
-                    panic!("Size response header mismatch.")
-                }
-                0usize
-            }
-            (ResponseHeader::Take(lhs), ResponseHeader::Take(rhs)) => {
-                if lhs != rhs {
-                    panic!("Take response header mismatch.")
-                }
-                lhs
-            }
-            (
-                ResponseHeader::TakeMultiple(lhs),
-                ResponseHeader::TakeMultiple(rhs),
-            ) => {
-                if lhs != rhs {
-                    panic!("TakeMultiple response header mismatch")
-                }
-                lhs
-            }
-            (ResponseHeader::Pop(lhs), ResponseHeader::Pop(rhs)) => {
-                if lhs != rhs {
-                    panic!("Pop response header mismatch")
-                }
-                lhs
-            }
-            (ResponseHeader::Push(lhs), ResponseHeader::Push(rhs)) => {
-                if lhs != rhs {
-                    panic!("Push response header mismatch")
-                }
-                lhs
-            }
-            (ResponseHeader::Flush(lhs), ResponseHeader::Flush(rhs)) => {
-                if lhs != rhs {
-                    panic!("Flush response header mismatch")
-                }
-                lhs
-            }
-            (ResponseHeader::Get(lhs), ResponseHeader::Get(rhs)) => {
-                if lhs != rhs {
-                    panic!("Get response header mismatch")
-                }
-                lhs
-            }
-            (ResponseHeader::GetMut(lhs), ResponseHeader::GetMut(rhs)) => {
-                if lhs != rhs {
-                    panic!("GetMut response header mismatch")
-                }
-                lhs
-            }
-            _ => panic!("ResponseHeader mismatch"),
-        };
-
-        if read_size > 0usize {
-            client
-                .read_exact(vec![0u8; read_size].as_mut_slice())
-                .unwrap();
-        }
-    }
-
-    #[test]
-    fn test_client_side_response_header() {
-        let (container, mut client, _server) =
-            make_container_server_client(10, "localhost:6392");
-
-        test_server_response_header(
-            Request::<i32, i32>::Capacity,
-            &mut client,
-            &container,
-        );
-
-        test_server_response_header(
-            Request::<i32, i32>::Size,
-            &mut client,
-            &container,
-        );
-
-        test_server_response_header(
-            Request::<i32, i32>::Contains(0i32),
-            &mut client,
-            &container,
-        );
-
-        test_server_response_header(
-            Request::<i32, i32>::Take(0),
-            &mut client,
-            &container,
-        );
-
-        test_server_response_header(
-            Request::<i32, i32>::TakeMultiple(Vec::new()),
-            &mut client,
-            &container,
-        );
-
-        test_server_response_header(
-            Request::<i32, i32>::Flush,
-            &mut client,
-            &container,
-        );
-
-        test_server_response_header(
-            Request::<i32, i32>::Get(0),
-            &mut client,
-            &container,
-        );
-
-        test_server_response_header(
-            Request::<i32, i32>::GetMut(0),
-            &mut client,
-            &container,
-        );
-
-        test_server_response_header(
-            Request::<i32, i32>::WriteBack((0, 0)),
-            &mut client,
-            &container,
-        );
-    }
-
     fn test_server_response(
         request: Request<i32, i32>,
         container: &Sequential<Array<(i32, i32)>>,
@@ -498,6 +334,11 @@ mod tests {
         let mut container = Clone::clone(container);
         let expected_response = match_response(&request, &mut container);
         request.send(client).unwrap();
+
+        let expected_response = match expected_response {
+            None => return,
+            Some(r) => r,
+        };
         let response = Response::receive(client).unwrap();
 
         match (response, expected_response) {

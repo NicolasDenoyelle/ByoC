@@ -1,3 +1,4 @@
+use super::client::process_request;
 use super::message::{Request, Response};
 use super::SocketClient;
 use crate::BuildingBlock;
@@ -13,59 +14,68 @@ where
     V: 'a + DeserializeOwned + Serialize,
 {
     fn capacity(&self) -> usize {
-        match self.process_request(Request::<K, V>::Capacity) {
+        match process_request(&self.stream, Request::<K, V>::Capacity) {
             Response::Capacity(s) => s,
             _ => mismatch_panic(),
         }
     }
 
     fn size(&self) -> usize {
-        match self.process_request(Request::<K, V>::Size) {
+        match process_request(&self.stream, Request::<K, V>::Size) {
             Response::Size(s) => s,
             _ => mismatch_panic(),
         }
     }
 
     fn contains(&self, key: &K) -> bool {
-        match self.process_request(Request::<K, V>::Contains(key.clone()))
-        {
+        match process_request(
+            &self.stream,
+            Request::<K, V>::Contains(key.clone()),
+        ) {
             Response::Contains(tf) => tf,
             _ => mismatch_panic(),
         }
     }
 
     fn pop(&mut self, n: usize) -> Vec<(K, V)> {
-        match self.process_request(Request::<K, V>::Pop(n)) {
+        match process_request(&self.stream, Request::<K, V>::Pop(n)) {
             Response::Pop(ret) => ret,
             _ => mismatch_panic(),
         }
     }
 
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        match self.process_request(Request::<K, V>::Push(elements)) {
+        match process_request(
+            &self.stream,
+            Request::<K, V>::Push(elements),
+        ) {
             Response::Push(ret) => ret,
             _ => mismatch_panic(),
         }
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
-        match self.process_request(Request::<K, V>::Take(key.clone())) {
+        match process_request(
+            &self.stream,
+            Request::<K, V>::Take(key.clone()),
+        ) {
             Response::Take(ret) => ret,
             _ => mismatch_panic(),
         }
     }
 
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
-        match self
-            .process_request(Request::<K, V>::TakeMultiple(keys.to_vec()))
-        {
+        match process_request(
+            &self.stream,
+            Request::<K, V>::TakeMultiple(keys.to_vec()),
+        ) {
             Response::TakeMultiple(ret) => ret,
             _ => mismatch_panic(),
         }
     }
 
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        match self.process_request(Request::<K, V>::Flush) {
+        match process_request(&self.stream, Request::<K, V>::Flush) {
             Response::Flush(ret) => Box::new(ret.into_iter()),
             _ => mismatch_panic(),
         }

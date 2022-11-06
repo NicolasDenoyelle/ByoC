@@ -94,7 +94,8 @@ where
     }
 
     for (k, v) in elements.iter() {
-        assert_eq!(*c.get_mut(k).unwrap() as TestValue, *v + 1u32);
+        let r = c.get_mut(k).unwrap();
+        assert_eq!(*r as TestValue, *v + 1u32);
     }
 }
 

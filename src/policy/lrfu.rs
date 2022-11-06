@@ -96,7 +96,7 @@ pub struct LrfuCell<V, T: Timestamp + Copy> {
 ///
 /// ```
 /// use byoc::{Array, Policy};
-/// use byoc::policy::Lrfu;
+/// use byoc::utils::policy::Lrfu;
 ///
 /// // let c = Policy::new(Array::new(3), Lrfu::new(2.0));
 /// ```

@@ -32,8 +32,8 @@ pub struct LruCell<V, T: Timestamp> {
 ///
 /// ```
 /// use byoc::{Array, Policy};
-/// use byoc::policy::Lru;
-/// use byoc::policy::timestamp::Clock;
+/// use byoc::utils::policy::Lru;
+/// use byoc::utils::policy::timestamp::Clock;
 ///
 /// // let c = Policy::new(Array::new(3), Lru::<Clock>::new());
 /// ```

@@ -66,7 +66,7 @@ pub mod socket {
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::{Array, Policy};
-/// use byoc::policy::Fifo;
+/// use byoc::utils::policy::Fifo;
 ///
 /// let mut c = Policy::new(Array::new(3), Fifo::new());
 /// assert_eq!(c.push(vec![("item1",1u16), ("item2",2u16), ("item0",0u16)])
