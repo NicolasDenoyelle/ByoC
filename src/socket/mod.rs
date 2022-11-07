@@ -10,7 +10,8 @@ mod server;
 pub use server::{ServerLoopEvent, SocketServer};
 
 mod message;
-pub(crate) mod server_thread;
+mod server_thread;
+pub use server_thread::{ServerThreadBuilder, ServerThreadHandle};
 
 mod error;
 

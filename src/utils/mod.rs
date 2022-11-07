@@ -27,10 +27,8 @@ pub mod get {
 #[cfg(feature = "socket")]
 /// Utils to spawn a thread running a `SocketServer`.
 pub mod socket {
-    pub use crate::socket::server_thread::{
-        ServerThreadBuilder, ServerThreadHandle,
-    };
     pub use crate::socket::ServerLoopEvent;
+    pub use crate::socket::{ServerThreadBuilder, ServerThreadHandle};
 }
 
 /// Eviction policies and related traits and modules.
