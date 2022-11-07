@@ -67,7 +67,7 @@ pub use crate::profiler::builder::ProfilerBuilder;
 pub use crate::sequential::builder::SequentialBuilder;
 #[cfg(feature = "socket")]
 pub use crate::socket::builder::{
-    SocketClientBuilder, SocketServerBuilder,
+    ServerBuild, SocketClientBuilder, SocketServerBuilder,
 };
 #[cfg(feature = "stream")]
 pub use crate::stream::builder::StreamBuilder;
@@ -78,6 +78,3 @@ pub use crate::inclusive::builder::InclusiveBuild;
 pub use crate::policy::builder::PolicyBuild;
 pub use crate::profiler::builder::ProfilerBuild;
 pub use crate::sequential::builder::SequentialBuild;
-
-#[cfg(feature = "socket")]
-pub use crate::socket::builder::ServerBuild;
