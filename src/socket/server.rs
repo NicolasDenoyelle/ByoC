@@ -1,6 +1,6 @@
 use super::error::{BincodeErrorKind, ResponseError};
 use super::message::{Message, Request, Response};
-use crate::{BuildingBlock, Get, GetMut};
+use crate::BuildingBlock;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::marker::PhantomData;
@@ -89,23 +89,17 @@ impl<T> From<bincode::Result<T>> for ServerLoopResult<T> {
 /// Of course, both keys and values need to be serializable and deseriazable.
 /// Additional trait bounds can be required on keys and values depending
 /// on the `container`
-pub struct SocketServer<'a, K, V, C>
-where
-    K: 'a + DeserializeOwned + Serialize + Eq,
-    V: 'a + DeserializeOwned + Serialize + Clone,
-    C: BuildingBlock<'a, K, V> + Get<K, V> + GetMut<K, V>,
-{
+pub struct SocketServer<'a, K, V, C> {
     stream: TcpStream,
     pub(super) container: C,
-    outgoing: Option<(K, <C as GetMut<K, V>>::Target)>,
-    unused_: PhantomData<&'a (K, V)>,
+    unused: PhantomData<&'a (K, V)>,
 }
 
 impl<'a, K, V, C> SocketServer<'a, K, V, C>
 where
     K: 'a + DeserializeOwned + Serialize + Eq,
     V: 'a + DeserializeOwned + Serialize + Clone,
-    C: BuildingBlock<'a, K, V> + Get<K, V> + GetMut<K, V>,
+    C: BuildingBlock<'a, K, V>,
 {
     /// Build a [`SocketServer`] from an initialized `TcpStream` and
     /// `container`.
@@ -113,8 +107,7 @@ where
         SocketServer {
             stream,
             container,
-            outgoing: None,
-            unused_: PhantomData,
+            unused: PhantomData,
         }
     }
 
@@ -148,93 +141,21 @@ where
     ) -> Response<K, V> {
         match request {
             Request::Capacity => {
-                if let Some(v) = self.outgoing.take() {
-                    drop(v);
-                }
                 Response::Capacity(self.container.capacity())
             }
-            Request::Size => {
-                if let Some(v) = self.outgoing.take() {
-                    drop(v);
-                }
-                Response::Size(self.container.size())
-            }
+            Request::Size => Response::Size(self.container.size()),
             Request::Contains(k) => {
-                if let Some(v) = self.outgoing.take() {
-                    drop(v);
-                }
                 Response::Contains(self.container.contains(&k))
             }
-            Request::Take(k) => {
-                if let Some(v) = self.outgoing.take() {
-                    drop(v);
-                }
-
-                Response::Take(self.container.take(&k))
-            }
-            Request::TakeMultiple(mut vec) => {
-                if let Some(v) = self.outgoing.take() {
-                    drop(v);
-                }
-                Response::TakeMultiple(
-                    self.container.take_multiple(&mut vec),
-                )
-            }
-            Request::Pop(size) => {
-                if let Some(v) = self.outgoing.take() {
-                    drop(v);
-                }
-                Response::Pop(self.container.pop(size))
-            }
-            Request::Push(vec) => {
-                if let Some(v) = self.outgoing.take() {
-                    drop(v);
-                }
-                Response::Push(self.container.push(vec))
-            }
+            Request::Take(k) => Response::Take(self.container.take(&k)),
+            Request::TakeMultiple(mut vec) => Response::TakeMultiple(
+                self.container.take_multiple(&mut vec),
+            ),
+            Request::Pop(size) => Response::Pop(self.container.pop(size)),
+            Request::Push(vec) => Response::Push(self.container.push(vec)),
             Request::Flush => {
-                if let Some(v) = self.outgoing.take() {
-                    drop(v);
-                }
                 Response::Flush(self.container.flush().collect())
             }
-            Request::Get(k) => {
-                if let Some(v) = self.outgoing.take() {
-                    drop(v);
-                }
-                match self.container.get(&k) {
-                    None => Response::Get(None),
-                    Some(r) => Response::Get(Some(r.clone())),
-                }
-            }
-            Request::GetMut(k) => {
-                if let Some(v) = self.outgoing.take() {
-                    drop(v);
-                }
-                match self.container.get_mut(&k) {
-                    None => Response::GetMut(None),
-                    Some(r) => {
-                        let v = r.clone();
-                        self.outgoing.replace((k, r.unwrap()));
-                        Response::GetMut(Some(v))
-                    }
-                }
-            }
-            Request::WriteBack((k, v)) => match self.outgoing.take() {
-                Some((key, mut target)) => {
-                    if key != k {
-                        self.outgoing.replace((key, target));
-                        Response::WriteBackAcknowledgment
-                    } else {
-                        *target = v;
-                        drop(target);
-                        Response::WriteBackAcknowledgment
-                    }
-                }
-                None => {
-                    Response::Error(ResponseError::WriteBackWithNoOutgoing)
-                }
-            },
         }
     }
 

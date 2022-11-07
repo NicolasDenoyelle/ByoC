@@ -4,7 +4,6 @@ pub mod builder;
 mod building_block;
 #[cfg(feature = "config")]
 pub mod config;
-mod get;
 
 mod server;
 pub use server::{ServerLoopEvent, SocketServer};

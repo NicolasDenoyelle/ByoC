@@ -1,5 +1,5 @@
 use super::{ServerLoopEvent, SocketServer};
-use crate::{BuildingBlock, Get, GetMut};
+use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
 use std::cell::Cell;
 use std::marker::PhantomData;
@@ -49,7 +49,7 @@ where
     A: 'static + ToSocketAddrs,
     K: 'static + DeserializeOwned + Serialize + Eq,
     V: 'static + DeserializeOwned + Serialize + Clone,
-    C: 'static + BuildingBlock<'static, K, V> + Get<K, V> + GetMut<K, V>,
+    C: 'static + BuildingBlock<'static, K, V>,
 {
     /// Create a [`ServerThreadBuilder`].
     ///
@@ -226,13 +226,10 @@ impl ServerThreadHandle {
 
 #[cfg(test)]
 mod tests {
-    use crate::socket::error::ResponseError;
     use crate::socket::message::{Message, Request, Response};
     use crate::utils::socket::{ServerThreadBuilder, ServerThreadHandle};
 
-    use crate::{
-        Array, BuildingBlock, Concurrent, Get, GetMut, Sequential,
-    };
+    use crate::{Array, BuildingBlock, Concurrent, Sequential};
     use std::{net::TcpStream, time::Duration};
 
     fn match_response(
@@ -272,20 +269,6 @@ mod tests {
                 let result = container.flush().collect();
                 Some(Response::Flush(result))
             }
-            Request::Get(k) => {
-                let result = container.get(k).map(|r| *r);
-                Some(Response::Get(result))
-            }
-            Request::GetMut(k) => {
-                let result = container.get_mut(k).map(|r| *r);
-                Some(Response::GetMut(result))
-            }
-            Request::WriteBack((k, _)) => match container.get(k) {
-                Some(_) => None,
-                None => Some(Response::Error(
-                    ResponseError::WriteBackWithNoOutgoing,
-                )),
-            },
         }
     }
 
@@ -357,10 +340,6 @@ mod tests {
                     panic!("Contains response mismatch.")
                 }
             }
-            (
-                Response::WriteBackAcknowledgment,
-                Response::WriteBackAcknowledgment,
-            ) => {}
             (Response::Error(lhs), Response::Error(rhs)) => {
                 if lhs != rhs {
                     panic!("Size response mismatch.")
@@ -389,16 +368,6 @@ mod tests {
             (Response::Flush(lhs), Response::Flush(rhs)) => {
                 if lhs != rhs {
                     panic!("Flush response mismatch")
-                }
-            }
-            (Response::Get(lhs), Response::Get(rhs)) => {
-                if lhs != rhs {
-                    panic!("Get response mismatch")
-                }
-            }
-            (Response::GetMut(lhs), Response::GetMut(rhs)) => {
-                if lhs != rhs {
-                    panic!("GetMut response mismatch")
                 }
             }
             _ => panic!("Response mismatch"),
@@ -454,24 +423,6 @@ mod tests {
 
         test_server_response(
             Request::<i32, i32>::Flush,
-            &container,
-            &mut client,
-        );
-
-        test_server_response(
-            Request::<i32, i32>::Get(0),
-            &container,
-            &mut client,
-        );
-
-        test_server_response(
-            Request::<i32, i32>::GetMut(0),
-            &container,
-            &mut client,
-        );
-
-        test_server_response(
-            Request::<i32, i32>::WriteBack((0, 0)),
             &container,
             &mut client,
         );

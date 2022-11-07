@@ -21,9 +21,6 @@ pub enum Request<K, V> {
     Pop(usize),
     Push(Vec<(K, V)>),
     Flush,
-    Get(K),
-    GetMut(K),
-    WriteBack((K, V)),
 }
 
 impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned>
@@ -53,9 +50,6 @@ pub(super) enum Response<K, V> {
     Pop(Vec<(K, V)>),
     Push(Vec<(K, V)>),
     Flush(Vec<(K, V)>),
-    Get(Option<V>),
-    GetMut(Option<V>),
-    WriteBackAcknowledgment,
     Error(ResponseError),
 }
 
@@ -79,7 +73,6 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned>
 #[cfg(all(test, feature = "stream"))]
 mod tests {
     use super::{Message, Request, Response};
-    use crate::socket::error::ResponseError;
     use crate::stream::VecStream;
 
     fn test_message<T: Message + PartialEq + Eq + std::fmt::Debug>(
@@ -108,9 +101,6 @@ mod tests {
         test_message(Request::<(), ()>::Pop(0usize));
         test_message(Request::<(), ()>::Push(Vec::new()));
         test_message(Request::<(), ()>::Flush);
-        test_message(Request::<usize, ()>::Get(0usize));
-        test_message(Request::<usize, ()>::GetMut(0usize));
-        test_message(Request::<usize, ()>::WriteBack((0usize, ())));
     }
 
     #[test]
@@ -122,11 +112,5 @@ mod tests {
         test_message(Response::<(), ()>::TakeMultiple(Vec::new()));
         test_message(Response::<(), ()>::Pop(Vec::new()));
         test_message(Response::<(), ()>::Flush(Vec::new()));
-        test_message(Response::<(), ()>::Get(None));
-        test_message(Response::<(), ()>::GetMut(None));
-        test_message(Response::<(), ()>::WriteBackAcknowledgment);
-        test_message(Response::<(), ()>::Error(
-            ResponseError::WriteBackWithNoOutgoing,
-        ));
     }
 }
