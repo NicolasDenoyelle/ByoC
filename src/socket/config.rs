@@ -1,12 +1,13 @@
 use super::{
     ServerThreadBuilder, ServerThreadHandle, SocketClient, SocketServer,
 };
+use crate::builder::Build;
 use crate::config::{
-    BuildingBlockConfig, ConfigError, GenericConfig, GenericKey,
-    GenericValue,
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
+    GenericKey, GenericValue,
 };
 use crate::BuildingBlock;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::Deserialize;
 use std::net::ToSocketAddrs;
 use std::time::Duration;
 
@@ -17,8 +18,8 @@ pub struct SocketClientConfig {
     address: String,
 }
 
-impl BuildingBlockConfig for SocketClientConfig {
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
+impl ConfigInstance for SocketClientConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let out: SocketClientConfig =
             toml::from_str(&toml).map_err(|e| {
@@ -37,15 +38,20 @@ impl BuildingBlockConfig for SocketClientConfig {
             Ok(_) => Ok(out),
         }
     }
+}
 
-    fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
-    where
-        K: 'a + DeserializeOwned + Serialize + Clone,
-        V: 'a + DeserializeOwned + Serialize,
-    {
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
+    for SocketClientConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
         Box::new(SocketClient::new(self.address).unwrap())
     }
 }
+
+impl ConfigWithTraits for SocketClientConfig {}
 
 fn serde_default_timeout() -> u64 {
     100u64
@@ -61,8 +67,8 @@ pub struct SocketServerConfig {
     container: toml::Value,
 }
 
-impl SocketServerConfig {
-    pub fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
+impl ConfigInstance for SocketServerConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: SocketServerConfig = match toml::from_str(&toml) {
             Err(e) => return Err(ConfigError::TomlFormatError(e)),
@@ -70,41 +76,48 @@ impl SocketServerConfig {
         };
 
         // Check address is valid.
-        if let Err(_) = cfg.address.to_socket_addrs() {
+        if cfg.address.to_socket_addrs().is_err() {
             Err(ConfigError::ConfigFormatError(format!(
                 "Invalid SocketServerConfig address {}",
                 cfg.address
             )))?;
         }
 
-        match GenericConfig::from_toml(cfg.container.clone()) {
+        match GenericConfig::from_toml(&cfg.container) {
             Ok(_) => Ok(cfg),
             Err(e) => Err(e),
         }
     }
+}
 
-    pub fn build<'a, K, V>(
+impl<'a, K, V>
+    Build<SocketServer<'a, K, V, Box<dyn BuildingBlock<'a, K, V> + 'a>>>
+    for SocketServerConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(
         self,
     ) -> SocketServer<'a, K, V, Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    where
-        K: 'a + GenericKey,
-        V: 'a + GenericValue,
     {
         SocketServer::new(
             self.address,
-            GenericConfig::from_toml(self.container).unwrap().build(),
+            GenericConfig::from_toml(&self.container).unwrap().build(),
         )
         .unwrap()
         .with_timeout(Some(Duration::from_millis(self.timeout_ms)))
     }
+}
 
-    pub fn spawn<'a, K, V>(self) -> ServerThreadHandle
+impl SocketServerConfig {
+    pub fn spawn<K, V>(self) -> ServerThreadHandle
     where
         K: 'static + GenericKey,
         V: 'static + GenericValue,
     {
         let container: Box<dyn BuildingBlock<'static, K, V> + 'static> =
-            GenericConfig::from_toml(self.container).unwrap().build();
+            GenericConfig::from_toml(&self.container).unwrap().build();
 
         ServerThreadBuilder::new(self.address, container)
             .with_timeout(Duration::from_millis(self.timeout_ms))

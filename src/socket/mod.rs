@@ -1,16 +1,19 @@
 mod client;
 pub use client::SocketClient;
-pub mod builder;
 mod building_block;
-#[cfg(feature = "config")]
-pub mod config;
 
 mod server;
 pub use server::{ServerLoopEvent, SocketServer};
 
-mod message;
 mod server_thread;
 pub use server_thread::{ServerThreadBuilder, ServerThreadHandle};
+
+pub mod builder;
+
+#[cfg(feature = "config")]
+pub mod config;
+
+mod message;
 
 mod error;
 

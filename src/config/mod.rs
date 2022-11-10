@@ -188,7 +188,9 @@ pub mod configs {
     pub use crate::profiler::config::ProfilerConfig;
     pub use crate::sequential::config::SequentialConfig;
     #[cfg(feature = "socket")]
-    pub use crate::socket::config::SocketClientConfig;
+    pub use crate::socket::config::{
+        SocketClientConfig, SocketServerConfig,
+    };
     #[cfg(feature = "stream")]
     pub use crate::stream::config::StreamConfig;
 }
