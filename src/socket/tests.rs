@@ -6,7 +6,7 @@ use std::time::Duration;
 pub(super) fn make_server_client(
     capacity: usize,
     address: &str,
-) -> (SocketClient, ServerThreadHandle) {
+) -> (SocketClient, ServerThreadHandle<TestKey, TestValue>) {
     let container =
         Sequential::new(Array::<(TestKey, TestValue)>::new(capacity));
     let server =

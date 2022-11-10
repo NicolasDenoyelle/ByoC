@@ -112,7 +112,7 @@ where
     ///
     /// This function returns a [`ServerThreadHandle`] that can be used to send
     /// the termination signal to the server thread and join the latter.
-    pub fn spawn(self) -> std::io::Result<ServerThreadHandle> {
+    pub fn spawn(self) -> std::io::Result<ServerThreadHandle<K, V>> {
         let (handle_tx, rx) = channel();
         let (tx, handle_rx) = channel();
 
@@ -164,6 +164,7 @@ where
             tx: handle_tx,
             server_connected: Cell::new(false),
             thread_handle: handle?,
+            unused: PhantomData,
         })
     }
 }
@@ -175,14 +176,23 @@ where
 /// The handle can be used to check whether the server is connected to a client
 /// and ready to operate. It can also stop the server thread and the
 /// [`SocketServer`](../../struct.SocketServer.html).
-pub struct ServerThreadHandle {
+pub struct ServerThreadHandle<K, V>
+where
+    K: 'static,
+    V: 'static,
+{
     rx: Receiver<()>,
     tx: Sender<()>,
     server_connected: Cell<bool>,
     thread_handle: JoinHandle<()>,
+    unused: PhantomData<(K, V)>,
 }
 
-impl ServerThreadHandle {
+impl<K, V> ServerThreadHandle<K, V>
+where
+    K: 'static,
+    V: 'static,
+{
     /// Stop the [`SocketServer`](../../struct.SocketServer.html) and join the
     /// thread associated with this handle.
     ///
@@ -275,8 +285,11 @@ mod tests {
     fn make_container_server_client(
         capacity: usize,
         address: &str,
-    ) -> (Sequential<Array<(i32, i32)>>, TcpStream, ServerThreadHandle)
-    {
+    ) -> (
+        Sequential<Array<(i32, i32)>>,
+        TcpStream,
+        ServerThreadHandle<i32, i32>,
+    ) {
         let container = Sequential::new(Array::new(capacity));
         let server = ServerThreadBuilder::new(
             String::from(address),

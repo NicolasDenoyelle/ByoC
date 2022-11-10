@@ -110,12 +110,12 @@ where
     }
 }
 
-impl SocketServerConfig {
-    pub fn spawn<K, V>(self) -> ServerThreadHandle
-    where
-        K: 'static + GenericKey,
-        V: 'static + GenericValue,
-    {
+impl<K, V> Build<ServerThreadHandle<K, V>> for SocketServerConfig
+where
+    K: 'static + GenericKey,
+    V: 'static + GenericValue,
+{
+    fn build(self) -> ServerThreadHandle<K, V> {
         let container: Box<dyn BuildingBlock<'static, K, V> + 'static> =
             GenericConfig::from_toml(&self.container).unwrap().build();
 

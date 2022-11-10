@@ -93,7 +93,7 @@ where
     }
 }
 
-impl<K, V, A, C, B> Build<ServerThreadHandle>
+impl<K, V, A, C, B> Build<ServerThreadHandle<K, V>>
     for SocketServerBuilder<K, V, A, C, B>
 where
     A: 'static + ToSocketAddrs + Clone,
@@ -102,7 +102,7 @@ where
     V: 'static + DeserializeOwned + Serialize + Clone,
     C: 'static + BuildingBlock<'static, K, V>,
 {
-    fn build(self) -> ServerThreadHandle {
+    fn build(self) -> ServerThreadHandle<K, V> {
         let builder = ServerThreadBuilder::<K, V, A, C>::new(
             self.address,
             self.container_builder.build(),
