@@ -523,9 +523,7 @@ where
             match chunk.serialize(&value) {
                 Err(e) => return Err(e),
                 Ok(_) => {
-                    if let Err(e) = chunk.write(&mut stream) {
-                        return Err(e);
-                    }
+                    chunk.write(&mut stream)?;
                 }
             }
         }
@@ -596,9 +594,7 @@ where
             };
 
             // Write end chunk at current position.
-            if let Err(e) = last.write(&mut self.stream) {
-                return Err(e);
-            };
+            last.write(&mut self.stream)?;
         }
 
         // Resize stream to one less chunk.

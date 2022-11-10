@@ -1,6 +1,7 @@
+use crate::builder::Build;
 use crate::config::{
-    BuildingBlockConfig, ConfigError, GenericConfig, GenericKey,
-    GenericValue,
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
+    GenericKey, GenericValue,
 };
 use crate::{BuildingBlock, Inclusive};
 use serde::Deserialize;
@@ -13,36 +14,16 @@ pub struct InclusiveConfig {
     back: toml::Value,
 }
 
-impl BuildingBlockConfig for InclusiveConfig {
-    fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
-    where
-        K: 'a + GenericKey,
-        V: 'a + GenericValue,
-    {
-        Box::new(Inclusive::new(
-            GenericConfig::from_toml(self.front).unwrap().build(),
-            GenericConfig::from_toml(self.back).unwrap().build(),
-        ))
-    }
-
-    fn is_ordered(&self) -> bool {
-        GenericConfig::from_toml(self.front.clone())
-            .unwrap()
-            .has_ordered_trait
-            && GenericConfig::from_toml(self.back.clone())
-                .unwrap()
-                .has_ordered_trait
-    }
-
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
+impl ConfigInstance for InclusiveConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: InclusiveConfig = match toml::from_str(&toml) {
             Err(e) => return Err(ConfigError::TomlFormatError(e)),
             Ok(cfg) => cfg,
         };
         match (
-            GenericConfig::from_toml(cfg.front.clone()),
-            GenericConfig::from_toml(cfg.back.clone()),
+            GenericConfig::from_toml(&cfg.front),
+            GenericConfig::from_toml(&cfg.back),
         ) {
             (Ok(_), Ok(_)) => Ok(cfg),
             (Ok(_), Err(e)) => Err(e),
@@ -51,10 +32,36 @@ impl BuildingBlockConfig for InclusiveConfig {
     }
 }
 
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
+    for InclusiveConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
+        Box::new(Inclusive::new(
+            GenericConfig::from_toml(&self.front).unwrap().build(),
+            GenericConfig::from_toml(&self.back).unwrap().build(),
+        ))
+    }
+}
+
+impl ConfigWithTraits for InclusiveConfig {
+    fn is_ordered(&self) -> bool {
+        GenericConfig::from_toml(&self.front)
+            .unwrap()
+            .has_ordered_trait
+            && GenericConfig::from_toml(&self.back)
+                .unwrap()
+                .has_ordered_trait
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::InclusiveConfig;
-    use crate::config::{BuildingBlockConfig, ConfigError};
+    use crate::builder::Build;
+    use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
     #[test]
@@ -73,7 +80,7 @@ capacity={}
         );
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = InclusiveConfig::from_toml(value).unwrap();
+        let config = InclusiveConfig::from_toml(&value).unwrap();
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(container.capacity(), array_capacity * 2);
     }
@@ -92,7 +99,7 @@ toto='titi'
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(
-            InclusiveConfig::from_toml(value),
+            InclusiveConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
     }

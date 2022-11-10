@@ -1,6 +1,7 @@
+use crate::builder::Build;
 use crate::config::{
-    BuildingBlockConfig, ConfigError, GenericConfig, GenericKey,
-    GenericValue,
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
+    GenericKey, GenericValue,
 };
 use crate::{Batch, BuildingBlock};
 use serde::Deserialize;
@@ -21,7 +22,7 @@ use serde::Deserialize;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::config::{Builder, DynBuildingBlock};
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id='BatchConfig'
@@ -33,7 +34,7 @@ use serde::Deserialize;
 /// capacity=10
 /// ");
 /// let container: DynBuildingBlock<u64, u64> =
-///                Builder::from_string(config_str.as_str())
+///                ConfigBuilder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -44,35 +45,15 @@ pub struct BatchConfig {
     container: toml::value::Array,
 }
 
-impl BuildingBlockConfig for BatchConfig {
-    fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
-    where
-        K: 'a + GenericKey,
-        V: 'a + GenericValue,
-    {
-        let c = self
-            .container
-            .into_iter()
-            .map(|cfg| GenericConfig::from_toml(cfg).unwrap().build())
-            .fold(Batch::new(), |acc, batch| acc.append(batch));
-        Box::new(c)
-    }
-
-    fn is_ordered(&self) -> bool {
-        self.container
-            .iter()
-            .map(|cfg| GenericConfig::from_toml(cfg.clone()).unwrap())
-            .all(|cfg| cfg.is_ordered())
-    }
-
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
+impl ConfigInstance for BatchConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: BatchConfig = match toml::from_str(&toml) {
             Err(e) => return Err(ConfigError::TomlFormatError(e)),
             Ok(cfg) => cfg,
         };
         for toml in cfg.container.clone() {
-            match GenericConfig::from_toml(toml) {
+            match GenericConfig::from_toml(&toml) {
                 Ok(_) => {}
                 Err(e) => return Err(e),
             }
@@ -81,10 +62,35 @@ impl BuildingBlockConfig for BatchConfig {
     }
 }
 
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>> for BatchConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
+        let c = self
+            .container
+            .into_iter()
+            .map(|cfg| GenericConfig::from_toml(&cfg).unwrap().build())
+            .fold(Batch::new(), |acc, batch| acc.append(batch));
+        Box::new(c)
+    }
+}
+
+impl ConfigWithTraits for BatchConfig {
+    fn is_ordered(&self) -> bool {
+        self.container
+            .iter()
+            .map(|cfg| GenericConfig::from_toml(cfg).unwrap())
+            .all(|cfg| cfg.is_ordered())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::BatchConfig;
-    use crate::config::{BuildingBlockConfig, ConfigError};
+    use crate::builder::Build;
+    use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
     #[test]
@@ -99,7 +105,7 @@ capacity={}",
         );
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = BatchConfig::from_toml(value).unwrap();
+        let config = BatchConfig::from_toml(&value).unwrap();
         assert_eq!(config.container.len(), 1);
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(container.capacity(), array_capacity);
@@ -114,7 +120,7 @@ capacity='ten'"
             .to_string();
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let out = BatchConfig::from_toml(value);
+        let out = BatchConfig::from_toml(&value);
         assert!(matches!(out, Err(ConfigError::ConfigFormatError(_))));
     }
 }

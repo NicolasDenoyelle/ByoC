@@ -31,7 +31,7 @@ where
     fn contains(&self, key: &K) -> bool {
         self.stream.iter().any(|s| {
             if let Some(s) = s {
-                s.iter().any(|kv| &(*kv).0 == key)
+                s.iter().any(|kv| &(kv).0 == key)
             } else {
                 false
             }
@@ -44,7 +44,7 @@ where
             self.stream.iter().enumerate().find_map(|(i, s)| match s {
                 None => None,
                 Some(s) => s.iter().enumerate().find_map(|(j, kv)| {
-                    if &(*kv).0 == key {
+                    if &(kv).0 == key {
                         Some((i, j))
                     } else {
                         None

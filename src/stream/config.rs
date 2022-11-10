@@ -1,6 +1,10 @@
-use crate::config::{BuildingBlockConfig, ConfigError};
+use crate::builder::Build;
+use crate::config::{
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
+    GenericValue,
+};
 use crate::{BuildingBlock, Stream};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::Deserialize;
 
 use crate::stream::TempFileStreamFactory;
 #[cfg(not(feature = "tempfile"))]
@@ -21,7 +25,7 @@ use crate::stream::VecStreamFactory;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::config::{Builder, DynBuildingBlock};
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id='StreamConfig'
@@ -29,7 +33,7 @@ use crate::stream::VecStreamFactory;
 /// ");
 ///
 /// let container: DynBuildingBlock<u64, u64> =
-///                Builder::from_string(config_str.as_str())
+///                ConfigBuilder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -40,11 +44,8 @@ pub struct StreamConfig {
     capacity: usize,
 }
 
-impl BuildingBlockConfig for StreamConfig {
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError>
-    where
-        Self: Sized,
-    {
+impl ConfigInstance for StreamConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         toml::from_str(&toml).map_err(|e| {
             ConfigError::ConfigFormatError(format!(
@@ -53,18 +54,15 @@ impl BuildingBlockConfig for StreamConfig {
             ))
         })
     }
+}
 
-    fn is_ordered(&self) -> bool {
-        true
-    }
-
-    fn build<
-        'a,
-        K: 'a + DeserializeOwned + Serialize + Ord,
-        V: 'a + DeserializeOwned + Serialize + Ord,
-    >(
-        self,
-    ) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
+    for StreamConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
         #[cfg(feature = "tempfile")]
         {
             Box::new(Stream::new(TempFileStreamFactory {}, self.capacity))
@@ -76,10 +74,17 @@ impl BuildingBlockConfig for StreamConfig {
     }
 }
 
+impl ConfigWithTraits for StreamConfig {
+    fn is_ordered(&self) -> bool {
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::StreamConfig;
-    use crate::config::{BuildingBlockConfig, ConfigError};
+    use crate::builder::Build;
+    use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
     #[test]
@@ -89,7 +94,7 @@ mod tests {
             format!("id='StreamConfig'\ncapacity={}", capacity);
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = StreamConfig::from_toml(value).unwrap();
+        let config = StreamConfig::from_toml(&value).unwrap();
         assert_eq!(config.capacity, capacity);
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(container.capacity(), capacity);
@@ -101,7 +106,7 @@ mod tests {
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(
-            StreamConfig::from_toml(value),
+            StreamConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
     }

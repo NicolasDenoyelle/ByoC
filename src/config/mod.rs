@@ -10,7 +10,8 @@
 //! [`builder`](../builder/index.html) module can be built as follow:
 //! ```
 //! use byoc::BuildingBlock;
-//! use byoc::config::{Builder, DynBuildingBlock};
+//! use byoc::builder::Build;
+//! use byoc::config::{ConfigBuilder, DynBuildingBlock};
 //!
 //! let config_str = format!("
 //! id='SequentialConfig'
@@ -25,7 +26,7 @@
 //! capacity=1000000
 //! ");
 //! let mut container: DynBuildingBlock<u64, u64> =
-//!            Builder::from_string(config_str.as_str()).unwrap().build();
+//!            ConfigBuilder::from_string(config_str.as_str()).unwrap().build();
 //! container.push(vec![(1,2)]);
 //! ```
 //!
@@ -33,10 +34,12 @@
 //! See the [`configs`](configs/index.html) module for the collection of
 //! containers configuration format.
 
+use crate::builder::Build;
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
 use std::cmp::Ord;
 use std::hash::Hash;
+use std::io::Read;
 use toml;
 
 /// Key trait bound for keys of containers built from a configuration.
@@ -76,33 +79,46 @@ pub trait GenericValue:
 }
 impl<T: Ord + Serialize + DeserializeOwned + Clone> GenericValue for T {}
 
-/// Trait used to instantiate a configuration object from a toml configuration
-/// and build a `BuildingBlock` container.
-///
-/// The resulting configuration object obtained with the
-/// [`from_toml()`](trait.BuildingBlockConfig.html#tymethod.from_toml) method
-/// can later be used to create a
-/// [`BuildingBlock`](../trait.BuildingBlock.html) after checking that the
-/// parsed configuration was valid.
-///
-/// Implementers of this trait will need to manually update the
-/// [`Builder`] implementation to be able to build the trait implementer
-/// configuration.
-pub(crate) trait BuildingBlockConfig {
+pub(crate) trait ConfigInstance
+where
+    Self: Sized,
+{
     /// Method to create this configuration trait from a parsed toml
     /// [`toml::Value`].
     ///
     /// Implementers of this method can expect that input `Value` object will
     /// match a [`toml::value::Table`] and contain an `id` field.
-    /// This is enforced by the [`Builder`] when building a
+    /// This is enforced by the [`ConfigBuilder`] when building a
     /// configuration from a toml string.
     ///
     /// This method returns either Self on success to parse input toml into
     /// a valid container or an Error describing what went wrong.
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError>
-    where
-        Self: Sized;
+    fn from_toml(toml_value: &toml::Value) -> Result<Self, ConfigError>;
 
+    fn from_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
+        path: P,
+    ) -> Result<Self, ConfigError> {
+        let mut file = match std::fs::File::open(&path) {
+            Ok(f) => f,
+            Err(e) => return Err(ConfigError::IOError(e)),
+        };
+        let mut s = String::new();
+
+        if let Err(e) = file.read_to_string(&mut s) {
+            return Err(ConfigError::IOError(e));
+        }
+        ConfigInstance::from_string(s.as_str())
+    }
+
+    fn from_string(s: &str) -> Result<Self, ConfigError> {
+        match toml::from_str::<toml::Value>(s) {
+            Ok(value) => ConfigInstance::from_toml(&value),
+            Err(e) => Err(ConfigError::TomlFormatError(e)),
+        }
+    }
+}
+
+pub(crate) trait ConfigWithTraits {
     /// Return whether this configuration represents a
     /// [`BuildingBlock`](../trait.BuildingBlock.html) that implements the
     /// [`Concurrent`](../trait.Concurrent.html) trait.
@@ -116,16 +132,43 @@ pub(crate) trait BuildingBlockConfig {
     fn is_ordered(&self) -> bool {
         false
     }
+}
 
-    /// Build the corresponding configuration object into a container.
-    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
-        self,
-    ) -> Box<dyn BuildingBlock<'a, K, V> + 'a>;
+/// Trait used to instantiate a configuration object from a toml configuration
+/// and build a `BuildingBlock` container.
+///
+/// The resulting configuration object obtained with the
+/// [`from_toml()`](trait.BuildingBlockConfig.html#tymethod.from_toml) method
+/// can later be used to create a
+/// [`BuildingBlock`](../trait.BuildingBlock.html) after checking that the
+/// parsed configuration was valid.
+///
+/// Implementers of this trait will need to manually update the
+/// [`ConfigBuilder`] implementation to be able to build the trait implementer
+/// configuration.
+pub(crate) trait BuildingBlockConfig<'a, K, V>:
+    ConfigInstance
+    + ConfigWithTraits
+    + Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+}
+
+impl<'a, K, V, T> BuildingBlockConfig<'a, K, V> for T
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+    T: ConfigInstance
+        + ConfigWithTraits
+        + Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>,
+{
 }
 
 #[allow(clippy::module_inception)]
 mod builder;
-pub use builder::Builder;
+pub use builder::ConfigBuilder;
 pub(crate) use builder::GenericConfig;
 mod error;
 pub use error::ConfigError;

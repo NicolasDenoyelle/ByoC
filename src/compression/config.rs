@@ -1,12 +1,15 @@
-use crate::config::{BuildingBlockConfig, ConfigError};
+use crate::builder::Build;
+use crate::config::{
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
+    GenericValue,
+};
 #[cfg(feature = "tempfile")]
 use crate::stream::TempFileStreamFactory;
 #[cfg(not(feature = "tempfile"))]
 use crate::stream::VecStream;
 use crate::stream::{FileStream, StreamBase, StreamFactory};
 use crate::{BuildingBlock, Compressed};
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::cmp::Ord;
+use serde::Deserialize;
 
 /// Configuration format for [`Compressed`](../struct.Compressed.html)
 /// containers.
@@ -24,14 +27,14 @@ use std::cmp::Ord;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::config::{Builder, DynBuildingBlock};
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id = 'CompressedConfig'
 /// capacity = 10
 /// ");
 /// let container: DynBuildingBlock<u64, u64> =
-///                Builder::from_string(config_str.as_str())
+///                ConfigBuilder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -43,8 +46,8 @@ pub struct CompressedConfig {
     capacity: usize,
 }
 
-impl BuildingBlockConfig for CompressedConfig {
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
+impl ConfigInstance for CompressedConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         toml::from_str(&toml).map_err(|e| {
             ConfigError::ConfigFormatError(format!(
@@ -53,16 +56,15 @@ impl BuildingBlockConfig for CompressedConfig {
             ))
         })
     }
+}
 
-    fn is_ordered(&self) -> bool {
-        true
-    }
-
-    fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
-    where
-        K: 'a + Serialize + DeserializeOwned + Ord,
-        V: 'a + Serialize + DeserializeOwned + Ord,
-    {
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
+    for CompressedConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
         let s: Box<dyn StreamBase> = match self.filename {
             Some(s) => Box::new(FileStream::from(&s)),
             None => {
@@ -81,10 +83,17 @@ impl BuildingBlockConfig for CompressedConfig {
     }
 }
 
+impl ConfigWithTraits for CompressedConfig {
+    fn is_ordered(&self) -> bool {
+        true
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::CompressedConfig;
-    use crate::config::{BuildingBlockConfig, ConfigError};
+    use crate::builder::Build;
+    use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
     #[test]
@@ -94,7 +103,7 @@ mod tests {
             format!("id='CompressedConfig'\ncapacity={}", capacity);
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = CompressedConfig::from_toml(value).unwrap();
+        let config = CompressedConfig::from_toml(&value).unwrap();
         assert_eq!(config.capacity, capacity);
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(container.capacity(), capacity);
@@ -107,7 +116,7 @@ mod tests {
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(
-            CompressedConfig::from_toml(value),
+            CompressedConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
     }

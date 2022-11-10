@@ -1,4 +1,8 @@
-use crate::config::{BuildingBlockConfig, ConfigError};
+use crate::builder::Build;
+use crate::config::{
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
+    GenericValue,
+};
 use crate::{BTree, BuildingBlock};
 use serde::Deserialize;
 
@@ -16,14 +20,14 @@ use serde::Deserialize;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::config::{Builder, DynBuildingBlock};
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id = 'BTreeConfig'
 /// capacity = 10
 /// ");
 /// let array: DynBuildingBlock<u64, u64> =
-///            Builder::from_string(config_str.as_str())
+///            ConfigBuilder::from_string(config_str.as_str())
 ///            .unwrap()
 ///            .build();
 /// ```
@@ -34,8 +38,8 @@ pub struct BTreeConfig {
     capacity: usize,
 }
 
-impl BuildingBlockConfig for BTreeConfig {
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
+impl ConfigInstance for BTreeConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         toml::from_str(&toml).map_err(|e| {
             ConfigError::ConfigFormatError(format!(
@@ -44,20 +48,25 @@ impl BuildingBlockConfig for BTreeConfig {
             ))
         })
     }
+}
 
-    fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
-    where
-        K: 'a + Copy + Ord,
-        V: 'a + Ord,
-    {
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>> for BTreeConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
         Box::new(BTree::new(self.capacity))
     }
 }
 
+impl ConfigWithTraits for BTreeConfig {}
+
 #[cfg(test)]
 mod tests {
     use super::BTreeConfig;
-    use crate::config::{BuildingBlockConfig, ConfigError};
+    use crate::builder::Build;
+    use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
     #[test]
@@ -67,7 +76,7 @@ mod tests {
             format!("id='BTreeConfig'\ncapacity={}", capacity);
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = BTreeConfig::from_toml(value).unwrap();
+        let config = BTreeConfig::from_toml(&value).unwrap();
         assert_eq!(config.capacity, capacity);
         let btree: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(btree.capacity(), capacity);
@@ -79,7 +88,7 @@ mod tests {
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(
-            BTreeConfig::from_toml(value),
+            BTreeConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
     }

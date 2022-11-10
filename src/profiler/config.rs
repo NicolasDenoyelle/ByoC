@@ -1,6 +1,7 @@
+use crate::builder::Build;
 use crate::config::{
-    BuildingBlockConfig, ConfigError, GenericConfig, GenericKey,
-    GenericValue,
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
+    GenericKey, GenericValue,
 };
 use crate::utils::profiler::ProfilerOutputKind;
 use crate::{BuildingBlock, Profiler};
@@ -21,7 +22,7 @@ use serde::Deserialize;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::config::{Builder, DynBuildingBlock};
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id='ProfilerConfig'
@@ -37,7 +38,7 @@ use serde::Deserialize;
 /// // output.filename='/dev/stdout'
 ///
 /// let container: DynBuildingBlock<u64, u64> =
-///                Builder::from_string(config_str.as_str())
+///                ConfigBuilder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -50,42 +51,48 @@ pub struct ProfilerConfig {
     container: toml::Value,
 }
 
-impl BuildingBlockConfig for ProfilerConfig {
-    fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
-    where
-        K: 'a + GenericKey,
-        V: 'a + GenericValue,
-    {
-        Box::new(Profiler::new(
-            &self.name,
-            self.output,
-            GenericConfig::from_toml(self.container).unwrap().build(),
-        ))
-    }
-
-    fn is_ordered(&self) -> bool {
-        GenericConfig::from_toml(self.container.clone())
-            .unwrap()
-            .has_ordered_trait
-    }
-
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
+impl ConfigInstance for ProfilerConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: ProfilerConfig = match toml::from_str(&toml) {
             Err(e) => return Err(ConfigError::TomlFormatError(e)),
             Ok(cfg) => cfg,
         };
-        match GenericConfig::from_toml(cfg.container.clone()) {
+        match GenericConfig::from_toml(&cfg.container) {
             Ok(_) => Ok(cfg),
             Err(e) => Err(e),
         }
     }
 }
 
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
+    for ProfilerConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
+        Box::new(Profiler::new(
+            &self.name,
+            self.output,
+            GenericConfig::from_toml(&self.container).unwrap().build(),
+        ))
+    }
+}
+
+impl ConfigWithTraits for ProfilerConfig {
+    fn is_ordered(&self) -> bool {
+        GenericConfig::from_toml(&self.container)
+            .unwrap()
+            .has_ordered_trait
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::ProfilerConfig;
-    use crate::config::{BuildingBlockConfig, ConfigError};
+    use crate::builder::Build;
+    use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
     #[test]
@@ -104,7 +111,7 @@ capacity={}
         );
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = ProfilerConfig::from_toml(value).unwrap();
+        let config = ProfilerConfig::from_toml(&value).unwrap();
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(container.capacity(), array_capacity);
     }
@@ -123,7 +130,7 @@ capacity=10
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(
-            ProfilerConfig::from_toml(value),
+            ProfilerConfig::from_toml(&value),
             Err(ConfigError::TomlFormatError(_))
         ));
     }

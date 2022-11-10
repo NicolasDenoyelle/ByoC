@@ -22,7 +22,8 @@ use std::cmp::Ord;
 /// [`Ordered`](../policy/trait.Ordered.html) trait or/and the
 /// [`Concurrent`](../trait.Concurrent.html) trait.
 /// ```
-/// use byoc::config::{Builder, DynBuildingBlock, DynConcurrent, DynOrdered};
+/// use byoc::builder::Build;
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock, DynConcurrent, DynOrdered};
 ///
 /// // Write a `Concurrent` and `Ordered` container configuration
 /// // and make a `Builder` object from it.
@@ -33,7 +34,7 @@ use std::cmp::Ord;
 /// capacity=10
 /// ";
 /// // The configuration is valid so we can `unwrap()`.
-/// let builder = Builder::from_string(config).unwrap();
+/// let builder = ConfigBuilder::from_string(config).unwrap();
 ///
 /// // This configuration can be made into an `Ordered` `BuildingBlock`.
 /// let container: DynOrdered<DynBuildingBlock<u64,u64>> =
@@ -55,7 +56,8 @@ use std::cmp::Ord;
 ///
 /// Not all the configurations can support these traits.
 /// ```
-/// use byoc::config::{Builder,
+/// use byoc::builder::Build;
+/// use byoc::config::{ConfigBuilder,
 ///                    ConfigError,
 ///                    DynBuildingBlock,
 ///                    DynConcurrent,
@@ -68,7 +70,7 @@ use std::cmp::Ord;
 /// capacity=10
 /// ";
 /// // The configuration is valid so we can `unwrap()`.
-/// let builder = Builder::from_string(config).unwrap();
+/// let builder = ConfigBuilder::from_string(config).unwrap();
 ///
 /// // This configuration cannot be made into an `Ordered` `BuildingBlock`.
 /// let result: Result<DynOrdered<DynBuildingBlock<u64,u64>>, ConfigError> =
@@ -186,11 +188,12 @@ where
 /// ## Examples
 ///
 /// ```
-/// use byoc::config::{Builder, DynBuildingBlock};
+/// use byoc::builder::Build;
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// // Build a container from a configuration.
 /// let container: DynBuildingBlock<u64, u64> =
-///                Builder::from_string("
+///                ConfigBuilder::from_string("
 /// id='SequentialConfig'
 /// [container]
 /// id='ArrayConfig'
@@ -312,11 +315,12 @@ impl<C: Concurrent> Concurrent for DynOrdered<C> {
 /// ## Examples
 ///
 /// ```
-/// use byoc::config::{Builder, DynBuildingBlock};
+/// use byoc::builder::Build;
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// // Build a container from a configuration.
 /// let container: DynBuildingBlock<u64, u64> =
-///                Builder::from_string("
+///                ConfigBuilder::from_string("
 /// id='SequentialConfig'
 /// [container]
 /// id='ArrayConfig'

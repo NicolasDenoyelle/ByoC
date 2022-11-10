@@ -1,6 +1,7 @@
+use crate::builder::Build;
 use crate::config::{
-    BuildingBlockConfig, ConfigError, GenericConfig, GenericKey,
-    GenericValue,
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
+    GenericKey, GenericValue,
 };
 use crate::{BuildingBlock, Sequential};
 use serde::Deserialize;
@@ -18,7 +19,7 @@ use serde::Deserialize;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::config::{Builder, DynBuildingBlock};
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id='SequentialConfig'
@@ -28,7 +29,7 @@ use serde::Deserialize;
 /// ");
 ///
 /// let container: DynBuildingBlock<u64, u64> =
-///                Builder::from_string(config_str.as_str())
+///                ConfigBuilder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -39,44 +40,50 @@ pub struct SequentialConfig {
     container: toml::Value,
 }
 
-impl BuildingBlockConfig for SequentialConfig {
-    fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
-    where
-        K: 'a + GenericKey,
-        V: 'a + GenericValue,
-    {
-        Box::new(Sequential::new(
-            GenericConfig::from_toml(self.container).unwrap().build(),
-        ))
-    }
-
-    fn is_concurrent(&self) -> bool {
-        true
-    }
-
-    fn is_ordered(&self) -> bool {
-        GenericConfig::from_toml(self.container.clone())
-            .unwrap()
-            .has_ordered_trait
-    }
-
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
+impl ConfigInstance for SequentialConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: SequentialConfig = match toml::from_str(&toml) {
             Err(e) => return Err(ConfigError::TomlFormatError(e)),
             Ok(cfg) => cfg,
         };
-        match GenericConfig::from_toml(cfg.container.clone()) {
+        match GenericConfig::from_toml(&cfg.container) {
             Ok(_) => Ok(cfg),
             Err(e) => Err(e),
         }
     }
 }
 
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
+    for SequentialConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
+        Box::new(Sequential::new(
+            GenericConfig::from_toml(&self.container).unwrap().build(),
+        ))
+    }
+}
+
+impl ConfigWithTraits for SequentialConfig {
+    fn is_concurrent(&self) -> bool {
+        true
+    }
+
+    fn is_ordered(&self) -> bool {
+        GenericConfig::from_toml(&self.container)
+            .unwrap()
+            .has_ordered_trait
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::SequentialConfig;
-    use crate::config::{BuildingBlockConfig, ConfigError};
+    use crate::builder::Build;
+    use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
     #[test]
@@ -92,7 +99,7 @@ capacity={}
         );
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = SequentialConfig::from_toml(value).unwrap();
+        let config = SequentialConfig::from_toml(&value).unwrap();
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(container.capacity(), array_capacity);
     }
@@ -108,7 +115,7 @@ capacity='ten'
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(
-            SequentialConfig::from_toml(value),
+            SequentialConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
     }

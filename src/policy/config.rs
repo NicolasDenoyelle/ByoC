@@ -1,6 +1,7 @@
+use crate::builder::Build;
 use crate::config::{
-    BuildingBlockConfig, ConfigError, DynOrdered, GenericConfig,
-    GenericKey, GenericValue,
+    ConfigError, ConfigInstance, ConfigWithTraits, DynOrdered,
+    GenericConfig, GenericKey, GenericValue,
 };
 use crate::policy::{timestamp::Counter, Fifo, Lrfu, Lru};
 use crate::{BuildingBlock, Policy};
@@ -41,7 +42,7 @@ pub enum PolicyKind {
 /// ```no_run
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::config::{Builder, DynBuildingBlock};
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id='PolicyConfig'
@@ -52,7 +53,7 @@ pub enum PolicyKind {
 /// ");
 ///
 /// let container: DynBuildingBlock<u64, u64> =
-///                Builder::from_string(config_str.as_str())
+///                ConfigBuilder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -64,16 +65,24 @@ pub struct PolicyConfig {
     container: toml::Value,
 }
 
-impl BuildingBlockConfig for PolicyConfig {
-    fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
-    where
-        K: 'a + GenericKey,
-        V: 'a + GenericValue,
-    {
+impl ConfigInstance for PolicyConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
+        let toml = toml::to_string(&value).unwrap();
+        toml::from_str(&toml).map_err(ConfigError::TomlFormatError)
+    }
+}
+
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
+    for PolicyConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
         match self.policy {
             PolicyKind::Lrfu(exponent) => Box::new(Policy::new(
                 DynOrdered::new(
-                    GenericConfig::from_toml(self.container)
+                    GenericConfig::from_toml(&self.container)
                         .unwrap()
                         .build(),
                     false,
@@ -82,7 +91,7 @@ impl BuildingBlockConfig for PolicyConfig {
             )),
             PolicyKind::Lru => Box::new(Policy::new(
                 DynOrdered::new(
-                    GenericConfig::from_toml(self.container)
+                    GenericConfig::from_toml(&self.container)
                         .unwrap()
                         .build(),
                     false,
@@ -91,7 +100,7 @@ impl BuildingBlockConfig for PolicyConfig {
             )),
             PolicyKind::Fifo => Box::new(Policy::new(
                 DynOrdered::new(
-                    GenericConfig::from_toml(self.container)
+                    GenericConfig::from_toml(&self.container)
                         .unwrap()
                         .build(),
                     false,
@@ -99,21 +108,19 @@ impl BuildingBlockConfig for PolicyConfig {
                 Fifo::new(),
             )),
             PolicyKind::None => {
-                GenericConfig::from_toml(self.container).unwrap().build()
+                GenericConfig::from_toml(&self.container).unwrap().build()
             }
         }
     }
-
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
-        let toml = toml::to_string(&value).unwrap();
-        toml::from_str(&toml).map_err(ConfigError::TomlFormatError)
-    }
 }
+
+impl ConfigWithTraits for PolicyConfig {}
 
 #[cfg(test)]
 mod tests {
     use super::PolicyConfig;
-    use crate::config::{BuildingBlockConfig, ConfigError};
+    use crate::builder::Build;
+    use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
     use toml;
 
@@ -133,7 +140,7 @@ capacity={}
         );
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = PolicyConfig::from_toml(value).unwrap();
+        let config = PolicyConfig::from_toml(&value).unwrap();
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(container.capacity(), array_capacity);
     }
@@ -152,7 +159,7 @@ capacity=10
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(
-            PolicyConfig::from_toml(value),
+            PolicyConfig::from_toml(&value),
             Err(ConfigError::TomlFormatError(_))
         ));
     }

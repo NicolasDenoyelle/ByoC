@@ -1,6 +1,7 @@
+use crate::builder::Build;
 use crate::config::{
-    BuildingBlockConfig, ConfigError, GenericConfig, GenericKey,
-    GenericValue,
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
+    GenericKey, GenericValue,
 };
 use crate::{BuildingBlock, Exclusive};
 use serde::Deserialize;
@@ -23,7 +24,7 @@ use serde::Deserialize;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::config::{Builder, DynBuildingBlock};
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// let config_str = format!("
 /// id='ExclusiveConfig'
@@ -35,7 +36,7 @@ use serde::Deserialize;
 /// capacity=10
 /// ");
 /// let container: DynBuildingBlock<u64, u64> =
-///                Builder::from_string(config_str.as_str())
+///                ConfigBuilder::from_string(config_str.as_str())
 ///                .unwrap()
 ///                .build();
 /// ```
@@ -47,36 +48,16 @@ pub struct ExclusiveConfig {
     back: toml::Value,
 }
 
-impl BuildingBlockConfig for ExclusiveConfig {
-    fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
-    where
-        K: 'a + GenericKey,
-        V: 'a + GenericValue,
-    {
-        Box::new(Exclusive::new(
-            GenericConfig::from_toml(self.front).unwrap().build(),
-            GenericConfig::from_toml(self.back).unwrap().build(),
-        ))
-    }
-
-    fn is_ordered(&self) -> bool {
-        GenericConfig::from_toml(self.front.clone())
-            .unwrap()
-            .has_ordered_trait
-            && GenericConfig::from_toml(self.back.clone())
-                .unwrap()
-                .has_ordered_trait
-    }
-
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
+impl ConfigInstance for ExclusiveConfig {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: ExclusiveConfig = match toml::from_str(&toml) {
             Err(e) => return Err(ConfigError::TomlFormatError(e)),
             Ok(cfg) => cfg,
         };
         match (
-            GenericConfig::from_toml(cfg.front.clone()),
-            GenericConfig::from_toml(cfg.back.clone()),
+            GenericConfig::from_toml(&cfg.front),
+            GenericConfig::from_toml(&cfg.back),
         ) {
             (Ok(_), Ok(_)) => Ok(cfg),
             (Ok(_), Err(e)) => Err(e),
@@ -85,10 +66,36 @@ impl BuildingBlockConfig for ExclusiveConfig {
     }
 }
 
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
+    for ExclusiveConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
+        Box::new(Exclusive::new(
+            GenericConfig::from_toml(&self.front).unwrap().build(),
+            GenericConfig::from_toml(&self.back).unwrap().build(),
+        ))
+    }
+}
+
+impl ConfigWithTraits for ExclusiveConfig {
+    fn is_ordered(&self) -> bool {
+        GenericConfig::from_toml(&self.front)
+            .unwrap()
+            .has_ordered_trait
+            && GenericConfig::from_toml(&self.back)
+                .unwrap()
+                .has_ordered_trait
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::ExclusiveConfig;
-    use crate::config::{BuildingBlockConfig, ConfigError};
+    use crate::builder::Build;
+    use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
     #[test]
@@ -107,7 +114,7 @@ capacity={}
         );
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = ExclusiveConfig::from_toml(value).unwrap();
+        let config = ExclusiveConfig::from_toml(&value).unwrap();
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(container.capacity(), array_capacity * 2);
     }
@@ -126,7 +133,7 @@ toto='titi'
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(
-            ExclusiveConfig::from_toml(value),
+            ExclusiveConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
     }

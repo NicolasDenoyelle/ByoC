@@ -1,8 +1,12 @@
-use super::{BuildingBlockConfig, ConfigError, GenericKey, GenericValue};
+use super::{
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
+    GenericValue,
+};
 use crate::array::config::ArrayConfig;
 use crate::associative::config::AssociativeConfig;
 use crate::batch::config::BatchConfig;
 use crate::btree::config::BTreeConfig;
+use crate::builder::Build;
 #[cfg(feature = "compression")]
 use crate::compression::config::CompressedConfig;
 use crate::config::{DynBuildingBlock, DynOrdered};
@@ -16,7 +20,6 @@ use crate::sequential::config::SequentialConfig;
 #[cfg(feature = "stream")]
 use crate::stream::config::StreamConfig;
 use crate::{BuildingBlock, Policy};
-use std::io::Read;
 use toml;
 
 /// Configuration ids supported by [`GenericConfig`].
@@ -43,17 +46,17 @@ pub(crate) struct GenericConfig {
 
 impl GenericConfig {
     /// Attempt to build a specific building block config from a toml object.
-    fn into_config<C: BuildingBlockConfig>(
-        v: toml::Value,
+    fn into_config<C: ConfigInstance>(
+        v: &toml::Value,
     ) -> Result<C, ConfigError> {
         C::from_toml(v)
     }
 
-    fn from_config<C: BuildingBlockConfig>(
+    fn from_config<C: ConfigWithTraits + ConfigInstance>(
         v: toml::Value,
     ) -> Result<GenericConfig, ConfigError> {
         let toml_value = v.clone();
-        C::from_toml(v).map(move |cfg| GenericConfig {
+        C::from_toml(&v).map(move |cfg| GenericConfig {
             has_concurrent_trait: cfg.is_concurrent(),
             has_ordered_trait: cfg.is_ordered(),
             toml_config: toml_value,
@@ -61,16 +64,16 @@ impl GenericConfig {
     }
 }
 
-impl BuildingBlockConfig for GenericConfig {
+impl ConfigInstance for GenericConfig {
     /// Build a container from a toml value object representing a configuration.
     /// This function checks that:
     /// * The toml configuration is a toml `Table`,
     /// * The toml configuration contains an "id" field
     /// * The value of the "id" field is a supported value.
     /// * The target configuration identified by "id" is valid.
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         // Check toml value is a table.
-        let table = match value {
+        let table = match &value {
             toml::Value::Table(t) => t,
             _ => {
                 return Err(ConfigError::ConfigFormatError(String::from(
@@ -130,15 +133,18 @@ Possible values are: {:?}.",
             ))),
         }
     }
+}
 
+impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
+    for GenericConfig
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
     /// Build the generic config object into an actual container.
     /// At this point we can assume that the checks from `from_toml()`
     /// method have passed. So we can build the configuration.
-    fn build<'a, K, V>(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a>
-    where
-        K: 'a + GenericKey,
-        V: 'a + GenericValue,
-    {
+    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
         let id = self
             .toml_config
             .as_table()
@@ -150,54 +156,54 @@ Possible values are: {:?}.",
 
         match id {
             "ArrayConfig" => {
-                Self::into_config::<ArrayConfig>(self.toml_config)
+                Self::into_config::<ArrayConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }
             "AssociativeConfig" => {
-                Self::into_config::<AssociativeConfig>(self.toml_config)
+                Self::into_config::<AssociativeConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }
             "BatchConfig" => {
-                Self::into_config::<BatchConfig>(self.toml_config)
+                Self::into_config::<BatchConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }
             "BTreeConfig" => {
-                Self::into_config::<BTreeConfig>(self.toml_config)
+                Self::into_config::<BTreeConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }
             #[cfg(feature = "compression")]
             "CompressedConfig" => {
-                Self::into_config::<CompressedConfig>(self.toml_config)
+                Self::into_config::<CompressedConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }
             "ExclusiveConfig" => {
-                Self::into_config::<ExclusiveConfig>(self.toml_config)
+                Self::into_config::<ExclusiveConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }
             // "InclusiveConfig" => {
-            //     Self::into_config::<InclusiveConfig>(self.toml_config)
+            //     Self::into_config::<InclusiveConfig>(&self.toml_config)
             //         .unwrap()
             //         .build()
             // }
             "ProfilerConfig" => {
-                Self::into_config::<ProfilerConfig>(self.toml_config)
+                Self::into_config::<ProfilerConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }
             "SequentialConfig" => {
-                Self::into_config::<SequentialConfig>(self.toml_config)
+                Self::into_config::<SequentialConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }
             #[cfg(feature = "stream")]
             "StreamConfig" => {
-                Self::into_config::<StreamConfig>(self.toml_config)
+                Self::into_config::<StreamConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }
@@ -209,6 +215,8 @@ Possible values are: {:?}.",
         }
     }
 }
+
+impl ConfigWithTraits for GenericConfig {}
 
 /// `BuildingBlock` builder from a generic configuration.
 ///
@@ -225,7 +233,7 @@ Possible values are: {:?}.",
 ///
 /// If one of these condition is not satisfied,
 /// a [`ConfigError::ConfigFormatError`] will be returned instead of a valid
-/// [`Builder`] when instantiating the [`Builder`].
+/// [`ConfigBuilder`] when instantiating the [`ConfigBuilder`].
 /// Finally, the container is attempted to be built against the identified
 /// configuration to validate its configuration. At this step, if the
 /// configuration is found to be invalid, usually, a
@@ -239,7 +247,7 @@ Possible values are: {:?}.",
 ///
 /// ## `BuildingBlock` Trait
 ///
-/// Because the configuration cannot be known at compile time, [`Builder`]
+/// Because the configuration cannot be known at compile time, [`ConfigBuilder`]
 /// objects (with a valid configuration) are
 /// built into a [`DynBuildingBlock`] which is merely an alias for
 /// [`std::boxed::Box`]`<dyn` [`BuildingBlock`](../trait.BuildingBlock.html)`>`.
@@ -258,7 +266,7 @@ Possible values are: {:?}.",
 /// containers, it is safe to copy the dynamic
 /// [`BuildingBlock`](../trait.BuildingBlock.html) pointer in a reference
 /// counting cell to be used concurrently. For these containers, the
-/// [`DynBuildingBlock`] struct obtained from a [`Builder`] provides a method
+/// [`DynBuildingBlock`] struct obtained from a [`ConfigBuilder`] provides a method
 /// [`concurrent()`](struct.DynBuildingBlock.html#method.concurrent) to
 /// return a [`DynConcurrent`](struct.DynConcurrent.html)`<`
 /// [`DynBuildingBlock`]`>` that can be safely cloned and used concurrently.
@@ -284,8 +292,8 @@ Possible values are: {:?}.",
 /// into a [`DynOrdered`]`<`[`DynBuildingBlock`]`>` with the
 /// [`ordered()`](struct.DynBuildingBlock.html#method.ordered) method
 /// of the [`DynBuildingBlock`] object. The container configuration is checked
-/// when instantiating a [`Builder`] object. This is at this moment that the
-/// [`Builder`] object is marked as being able to bear the
+/// when instantiating a [`ConfigBuilder`] object. This is at this moment that the
+/// [`ConfigBuilder`] object is marked as being able to bear the
 /// [`Ordered`](../policy/trait.Ordered.html) trait. Containers are recursively
 /// checked from the top container to see if they carry the trait. For instance,
 /// a [`ArrayConfig`](configs/struct.ArrayConfig.html) can be built into a
@@ -325,42 +333,28 @@ Possible values are: {:?}.",
 /// See [module documentation](index.html) and [`DynBuildingBlock`]
 /// documentation.
 #[derive(Clone)]
-pub struct Builder {
+pub struct ConfigBuilder {
     config: GenericConfig,
     policy: PolicyKind,
 }
 
-impl Builder {
-    /// Instantiate a config builder from configuration string describing the
-    /// architecture of the cache to build.
+impl ConfigBuilder {
     pub fn from_string(s: &str) -> Result<Self, ConfigError> {
-        match toml::from_str::<toml::Value>(s) {
-            Ok(value) => Self::from_toml(value),
-            Err(e) => Err(ConfigError::TomlFormatError(e)),
-        }
+        ConfigInstance::from_string(s)
     }
 
-    /// Instantiate a config builder from a configuration file describing the
-    /// architecture of the cache to build.
     pub fn from_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
         path: P,
     ) -> Result<Self, ConfigError> {
-        let mut file = match std::fs::File::open(&path) {
-            Ok(f) => f,
-            Err(e) => return Err(ConfigError::IOError(e)),
-        };
-        let mut s = String::from("");
-
-        if let Err(e) = file.read_to_string(&mut s) {
-            return Err(ConfigError::IOError(e));
-        }
-        Self::from_string(s.as_str())
+        ConfigInstance::from_file(path)
     }
+}
 
+impl ConfigInstance for ConfigBuilder {
     /// Instantiate a config builder from a toml configuration describing the
     /// architecture of the cache to build.
-    fn from_toml(value: toml::Value) -> Result<Self, ConfigError> {
-        let table = match &value {
+    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
+        let table = match value {
             toml::Value::Table(t) => t,
             _ => {
                 return Err(ConfigError::ConfigFormatError(String::from(
@@ -399,21 +393,22 @@ impl Builder {
         // Make sure policy is not used on a container that does not
         // support ordered trait.
         match (policy, config.has_ordered_trait) {
-	    (PolicyKind::None, _) => Ok(Builder { config, policy }),
+	    (PolicyKind::None, _) => Ok(ConfigBuilder { config, policy }),
 	    (_, true) => {
 		config.has_ordered_trait=false;
-		Ok(Builder { config, policy })
+		Ok(ConfigBuilder { config, policy })
 	    },
 	    _ => Err(ConfigError::UnsupportedTraitError(String::from("Cannot use a policy with a top level container that does not support dynamically built Ordered trait.")))
 	}
     }
+}
 
-    /// Build this configuration builder into a container.
-    pub fn build<'a, K, V>(self) -> DynBuildingBlock<'a, K, V>
-    where
-        K: 'a + GenericKey,
-        V: 'a + GenericValue,
-    {
+impl<'a, K, V> Build<DynBuildingBlock<'a, K, V>> for ConfigBuilder
+where
+    K: 'a + GenericKey,
+    V: 'a + GenericValue,
+{
+    fn build(self) -> DynBuildingBlock<'a, K, V> {
         let has_concurrent_trait = self.config.has_concurrent_trait;
         let has_ordered_trait = self.config.has_ordered_trait;
         let build = match self.policy {
@@ -441,8 +436,10 @@ impl Builder {
 
 #[cfg(test)]
 mod tests {
+    use crate::builder::Build;
     use crate::config::{
-        Builder, ConfigError, DynBuildingBlock, DynConcurrent, DynOrdered,
+        ConfigBuilder, ConfigError, DynBuildingBlock, DynConcurrent,
+        DynOrdered,
     };
     use crate::tests::{test_concurrent, test_ordered};
     use crate::BuildingBlock;
@@ -453,7 +450,9 @@ mod tests {
         let config_str =
             format!("id=\"ArrayConfig\"\ncapacity={}", capacity);
         let array: DynBuildingBlock<u64, u64> =
-            Builder::from_string(config_str.as_str()).unwrap().build();
+            ConfigBuilder::from_string(config_str.as_str())
+                .unwrap()
+                .build();
         assert_eq!(array.capacity(), capacity);
     }
 
@@ -461,7 +460,7 @@ mod tests {
     fn test_invalid_id_config() {
         let config_str = "id=\"Array\"\ncapacity=10".to_string();
         assert!(matches!(
-            Builder::from_string(config_str.as_str()),
+            ConfigBuilder::from_string(config_str.as_str()),
             Err(ConfigError::ConfigFormatError(_))
         ));
     }
@@ -478,7 +477,9 @@ policy.kind='Fifo'
             capacity
         );
         let array: DynBuildingBlock<u16, u32> =
-            Builder::from_string(config_str.as_str()).unwrap().build();
+            ConfigBuilder::from_string(config_str.as_str())
+                .unwrap()
+                .build();
         assert_eq!(array.capacity(), capacity);
         assert!(matches!(
             array.ordered(),
@@ -499,7 +500,9 @@ policy.Lrfu.exponent=0.5
             capacity
         );
         let array: DynBuildingBlock<u64, u64> =
-            Builder::from_string(config_str.as_str()).unwrap().build();
+            ConfigBuilder::from_string(config_str.as_str())
+                .unwrap()
+                .build();
         assert_eq!(array.capacity(), capacity);
         assert!(matches!(
             array.ordered(),
@@ -518,7 +521,7 @@ policy.kind='Fifo'
 ",
             capacity
         );
-        let builder = Builder::from_string(config_str.as_str());
+        let builder = ConfigBuilder::from_string(config_str.as_str());
         assert!(matches!(
             builder,
             Err(ConfigError::UnsupportedTraitError(_))
@@ -535,7 +538,8 @@ capacity={}
 ",
             capacity
         );
-        let builder = Builder::from_string(config_str.as_str()).unwrap();
+        let builder =
+            ConfigBuilder::from_string(config_str.as_str()).unwrap();
         let container: DynOrdered<DynBuildingBlock<u16, u32>> =
             builder.build().ordered().unwrap();
         test_ordered(container);
@@ -552,7 +556,9 @@ capacity={}
             capacity
         );
         let container: DynBuildingBlock<u64, u64> =
-            Builder::from_string(config_str.as_str()).unwrap().build();
+            ConfigBuilder::from_string(config_str.as_str())
+                .unwrap()
+                .build();
         assert!(matches!(
             container.concurrent(),
             Err(ConfigError::UnsupportedTraitError(_))
@@ -573,7 +579,7 @@ capacity={}
         );
 
         let container: DynConcurrent<DynBuildingBlock<u16, u32>> =
-            Builder::from_string(config_str.as_str())
+            ConfigBuilder::from_string(config_str.as_str())
                 .unwrap()
                 .build()
                 .concurrent()
