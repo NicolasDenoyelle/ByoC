@@ -1,6 +1,9 @@
 use super::message::{Message, Request, Response};
 use serde::{de::DeserializeOwned, Serialize};
-use std::net::{TcpStream, ToSocketAddrs};
+use std::{
+    marker::PhantomData,
+    net::{TcpStream, ToSocketAddrs},
+};
 
 /// Make send a request to the connected [`SocketServer`] and return
 /// the associated response.
@@ -27,20 +30,32 @@ where
 }
 
 /// `BuildingBlock` running in a remote `SocketServer` and connected through a
-/// TcpStream.
+/// [`std::net::TcpStream`].
 ///
 /// [`SocketClient`] is a local facade to a remote
 /// [`BuildingBlock`](traits/trait.BuildingBlock.html) with
 /// [`Get`](traits/trait.Get.html) and [`GetMut`](traits/trait.GetMut.html)
 /// traits.
-pub struct SocketClient {
+pub struct SocketClient<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
     pub(super) stream: TcpStream,
+    unused: PhantomData<(K, V)>,
 }
 
-impl SocketClient {
+impl<K, V> SocketClient<K, V>
+where
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
     /// Build a [`SocketClient`] listening on `address`.
     pub fn new<A: ToSocketAddrs>(address: A) -> std::io::Result<Self> {
         let stream = TcpStream::connect(address)?;
-        Ok(SocketClient { stream })
+        Ok(SocketClient {
+            stream,
+            unused: PhantomData,
+        })
     }
 }

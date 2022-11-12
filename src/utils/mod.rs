@@ -27,7 +27,6 @@ pub mod get {
 #[cfg(feature = "socket")]
 /// Utils to spawn a thread running a `SocketServer`.
 pub mod socket {
-    pub use crate::socket::ServerLoopEvent;
     pub use crate::socket::{ServerThreadBuilder, ServerThreadHandle};
 }
 
@@ -37,18 +36,21 @@ pub mod socket {
 /// [`building blocks`](../trait.BuildingBlock.html#implementors)
 /// themselves when calling the
 /// [`pop()`](../trait.BuildingBlock.html#tymethod.pop) method.
-/// The when sthe container implements the [`Ordered`] trait, the pop
+/// The when sthe container implements the
+/// [`Ordered`](trait.Ordered.html) trait, the pop
 /// method will try to take out the elements with the highest value.
 ///
 /// The [`Policy`](../struct.Policy.html) container is wrapper around
 /// such a container (although the container does not need to carry the
-/// [`Ordered`] trait bound) that will wrap values into a [`Reference`]
+/// [`Ordered`](trait.Ordered.html) trait bound) that will wrap values into
+/// a [`Reference`](trait.Reference.html)
 /// cell ordering values in the container with a specific policy.
 ///
 /// This is a generic, but potentially inefficient, way to customize the
 /// eviction policy on a wide range of containers.
 ///
-/// [`Lrfu`] and [`Lru`] policies will change the order of elements
+/// [`Lrfu`](struct.Lrfu.html) and [`Lru`](struct.Lru.html) policies will
+/// change the order of elements
 /// in the container when they are accessed from within the container
 /// using [`Get`](../trait.Get.html) and [`GetMut`](../trait.GetMut.html)
 /// traits. This is potentially dangerous! Indeed, if the container relies
@@ -56,7 +58,8 @@ pub mod socket {
 /// [`std::collections::BTreeSet`]), then
 /// accessing elements inside the container will make things dicey.
 /// If the container does not
-/// implement the [`Ordered`] trait bound, it is probably a bad idea to use
+/// implement the [`Ordered`](trait.Ordered.html) trait bound, it is probably
+/// a bad idea to use
 /// on of these policies.
 ///
 /// ### Examples

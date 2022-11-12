@@ -2,6 +2,7 @@ use super::error::ResponseError;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use std::cmp::PartialEq;
 
+/// Base trait for messages flying over a stream with a (de)serialization step.
 pub trait Message: Sized {
     fn send<W: std::io::Write>(
         &self,
@@ -11,6 +12,9 @@ pub trait Message: Sized {
     fn receive<R: std::io::Read>(stream: &mut R) -> bincode::Result<Self>;
 }
 
+/// Request sent from the client to the server.
+///
+/// The `Request` is used to query a `BuildingBlock`.
 #[derive(PartialEq, Eq, Deserialize, Serialize, Debug)]
 pub enum Request<K, V> {
     Capacity,
@@ -40,6 +44,10 @@ impl<K: Serialize + DeserializeOwned, V: Serialize + DeserializeOwned>
     }
 }
 
+/// `Response` sent from the server to the client.
+///
+/// The response contains the result of querying a `BuildingBlock`
+/// with the associated `Request`.
 #[derive(PartialEq, Eq, Deserialize, Serialize, Debug)]
 pub(super) enum Response<K, V> {
     Capacity(usize),
@@ -75,6 +83,7 @@ mod tests {
     use super::{Message, Request, Response};
     use crate::stream::VecStream;
 
+    /// Test that sending and receiving a message results in the same message.
     fn test_message<T: Message + PartialEq + Eq + std::fmt::Debug>(
         message: T,
     ) {

@@ -34,7 +34,7 @@ on some predictions.
 * TODO Benchmarks:
 + Multiple distributions of keys
 + Different sizes of keys and values.
-* TODO inclusive connector building block.
+* DONE inclusive connector building block.
 Insertions go into the last level and shallow copies of what is in the
 last level goes in the first level.
 * DEL Resizable building blocks.
@@ -44,6 +44,8 @@ last level goes in the first level.
 ** DONE Compression
 ** DONE Stream
 * TODO Client/Server Building Block
++ Persistent server
++ Multiclient server
 * TODO Distributed building block
 * TODO Front-ends
 For instance:
@@ -55,3 +57,17 @@ the cache;
 Because there might be delay fetching far data.
 * DONE Get trait with LifetimeGuard wrapper in the return type.
 * TODO Batch builder implementation.
+* TODO Configuration Builder:
++ config to toml
++ Build to config
+* TODO Flush stopper:
+Stop flushes between two levels always returning an empty iterator.
+* TODO Marker trait:
++ ValueDecorator instead of Policy, with DecorationFactory
++ ContainerDecorator for Sequential, Profiler, etc.
++ Multiplexer: For Sequential, Associative
++ Connector: For Inclusive, Exclusive
+* TODO Readme and Contributing guide
+* TODO Coverage test
+* TODO CI.
+* TODO builder pattern with associated type.

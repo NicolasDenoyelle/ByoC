@@ -38,7 +38,7 @@ pub use sequential::Sequential;
 #[cfg(feature = "socket")]
 mod socket;
 #[cfg(feature = "socket")]
-pub use socket::{SocketClient, SocketServer};
+pub use socket::SocketClient;
 #[cfg(feature = "stream")]
 mod stream;
 #[cfg(feature = "stream")]

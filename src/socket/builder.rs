@@ -1,16 +1,16 @@
+use super::SocketClient;
 use super::{ServerThreadBuilder, ServerThreadHandle};
-use super::{SocketClient, SocketServer};
 use crate::builder::Build;
 use crate::BuildingBlock;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::marker::PhantomData;
 use std::net::ToSocketAddrs;
-use std::time::Duration;
 
 /// `SocketClient` builder.
 ///
-/// Builder pattern to build `SocketClient` listening on a socket address.
+/// Builder pattern to build a [`SocketClient`](../struct.SocketClient.html)
+/// listening on a socket address.
 pub struct SocketClientBuilder<A: ToSocketAddrs> {
     address: A,
 }
@@ -30,20 +30,28 @@ impl<A: ToSocketAddrs + Clone> Clone for SocketClientBuilder<A> {
     }
 }
 
-impl<A: ToSocketAddrs> Build<SocketClient> for SocketClientBuilder<A> {
-    fn build(self) -> SocketClient {
-        SocketClient::new(self.address).unwrap()
+impl<A, K, V> Build<std::io::Result<SocketClient<K, V>>>
+    for SocketClientBuilder<A>
+where
+    A: ToSocketAddrs,
+    K: Serialize + DeserializeOwned,
+    V: Serialize + DeserializeOwned,
+{
+    fn build(self) -> std::io::Result<SocketClient<K, V>> {
+        SocketClient::new(self.address)
     }
 }
 
 /// `SocketServer` builder.
 ///
-/// Builder pattern to build [`SocketServer`](../../struct.SocketServer.html)
-/// accepting one connection on a socket address and serving accesses with a
-/// container built from a builder pattern.
+/// Builder pattern to build `SocketServer` managed in a separate thread
+/// by a
+/// [`ServerThreadBuilder`](../utils/socket/struct.ServerThreadBuilder.html).
+/// The server accepts one connection on a socket address and serves
+/// accesses with a container built from a builder pattern.
 ///
 /// This builder is obtained from using
-/// [`ServerBuild`](../trait.ServerBuild.html) trait.
+/// [`ServerBuild`](trait.ServerBuild.html) trait.
 pub struct SocketServerBuilder<K, V, A, C, B>
 where
     A: ToSocketAddrs,
@@ -51,7 +59,6 @@ where
 {
     address: A,
     container_builder: B,
-    timeout: Duration,
     unused: PhantomData<(K, V, C)>,
 }
 
@@ -60,21 +67,15 @@ where
     A: ToSocketAddrs,
     B: Build<C>,
 {
-    /// Build a `SocketServerBuilder` accepting one connection on
+    /// Build a [`SocketServerBuilder`] accepting one connection on
     /// `address` and serving accesses with a container built from a
     /// `container_builder`.
     pub fn new(address: A, container_builder: B) -> Self {
         SocketServerBuilder {
             address,
             container_builder,
-            timeout: Duration::from_millis(200),
             unused: PhantomData,
         }
-    }
-
-    pub fn with_duration(mut self, duration: Duration) -> Self {
-        self.timeout = duration;
-        self
     }
 }
 
@@ -87,13 +88,12 @@ where
         SocketServerBuilder {
             address: self.address.clone(),
             container_builder: self.container_builder.clone(),
-            timeout: self.timeout,
             unused: PhantomData,
         }
     }
 }
 
-impl<K, V, A, C, B> Build<ServerThreadHandle<K, V>>
+impl<K, V, A, C, B> Build<std::io::Result<ServerThreadHandle<K, V>>>
     for SocketServerBuilder<K, V, A, C, B>
 where
     A: 'static + ToSocketAddrs + Clone,
@@ -102,40 +102,23 @@ where
     V: 'static + DeserializeOwned + Serialize + Clone,
     C: 'static + BuildingBlock<'static, K, V>,
 {
-    fn build(self) -> ServerThreadHandle<K, V> {
+    fn build(self) -> std::io::Result<ServerThreadHandle<K, V>> {
         let builder = ServerThreadBuilder::<K, V, A, C>::new(
             self.address,
             self.container_builder.build(),
-        )
-        .with_timeout(self.timeout);
-        builder.spawn().unwrap()
+        );
+        builder.spawn()
     }
 }
 
-impl<'a, K, V, A, B, C> Build<SocketServer<'a, K, V, C>>
-    for SocketServerBuilder<K, V, A, C, B>
-where
-    K: 'a + DeserializeOwned + Serialize + Eq,
-    V: 'a + DeserializeOwned + Serialize + Clone,
-    A: ToSocketAddrs,
-    B: Build<C>,
-    C: BuildingBlock<'a, K, V>,
-{
-    fn build(self) -> SocketServer<'a, K, V, C> {
-        SocketServer::new(self.address, self.container_builder.build())
-            .unwrap()
-    }
-}
-
-/// Make a container builder into a `SocketServer` for a remote `SocketClient`
-/// container.
+/// Make a container builder into a [`SocketServerBuilder`].
 pub trait ServerBuild<'a, K, V, C>: Build<C> + Sized
 where
     K: 'a + DeserializeOwned + Serialize + Eq,
     V: 'a + DeserializeOwned + Serialize + Clone,
     C: BuildingBlock<'a, K, V>,
 {
-    /// Make this builder into a server builder accepting one  remote
+    /// Make this builder into a server builder accepting one remote
     /// [`SocketClient`](../struct.SocketClient.html) connection at `address`.
     fn accept<A: ToSocketAddrs>(
         self,

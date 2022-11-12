@@ -3,7 +3,7 @@
 //! Configuration file/strings are a way to instantiate containers.
 //! They describe containers using the [`toml`](https://toml.io/en/)
 //! format.
-//! The [`Builder`] structure is the entry point to create a
+//! The [`ConfigBuilder`] structure is the entry point to create a
 //! container
 //! instance from a configuration string or file.
 //! For instance, the container described in the
@@ -30,7 +30,8 @@
 //! container.push(vec![(1,2)]);
 //! ```
 //!
-//! See the [`Builder`] structure for more details on possible configurations.
+//! See the [`ConfigBuilder`] structure for more details on possible
+//! configurations.
 //! See the [`configs`](configs/index.html) module for the collection of
 //! containers configuration format.
 
@@ -79,7 +80,7 @@ pub trait GenericValue:
 }
 impl<T: Ord + Serialize + DeserializeOwned + Clone> GenericValue for T {}
 
-pub(crate) trait ConfigInstance
+pub trait ConfigInstance
 where
     Self: Sized,
 {

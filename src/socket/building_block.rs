@@ -8,7 +8,7 @@ fn mismatch_panic() -> ! {
     panic!("SocketClient Request and SocketServer Response mismatch.");
 }
 
-impl<'a, K, V> BuildingBlock<'a, K, V> for SocketClient
+impl<'a, K, V> BuildingBlock<'a, K, V> for SocketClient<K, V>
 where
     K: 'a + DeserializeOwned + Serialize + Clone,
     V: 'a + DeserializeOwned + Serialize,
@@ -84,8 +84,36 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::socket::tests::make_server_client;
-    use crate::tests::test_building_block;
+    use crate::tests::{test_building_block, TestKey, TestValue};
+    use crate::utils::socket::{ServerThreadBuilder, ServerThreadHandle};
+    use crate::{Array, Sequential, SocketClient};
+    use std::time::Duration;
+
+    fn make_server_client(
+        capacity: usize,
+        address: &str,
+    ) -> (
+        SocketClient<TestKey, TestValue>,
+        ServerThreadHandle<TestKey, TestValue>,
+    ) {
+        let container =
+            Sequential::new(Array::<(TestKey, TestValue)>::new(capacity));
+        let server =
+            ServerThreadBuilder::new(String::from(address), container)
+                .spawn()
+                .expect("SocketServer thread spawn() error.");
+
+        // Wait a bit for the server to accept connections.
+        std::thread::sleep(Duration::from_millis(20));
+
+        // Connect a client successfully to the server.
+        let client = SocketClient::new(address)
+            .expect("Connection to SocketServer failed.");
+
+        // Wait a bit for the server to acknowledge the connection
+        std::thread::sleep(Duration::from_millis(20));
+        (client, server)
+    }
 
     #[test]
     fn test_server_client_building_block() {
