@@ -80,6 +80,11 @@ pub trait GenericValue:
 }
 impl<T: Ord + Serialize + DeserializeOwned + Clone> GenericValue for T {}
 
+/// Trait to create configuration instances from a `&str`, a [`std::fs::File`],
+/// or a [`toml::Value`](../../toml/value/enum.Value.html).
+///
+/// [`from_toml()`](trait.ConfigInstance.html#method.from_toml) is the only
+/// method that requires an implementation.
 pub trait ConfigInstance
 where
     Self: Sized,
@@ -96,6 +101,23 @@ where
     /// a valid container or an Error describing what went wrong.
     fn from_toml(toml_value: &toml::Value) -> Result<Self, ConfigError>;
 
+    /// Method to create this configuration trait from a parsed
+    /// `&str`.
+    ///
+    /// The string is representing a
+    /// [`toml::Value`](../../toml/value/enum.Value.html) and is parsed as such.
+    fn from_string(s: &str) -> Result<Self, ConfigError> {
+        match toml::from_str::<toml::Value>(s) {
+            Ok(value) => ConfigInstance::from_toml(&value),
+            Err(e) => Err(ConfigError::TomlFormatError(e)),
+        }
+    }
+
+    /// Method to create this configuration trait from a parsed
+    /// [`std::fs::File`].
+    ///
+    /// The file is read into a string representing a
+    /// [`toml::Value`](../../toml/value/enum.Value.html) and parsed as such.
     fn from_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
         path: P,
     ) -> Result<Self, ConfigError> {
@@ -109,13 +131,6 @@ where
             return Err(ConfigError::IOError(e));
         }
         ConfigInstance::from_string(s.as_str())
-    }
-
-    fn from_string(s: &str) -> Result<Self, ConfigError> {
-        match toml::from_str::<toml::Value>(s) {
-            Ok(value) => ConfigInstance::from_toml(&value),
-            Err(e) => Err(ConfigError::TomlFormatError(e)),
-        }
     }
 }
 

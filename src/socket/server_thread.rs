@@ -258,6 +258,11 @@ where
 /// [`ServerThreadBuilder`] to stop the spawned server thread.
 ///
 /// The handle can be used to stop the server thread and its `SocketServer`.
+///
+/// [`ServerThreadHandle`] and associateed [`ServerThreadBuilder`] can also be
+/// built from a
+/// [configuration](../../config/configs/struct.SocketServerConfig.html)
+/// or a [builder pattern](../../builder/struct.SocketServerBuilder.html).
 pub struct ServerThreadHandle<K, V>
 where
     K: 'static,

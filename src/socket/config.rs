@@ -21,7 +21,7 @@ use std::net::ToSocketAddrs;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::Build;
-/// use byoc::config::{ConfigInstance, configs::SocketClientConfig};
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 /// use byoc::utils::socket::ServerThreadBuilder;
 /// use byoc::Array;
 ///
@@ -34,13 +34,15 @@ use std::net::ToSocketAddrs;
 /// std::thread::sleep(std::time::Duration::from_millis(50));
 ///
 /// // Here we build the client from a configuration.
-/// let client_str = format!("
+/// let config_str = format!("
 /// id='SocketClientConfig'
 /// address='{}'", address);
 ///
-/// let client_config =
-///        SocketClientConfig::from_string(client_str.as_ref()).unwrap();
-/// let client: Box<dyn BuildingBlock<i32, i32>> = client_config.build().unwrap();
+/// let container: DynBuildingBlock<i32, i32> =
+///                ConfigBuilder::from_string(config_str.as_str())
+///                .unwrap()
+///                .build();
+/// assert_eq!(container.capacity(), 10usize);
 ///
 /// // Et voila! Now we can cleanup the server and wrap up.
 /// server.stop_and_join().unwrap();

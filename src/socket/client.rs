@@ -33,9 +33,11 @@ where
 /// [`std::net::TcpStream`].
 ///
 /// [`SocketClient`] is a local facade to a remote
-/// [`BuildingBlock`](traits/trait.BuildingBlock.html) with
-/// [`Get`](traits/trait.Get.html) and [`GetMut`](traits/trait.GetMut.html)
-/// traits.
+/// [`BuildingBlock`](traits/trait.BuildingBlock.html).
+///
+/// [`SocketClient`] can also be built from a
+/// [configuration](config/configs/struct.SocketClientConfig.html)
+/// or a [builder pattern](builder/struct.SocketClientBuilder.html).
 pub struct SocketClient<K, V>
 where
     K: Serialize + DeserializeOwned,
