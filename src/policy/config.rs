@@ -6,7 +6,6 @@ use crate::config::{
 use crate::policy::{timestamp::Counter, Fifo, Lrfu, Lru};
 use crate::{BuildingBlock, Policy};
 use serde::Deserialize;
-use toml;
 
 #[derive(Deserialize, Copy, Clone)]
 #[serde(tag = "kind", content = "exponent")]
@@ -122,7 +121,6 @@ mod tests {
     use crate::builder::Build;
     use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
-    use toml;
 
     #[test]
     fn test_valid_policy_config() {

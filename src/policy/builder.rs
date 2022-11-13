@@ -14,7 +14,7 @@ use std::marker::PhantomData;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::{Build,PolicyBuild};
-/// use byoc::policy::Fifo;
+/// use byoc::utils::policy::Fifo;
 /// use byoc::builder::{ArrayBuilder, PolicyBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
@@ -84,7 +84,7 @@ where
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::{Build,Builder,PolicyBuild};
-/// use byoc::policy::Fifo;
+/// use byoc::utils::policy::Fifo;
 ///
 /// let mut container = Builder::array(10000)
 ///                    .with_policy(Fifo::new())

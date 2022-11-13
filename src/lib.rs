@@ -31,10 +31,14 @@ mod inclusive;
 pub use inclusive::Inclusive;
 mod profiler;
 pub use profiler::Profiler;
-pub mod policy;
+mod policy;
 pub use policy::policy::Policy;
 mod sequential;
 pub use sequential::Sequential;
+#[cfg(feature = "socket")]
+mod socket;
+#[cfg(feature = "socket")]
+pub use socket::SocketClient;
 #[cfg(feature = "stream")]
 mod stream;
 #[cfg(feature = "stream")]

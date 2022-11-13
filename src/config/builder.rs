@@ -17,13 +17,15 @@ use crate::policy::timestamp::Counter;
 use crate::policy::{Fifo, Lrfu, Lru};
 use crate::profiler::config::ProfilerConfig;
 use crate::sequential::config::SequentialConfig;
+#[cfg(feature = "socket")]
+use crate::socket::config::SocketClientConfig;
 #[cfg(feature = "stream")]
 use crate::stream::config::StreamConfig;
 use crate::{BuildingBlock, Policy};
 use toml;
 
 /// Configuration ids supported by [`GenericConfig`].
-static CONFIGS: [&str; 9] = [
+static CONFIGS: [&str; 10] = [
     "ArrayConfig",
     "AssociativeConfig",
     "BatchConfig",
@@ -33,6 +35,7 @@ static CONFIGS: [&str; 9] = [
     // "InclusiveConfig",
     "ProfilerConfig",
     "SequentialConfig",
+    "SocketClientConfig",
     "StreamConfig",
 ];
 
@@ -124,6 +127,10 @@ impl ConfigInstance for GenericConfig {
             "SequentialConfig" => {
                 Self::from_config::<SequentialConfig>(value)
             }
+            #[cfg(feature = "socket")]
+            "SocketClientConfig" => {
+                Self::from_config::<SocketClientConfig>(value)
+            }
             #[cfg(feature = "stream")]
             "StreamConfig" => Self::from_config::<StreamConfig>(value),
             unknown => Err(ConfigError::ConfigFormatError(format!(
@@ -200,6 +207,13 @@ where
                 Self::into_config::<SequentialConfig>(&self.toml_config)
                     .unwrap()
                     .build()
+            }
+            #[cfg(feature = "socket")]
+            "SocketClientConfig" => {
+                Self::into_config::<SocketClientConfig>(&self.toml_config)
+                    .unwrap()
+                    .build()
+                    .unwrap()
             }
             #[cfg(feature = "stream")]
             "StreamConfig" => {

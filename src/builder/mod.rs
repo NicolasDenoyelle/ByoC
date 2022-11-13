@@ -19,7 +19,7 @@
 //! ```
 //! use byoc::BuildingBlock;
 //! use byoc::{Array, Exclusive, Sequential, Policy};
-//! use byoc::policy::{Lru, timestamp::Clock};
+//! use byoc::utils::policy::{Lru, timestamp::Clock};
 //!
 //! let front = Array::new(10000);
 //! let back = Array::new(1000000);
@@ -32,7 +32,7 @@
 //! With a builder pattern, the same code becomes:
 //! ```
 //! use byoc::BuildingBlock;
-//! use byoc::policy::{Lru, timestamp::Clock};
+//! use byoc::utils::policy::{Lru, timestamp::Clock};
 //! use byoc::builder::{Build,
 //!                     Builder,
 //!                     ExclusiveBuild,
@@ -65,6 +65,10 @@ pub use crate::inclusive::builder::InclusiveBuilder;
 pub use crate::policy::builder::PolicyBuilder;
 pub use crate::profiler::builder::ProfilerBuilder;
 pub use crate::sequential::builder::SequentialBuilder;
+#[cfg(feature = "socket")]
+pub use crate::socket::builder::{
+    ServerBuild, SocketClientBuilder, SocketServerBuilder,
+};
 #[cfg(feature = "stream")]
 pub use crate::stream::builder::StreamBuilder;
 

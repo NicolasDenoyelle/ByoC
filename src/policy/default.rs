@@ -11,7 +11,7 @@ use std::cmp::Ord;
 ///
 /// ```
 /// use byoc::container::Array;
-/// use byoc::policy::{Policy, Default};
+/// use byoc::utils::policy::{Policy, Default};
 ///
 /// let c = Policy::new(Array::new(3), Default::new());
 /// c.push(vec!["item1", "item2", "item0"]);
