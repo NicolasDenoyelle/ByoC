@@ -282,7 +282,7 @@ capacity={}
 id='SocketServerConfig'
 address='{}'
 [container]
-id='ArrayConfig'
+id='ArrayConf'
 capacity=10
 ",
             address
