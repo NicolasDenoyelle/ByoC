@@ -13,13 +13,6 @@ publish = false
 [badges]
 maintenance = { status = "experimental" }
 
-[workspace]
-
-members = [ "benchmarks" ]
-
-[lib]
-bench = false
-
 [dev-dependencies]
 rand = "0.8.3"
 
