@@ -43,7 +43,7 @@ last level goes in the first level.
 ** DONE BTree
 ** DONE Compression
 ** DONE Stream
-* TODO Client/Server Building Block
+* DONE Client/Server Building Block
 + Persistent server
 + Multiclient server
 * TODO Distributed building block
