@@ -1,13 +1,16 @@
-use crate::builder::Build;
+use crate::builder::{Build, PolicyBuilder};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, DynOrdered,
-    GenericConfig, GenericKey, GenericValue,
+    GenericConfig, GenericKey, GenericValue, IntoConfig,
 };
-use crate::policy::{timestamp::Counter, Fifo, Lrfu, Lru};
+use crate::policy::{
+    timestamp::{Counter, Timestamp},
+    Fifo, Lrfu, Lru,
+};
 use crate::{BuildingBlock, Policy};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Copy, Clone)]
+#[derive(Deserialize, Serialize, Copy, Clone)]
 #[serde(tag = "kind", content = "exponent")]
 pub enum PolicyKind {
     Lrfu(f32),
@@ -56,7 +59,7 @@ pub enum PolicyKind {
 ///                .unwrap()
 ///                .build();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct PolicyConfig {
     #[allow(dead_code)]
     id: String,
@@ -64,7 +67,65 @@ pub struct PolicyConfig {
     container: toml::Value,
 }
 
+impl PolicyConfig {
+    fn from_builder<C: ConfigInstance, B: IntoConfig<C>>(
+        builder: &B,
+        policy: PolicyKind,
+    ) -> Self {
+        let container_config_str = builder.into_config().to_toml_string();
+        let container: toml::value::Value =
+            toml::de::from_str(container_config_str.as_ref()).unwrap();
+
+        PolicyConfig {
+            id: String::from(PolicyConfig::id()),
+            policy,
+            container,
+        }
+    }
+}
+
+impl<C, V, B, T> IntoConfig<PolicyConfig>
+    for PolicyBuilder<C, V, Lru<T>, B>
+where
+    C: ConfigInstance,
+    B: IntoConfig<C>,
+    T: Timestamp,
+{
+    fn into_config(&self) -> PolicyConfig {
+        PolicyConfig::from_builder(&self.builder, PolicyKind::Lru)
+    }
+}
+
+impl<C, V, B, T> IntoConfig<PolicyConfig>
+    for PolicyBuilder<C, V, Lrfu<T>, B>
+where
+    C: ConfigInstance,
+    B: IntoConfig<C>,
+    T: Timestamp,
+{
+    fn into_config(&self) -> PolicyConfig {
+        PolicyConfig::from_builder(
+            &self.builder,
+            PolicyKind::Lrfu(self.policy.exponent()),
+        )
+    }
+}
+
+impl<C, V, B> IntoConfig<PolicyConfig> for PolicyBuilder<C, V, Fifo, B>
+where
+    C: ConfigInstance,
+    B: IntoConfig<C>,
+{
+    fn into_config(&self) -> PolicyConfig {
+        PolicyConfig::from_builder(&self.builder, PolicyKind::Fifo)
+    }
+}
+
 impl ConfigInstance for PolicyConfig {
+    fn id() -> &'static str {
+        "PolicyConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         toml::from_str(&toml).map_err(ConfigError::TomlFormatError)
@@ -118,8 +179,10 @@ impl ConfigWithTraits for PolicyConfig {}
 #[cfg(test)]
 mod tests {
     use super::PolicyConfig;
-    use crate::builder::Build;
+    use crate::builder::{ArrayBuilder, Build, PolicyBuilder};
+    use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::utils::policy::Fifo;
     use crate::BuildingBlock;
 
     #[test]
@@ -160,5 +223,14 @@ capacity=10
             PolicyConfig::from_toml(&value),
             Err(ConfigError::TomlFormatError(_))
         ));
+    }
+
+    #[test]
+    fn test_builder_into_config() {
+        let builder = PolicyBuilder::<_, (), _, _>::new(
+            ArrayBuilder::<()>::new(2),
+            Fifo::new(),
+        );
+        test_config_builder(builder);
     }
 }

@@ -131,6 +131,11 @@ impl<T: Timestamp + Copy> Lrfu<T> {
             phantom: std::marker::PhantomData,
         }
     }
+
+    /// Get the value of the exponent of this [`Lrfu`]] policy.
+    pub fn exponent(&self) -> f32 {
+        self.exponent
+    }
 }
 
 unsafe impl<T: Timestamp + Copy> Send for Lrfu<T> {}

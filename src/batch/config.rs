@@ -4,7 +4,7 @@ use crate::config::{
     GenericKey, GenericValue,
 };
 use crate::{Batch, BuildingBlock};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`Batch`](../struct.Batch.html)
 /// containers.
@@ -38,7 +38,7 @@ use serde::Deserialize;
 ///                .unwrap()
 ///                .build();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct BatchConfig {
     #[allow(dead_code)]
     id: String,
@@ -46,6 +46,10 @@ pub struct BatchConfig {
 }
 
 impl ConfigInstance for BatchConfig {
+    fn id() -> &'static str {
+        "BatchConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: BatchConfig = match toml::from_str(&toml) {

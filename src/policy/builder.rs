@@ -27,14 +27,9 @@ use std::marker::PhantomData;
 ///    ArrayBuilder::new(2).with_policy(Fifo::new()).build();
 /// container.push(vec![(1, 2)]);
 /// ```
-pub struct PolicyBuilder<C, V, F, B>
-where
-    C: Ordered<F::Item>,
-    B: Build<C>,
-    F: ReferenceFactory<V>,
-{
-    builder: B,
-    policy: F,
+pub struct PolicyBuilder<C, V, F, B> {
+    pub(super) builder: B,
+    pub(super) policy: F,
     unused: PhantomData<(C, V)>,
 }
 
@@ -53,12 +48,7 @@ where
     }
 }
 
-impl<C, V, F, B> PolicyBuilder<C, V, F, B>
-where
-    C: Ordered<F::Item>,
-    B: Build<C>,
-    F: ReferenceFactory<V>,
-{
+impl<C, V, F, B> PolicyBuilder<C, V, F, B> {
     pub fn new(builder: B, policy: F) -> Self {
         Self {
             builder,

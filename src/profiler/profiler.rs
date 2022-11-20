@@ -1,7 +1,7 @@
 use super::Stats;
 use crate::internal::SharedPtr;
 #[cfg(feature = "serde")]
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs::File;
 use std::io::Write;
 
@@ -32,7 +32,7 @@ macro_rules! print_it {
 #[derive(Clone)]
 #[cfg_attr(
     feature = "serde",
-    derive(Deserialize),
+    derive(Deserialize, Serialize),
     serde(tag = "kind", content = "filename")
 )]
 pub enum ProfilerOutputKind {

@@ -1,12 +1,12 @@
-use crate::builder::Build;
+use crate::builder::{Build, InclusiveBuilder};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue,
+    GenericKey, GenericValue, IntoConfig,
 };
 use crate::{BuildingBlock, Inclusive};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct InclusiveConfig {
     #[allow(dead_code)]
     id: String,
@@ -14,7 +14,35 @@ pub struct InclusiveConfig {
     back: toml::Value,
 }
 
+impl<L, LB, R, RB> IntoConfig<InclusiveConfig>
+    for InclusiveBuilder<L, LB, R, RB>
+where
+    LB: IntoConfig<L>,
+    RB: IntoConfig<R>,
+    L: ConfigInstance,
+    R: ConfigInstance,
+{
+    fn into_config(&self) -> InclusiveConfig {
+        let left_config: L = self.lbuilder.into_config();
+        let right_config: R = self.rbuilder.into_config();
+        let left_config_str = left_config.to_toml_string();
+        let right_config_str = right_config.to_toml_string();
+        let front = toml::de::from_str(left_config_str.as_ref()).unwrap();
+        let back = toml::de::from_str(right_config_str.as_ref()).unwrap();
+
+        InclusiveConfig {
+            id: String::from(InclusiveConfig::id()),
+            front,
+            back,
+        }
+    }
+}
+
 impl ConfigInstance for InclusiveConfig {
+    fn id() -> &'static str {
+        "InclusiveConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: InclusiveConfig = match toml::from_str(&toml) {
@@ -60,7 +88,8 @@ impl ConfigWithTraits for InclusiveConfig {
 #[cfg(test)]
 mod tests {
     use super::InclusiveConfig;
-    use crate::builder::Build;
+    use crate::builder::{ArrayBuilder, Build, InclusiveBuilder};
+    use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
@@ -102,5 +131,14 @@ toto='titi'
             InclusiveConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
+    }
+
+    #[test]
+    fn test_builder_into_config() {
+        let builder = InclusiveBuilder::new(
+            ArrayBuilder::<()>::new(2),
+            ArrayBuilder::<()>::new(2),
+        );
+        test_config_builder(builder);
     }
 }

@@ -18,7 +18,7 @@ use std::marker::PhantomData;
 /// btree.push(vec![(1, 2)]);
 /// ```
 pub struct BTreeBuilder<K: Ord + Copy, V: Ord> {
-    capacity: usize,
+    pub(super) capacity: usize,
     unused: PhantomData<(K, V)>,
 }
 

@@ -11,18 +11,18 @@ use std::net::ToSocketAddrs;
 ///
 /// Builder pattern to build a [`SocketClient`](../struct.SocketClient.html)
 /// listening on a socket address.
-pub struct SocketClientBuilder<A: ToSocketAddrs> {
-    address: A,
+pub struct SocketClientBuilder<A> {
+    pub(super) address: A,
 }
 
-impl<A: ToSocketAddrs> SocketClientBuilder<A> {
+impl<A> SocketClientBuilder<A> {
     /// Create a [`SocketClientBuilder`] listening on `address`.
     pub fn new(address: A) -> Self {
         SocketClientBuilder { address }
     }
 }
 
-impl<A: ToSocketAddrs + Clone> Clone for SocketClientBuilder<A> {
+impl<A: Clone> Clone for SocketClientBuilder<A> {
     fn clone(&self) -> Self {
         SocketClientBuilder {
             address: self.address.clone(),
@@ -52,21 +52,13 @@ where
 ///
 /// This builder is obtained from using
 /// [`ServerBuild`](trait.ServerBuild.html) trait.
-pub struct SocketServerBuilder<K, V, A, C, B>
-where
-    A: ToSocketAddrs,
-    B: Build<C>,
-{
-    address: A,
-    container_builder: B,
+pub struct SocketServerBuilder<K, V, A, C, B> {
+    pub(super) address: A,
+    pub(super) container_builder: B,
     unused: PhantomData<(K, V, C)>,
 }
 
-impl<K, V, A, C, B> SocketServerBuilder<K, V, A, C, B>
-where
-    A: ToSocketAddrs,
-    B: Build<C>,
-{
+impl<K, V, A, C, B> SocketServerBuilder<K, V, A, C, B> {
     /// Build a [`SocketServerBuilder`] accepting one connection on
     /// `address` and serving accesses with a container built from a
     /// `container_builder`.
@@ -81,8 +73,8 @@ where
 
 impl<K, V, A, C, B> Clone for SocketServerBuilder<K, V, A, C, B>
 where
-    A: ToSocketAddrs + Clone,
-    B: Build<C> + Clone,
+    A: Clone,
+    B: Clone,
 {
     fn clone(&self) -> Self {
         SocketServerBuilder {
@@ -112,15 +104,10 @@ where
 }
 
 /// Make a container builder into a [`SocketServerBuilder`].
-pub trait ServerBuild<'a, K, V, C>: Build<C> + Sized
-where
-    K: 'a + DeserializeOwned + Serialize + Eq,
-    V: 'a + DeserializeOwned + Serialize + Clone,
-    C: BuildingBlock<'a, K, V>,
-{
+pub trait ServerBuild<K, V, C>: Sized {
     /// Make this builder into a server builder accepting one remote
     /// [`SocketClient`](../struct.SocketClient.html) connection at `address`.
-    fn accept<A: ToSocketAddrs>(
+    fn accept<A>(
         self,
         address: A,
     ) -> SocketServerBuilder<K, V, A, C, Self> {
@@ -128,7 +115,7 @@ where
     }
 }
 
-impl<'a, K, V, C, B> ServerBuild<'a, K, V, C> for B
+impl<'a, K, V, C, B> ServerBuild<K, V, C> for B
 where
     B: Build<C> + Sized,
     K: 'a + DeserializeOwned + Serialize + Eq,

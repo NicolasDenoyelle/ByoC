@@ -1,10 +1,10 @@
-use crate::builder::Build;
+use crate::builder::{ArrayBuilder, Build};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
-    GenericValue,
+    GenericValue, IntoConfig,
 };
 use crate::{Array, BuildingBlock};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`Array`](../struct.Array.html) containers.
 ///
@@ -30,7 +30,7 @@ use serde::Deserialize;
 ///            .unwrap()
 ///            .build();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct ArrayConfig {
     #[allow(dead_code)]
     id: String,
@@ -38,6 +38,10 @@ pub struct ArrayConfig {
 }
 
 impl ConfigInstance for ArrayConfig {
+    fn id() -> &'static str {
+        "ArrayConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         toml::from_str(&toml).map_err(|e| {
@@ -65,11 +69,21 @@ impl ConfigWithTraits for ArrayConfig {
     }
 }
 
+impl<T> IntoConfig<ArrayConfig> for ArrayBuilder<T> {
+    fn into_config(&self) -> ArrayConfig {
+        ArrayConfig {
+            id: String::from(ArrayConfig::id()),
+            capacity: self.capacity,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::ArrayConfig;
-    use crate::builder::Build;
-    use crate::config::{ConfigError, ConfigInstance};
+    use crate::builder::{ArrayBuilder, Build};
+    use crate::config::tests::test_config_builder;
+    use crate::config::ConfigInstance;
     use crate::BuildingBlock;
 
     #[test]
@@ -86,13 +100,8 @@ mod tests {
     }
 
     #[test]
-    fn test_invalid_array_config() {
-        let config_str = "id=''\ncapacity='ten'".to_string();
-        let value: toml::Value =
-            toml::from_str(config_str.as_str()).unwrap();
-        assert!(matches!(
-            ArrayConfig::from_toml(&value),
-            Err(ConfigError::ConfigFormatError(_))
-        ));
+    fn test_builder_into_config() {
+        let builder = ArrayBuilder::<()>::new(10);
+        test_config_builder(builder);
     }
 }

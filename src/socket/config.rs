@@ -1,11 +1,11 @@
 use super::{ServerThreadBuilder, ServerThreadHandle, SocketClient};
-use crate::builder::Build;
+use crate::builder::{Build, SocketClientBuilder, SocketServerBuilder};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue,
+    GenericKey, GenericValue, IntoConfig,
 };
 use crate::BuildingBlock;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::net::ToSocketAddrs;
 
 /// Configuration to build a `SocketClient`
@@ -47,14 +47,29 @@ use std::net::ToSocketAddrs;
 /// // Et voila! Now we can cleanup the server and wrap up.
 /// server.stop_and_join().unwrap();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct SocketClientConfig {
     #[allow(dead_code)]
     id: String,
     address: String,
 }
 
+impl<A: ToSocketAddrs + ToString> IntoConfig<SocketClientConfig>
+    for SocketClientBuilder<A>
+{
+    fn into_config(&self) -> SocketClientConfig {
+        SocketClientConfig {
+            id: String::from(SocketClientConfig::id()),
+            address: self.address.to_string(),
+        }
+    }
+}
+
 impl ConfigInstance for SocketClientConfig {
+    fn id() -> &'static str {
+        "SocketClientConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let out: SocketClientConfig =
@@ -135,12 +150,33 @@ impl ConfigWithTraits for SocketClientConfig {}
 /// // Et voila! Now we can cleanup the server and wrap up.
 /// server.stop_and_join().unwrap();
 /// ```
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct SocketServerConfig {
     #[allow(dead_code)]
     id: String,
     address: String,
     container: toml::Value,
+}
+
+impl<K, V, A, C, B> IntoConfig<SocketServerConfig>
+    for SocketServerBuilder<K, V, A, C, B>
+where
+    A: ToSocketAddrs + ToString,
+    B: IntoConfig<C>,
+    C: ConfigInstance,
+{
+    fn into_config(&self) -> SocketServerConfig {
+        let container_toml_str =
+            self.container_builder.into_config().to_toml_string();
+        let container: toml::value::Value =
+            toml::de::from_str(container_toml_str.as_ref()).unwrap();
+
+        SocketServerConfig {
+            id: String::from(SocketServerConfig::id()),
+            address: self.address.to_string(),
+            container,
+        }
+    }
 }
 
 impl ConfigInstance for SocketServerConfig {
@@ -183,7 +219,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::{SocketClientConfig, SocketServerConfig};
-    use crate::builder::Build;
+    use crate::builder::{
+        ArrayBuilder, Build, SocketClientBuilder, SocketServerBuilder,
+    };
+    use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
     use crate::socket::{
         ServerThreadBuilder, ServerThreadHandle, SocketClient,
@@ -312,5 +351,20 @@ capacity=10
             SocketServerConfig::from_string(server_str.as_ref()),
             Err(ConfigError::ConfigFormatError(_))
         ));
+    }
+
+    #[test]
+    fn test_socket_client_builder_into_config() {
+        let builder = SocketClientBuilder::new("localhost:12345");
+        test_config_builder(builder);
+    }
+
+    #[test]
+    fn test_socket_server_builder_into_config() {
+        let builder = SocketServerBuilder::<(), (), _, _, _>::new(
+            "localhost:12345",
+            ArrayBuilder::<()>::new(2),
+        );
+        test_config_builder(builder);
     }
 }

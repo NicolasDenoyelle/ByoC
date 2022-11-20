@@ -63,9 +63,8 @@ impl Builder {
         F: StreamFactory + Clone,
     >(
         factory: F,
-        num_batch: usize,
-        batch_capacity: usize,
+        capacity: usize,
     ) -> CompressedBuilder<T, F> {
-        CompressedBuilder::new(num_batch, batch_capacity, factory)
+        CompressedBuilder::new(capacity, factory)
     }
 }

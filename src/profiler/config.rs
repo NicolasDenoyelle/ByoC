@@ -1,11 +1,11 @@
-use crate::builder::Build;
+use crate::builder::{Build, ProfilerBuilder};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue,
+    GenericKey, GenericValue, IntoConfig,
 };
 use crate::utils::profiler::ProfilerOutputKind;
 use crate::{BuildingBlock, Profiler};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`Profiler`](../struct.Profiler.html)
 /// containers.
@@ -42,7 +42,7 @@ use serde::Deserialize;
 ///                .unwrap()
 ///                .build();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct ProfilerConfig {
     #[allow(dead_code)]
     id: String,
@@ -51,7 +51,30 @@ pub struct ProfilerConfig {
     container: toml::Value,
 }
 
+impl<C, B> IntoConfig<ProfilerConfig> for ProfilerBuilder<C, B>
+where
+    C: ConfigInstance,
+    B: IntoConfig<C>,
+{
+    fn into_config(&self) -> ProfilerConfig {
+        let container_toml_str =
+            self.builder.into_config().to_toml_string();
+        let container: toml::value::Value =
+            toml::de::from_str(container_toml_str.as_ref()).unwrap();
+        ProfilerConfig {
+            id: String::from(ProfilerConfig::id()),
+            name: self.name.clone(),
+            output: self.output.clone(),
+            container,
+        }
+    }
+}
+
 impl ConfigInstance for ProfilerConfig {
+    fn id() -> &'static str {
+        "ProfilerConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: ProfilerConfig = match toml::from_str(&toml) {
@@ -91,7 +114,8 @@ impl ConfigWithTraits for ProfilerConfig {
 #[cfg(test)]
 mod tests {
     use super::ProfilerConfig;
-    use crate::builder::Build;
+    use crate::builder::{ArrayBuilder, Build, ProfilerBuilder};
+    use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
@@ -133,5 +157,15 @@ capacity=10
             ProfilerConfig::from_toml(&value),
             Err(ConfigError::TomlFormatError(_))
         ));
+    }
+
+    #[test]
+    fn test_builder_into_config() {
+        let builder = ProfilerBuilder::new(
+            "config_builder_test",
+            crate::utils::profiler::ProfilerOutputKind::None,
+            ArrayBuilder::<()>::new(2),
+        );
+        test_config_builder(builder);
     }
 }

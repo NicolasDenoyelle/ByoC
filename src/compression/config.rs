@@ -1,15 +1,19 @@
-use crate::builder::Build;
+use crate::builder::{Build, CompressedBuilder};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
-    GenericValue,
+    GenericValue, IntoConfig,
 };
 #[cfg(feature = "tempfile")]
 use crate::stream::TempFileStreamFactory;
 #[cfg(not(feature = "tempfile"))]
 use crate::stream::VecStream;
-use crate::stream::{FileStream, StreamBase, StreamFactory};
+use crate::stream::{
+    FileStream, StreamBase, StreamFactory, VecStreamFactory,
+};
 use crate::{BuildingBlock, Compressed};
-use serde::Deserialize;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
+#[cfg(feature = "tempfile")]
+use tempfile::NamedTempFile;
 
 /// Configuration format for [`Compressed`](../struct.Compressed.html)
 /// containers.
@@ -38,7 +42,7 @@ use serde::Deserialize;
 ///                .unwrap()
 ///                .build();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct CompressedConfig {
     #[allow(dead_code)]
     id: String,
@@ -46,7 +50,42 @@ pub struct CompressedConfig {
     capacity: usize,
 }
 
+impl<T> IntoConfig<CompressedConfig>
+    for CompressedBuilder<T, VecStreamFactory>
+where
+    T: Serialize + DeserializeOwned,
+{
+    fn into_config(&self) -> CompressedConfig {
+        CompressedConfig {
+            id: String::from(CompressedConfig::id()),
+            filename: None,
+            capacity: self.capacity,
+        }
+    }
+}
+
+#[cfg(feature = "tempfile")]
+impl<T> IntoConfig<CompressedConfig>
+    for CompressedBuilder<T, TempFileStreamFactory>
+{
+    fn into_config(&self) -> CompressedConfig {
+        let tmp =
+            NamedTempFile::new().expect("Failed to create temporary file");
+        let tmp_name =
+            tmp.path().to_str().expect("Invalid temporary file name");
+        CompressedConfig {
+            id: String::from(CompressedConfig::id()),
+            filename: Some(String::from(tmp_name)),
+            capacity: self.capacity,
+        }
+    }
+}
+
 impl ConfigInstance for CompressedConfig {
+    fn id() -> &'static str {
+        "CompressedConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         toml::from_str(&toml).map_err(|e| {
@@ -92,8 +131,10 @@ impl ConfigWithTraits for CompressedConfig {
 #[cfg(test)]
 mod tests {
     use super::CompressedConfig;
-    use crate::builder::Build;
+    use crate::builder::{Build, CompressedBuilder};
+    use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::stream::VecStreamFactory;
     use crate::BuildingBlock;
 
     #[test]
@@ -119,5 +160,12 @@ mod tests {
             CompressedConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
+    }
+
+    #[test]
+    fn test_builder_into_config() {
+        let builder =
+            CompressedBuilder::<(), _>::new(2, VecStreamFactory {});
+        test_config_builder(builder);
     }
 }

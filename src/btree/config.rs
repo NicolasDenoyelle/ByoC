@@ -1,10 +1,10 @@
-use crate::builder::Build;
+use crate::builder::{BTreeBuilder, Build};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
-    GenericValue,
+    GenericValue, IntoConfig,
 };
 use crate::{BTree, BuildingBlock};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`BTree`](../struct.BTree.html)
 /// containers.
@@ -31,7 +31,7 @@ use serde::Deserialize;
 ///            .unwrap()
 ///            .build();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct BTreeConfig {
     #[allow(dead_code)]
     id: String,
@@ -39,6 +39,10 @@ pub struct BTreeConfig {
 }
 
 impl ConfigInstance for BTreeConfig {
+    fn id() -> &'static str {
+        "BTreeConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         toml::from_str(&toml).map_err(|e| {
@@ -62,10 +66,22 @@ where
 
 impl ConfigWithTraits for BTreeConfig {}
 
+impl<K: Ord + Copy, V: Ord> IntoConfig<BTreeConfig>
+    for BTreeBuilder<K, V>
+{
+    fn into_config(&self) -> BTreeConfig {
+        BTreeConfig {
+            id: String::from(BTreeConfig::id()),
+            capacity: self.capacity,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::BTreeConfig;
-    use crate::builder::Build;
+    use crate::builder::{BTreeBuilder, Build};
+    use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
@@ -91,5 +107,11 @@ mod tests {
             BTreeConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
+    }
+
+    #[test]
+    fn test_builder_into_config() {
+        let builder = BTreeBuilder::<(), ()>::new(2);
+        test_config_builder(builder);
     }
 }

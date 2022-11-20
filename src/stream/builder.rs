@@ -20,21 +20,13 @@ use std::marker::PhantomData;
 /// let mut stream = StreamBuilder::new(VecStreamFactory{}, 2).build();
 /// stream.push(vec![(1, 2)]);
 /// ```
-pub struct StreamBuilder<T, F>
-where
-    T: DeserializeOwned + Serialize,
-    F: StreamFactory + Clone,
-{
+pub struct StreamBuilder<T, F> {
     factory: F,
-    capacity: usize,
+    pub(super) capacity: usize,
     unused: PhantomData<T>,
 }
 
-impl<T, F> StreamBuilder<T, F>
-where
-    T: DeserializeOwned + Serialize,
-    F: StreamFactory + Clone,
-{
+impl<T, F> StreamBuilder<T, F> {
     pub fn new(factory: F, capacity: usize) -> Self {
         StreamBuilder {
             factory,
@@ -46,8 +38,7 @@ where
 
 impl<T, F> Clone for StreamBuilder<T, F>
 where
-    T: DeserializeOwned + Serialize,
-    F: StreamFactory + Clone,
+    F: Clone,
 {
     fn clone(&self) -> Self {
         StreamBuilder {

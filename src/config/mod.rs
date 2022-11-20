@@ -1,39 +1,37 @@
 //! Module to instantiate a cache architecture from a configuration file.
 //!
-//! Configuration file/strings are a way to instantiate containers.
-//! They describe containers using the [`toml`](https://toml.io/en/)
+//! Configuration file/strings are a way to instantiate
+//! [`BuildingBlock`] containers.
+//! They describe the latters using the [`toml`](https://toml.io/en/)
 //! format.
+//!
 //! The [`ConfigBuilder`] structure is the entry point to create a
-//! container
-//! instance from a configuration string or file.
-//! For instance, the container described in the
-//! [`builder`](../builder/index.html) module can be built as follow:
-//! ```
-//! use byoc::BuildingBlock;
-//! use byoc::builder::Build;
-//! use byoc::config::{ConfigBuilder, DynBuildingBlock};
+//! [`BuildingBlock`] instance in the form of a
+//! [`DynBuildingBlock`] structure from a configuration string or file.
+//! [`ConfigBuilder`] structure documentation provides examples and details on
+//! the quirks and the cruxes of configurations containers built from a
+//! configuration.
 //!
-//! let config_str = format!("
-//! id='SequentialConfig'
-//! policy.kind = 'Lru'
-//! [container]
-//! id='ExclusiveConfig'
-//! [container.front]
-//! id='ArrayConfig'
-//! capacity=10000
-//! [container.back]
-//! id='ArrayConfig'
-//! capacity=1000000
-//! ");
-//! let mut container: DynBuildingBlock<u64, u64> =
-//!            ConfigBuilder::from_string(config_str.as_str()).unwrap().build();
-//! container.push(vec![(1,2)]);
-//! ```
+//! The [`configs`](configs/index.html) module provides a collection of
+//! containers configurations and their toml format.
 //!
-//! See the [`ConfigBuilder`] structure for more details on possible
-//! configurations.
-//! See the [`configs`](configs/index.html) module for the collection of
-//! containers configuration format.
+//! Because it may be hard to understand or write complex configurations,
+//! we implemented a way to generate them from
+//! [container builder patterns](../builder/index.html) via the [`IntoConfig`]
+//! trait.
+//!
+//! [`DynBuildingBlock`] obtained from [`ConfigBuilder`] will only accept
+//! keys implementing the [`GenericKey`] trait and values implementing the
+//! [`GenericValue`] trait. Since it is not possible to know at compile time
+//! the type of container built from a configuration, it is necessary that keys
+//! and values types are compatible with all possible containers that can be
+//! generated from a configuration.
+//!
+//! If the [`DynBuildingBlock`] obtained from a configuration implements
+//! respectively the [`Ordered`](../policy/trait.Ordered.html) or the
+//! [`Concurrent`](../trait.Concurrent.html) trait, then it should be detected
+//! at runtime and the former struct can be turned respectively into a
+//! [`DynOrdered`] or a [`DynConcurrent`] [`BuildingBlock`]
 
 use crate::builder::Build;
 use crate::BuildingBlock;
@@ -81,14 +79,21 @@ pub trait GenericValue:
 impl<T: Ord + Serialize + DeserializeOwned + Clone> GenericValue for T {}
 
 /// Trait to create configuration instances from a `&str`, a [`std::fs::File`],
-/// or a [`toml::Value`](../../toml/value/enum.Value.html).
+/// or a [`toml::Value`].
 ///
 /// [`from_toml()`](trait.ConfigInstance.html#method.from_toml) is the only
 /// method that requires an implementation.
-pub trait ConfigInstance
+pub trait ConfigInstance: Serialize
 where
     Self: Sized,
 {
+    /// Get the [`ConfigInstance`] implementation id.
+    ///
+    /// The default behavior is to return `std::any::type_name::<Self>()`.
+    fn id() -> &'static str {
+        std::any::type_name::<Self>()
+    }
+
     /// Method to create this configuration trait from a parsed toml
     /// [`toml::Value`].
     ///
@@ -101,11 +106,20 @@ where
     /// a valid container or an Error describing what went wrong.
     fn from_toml(toml_value: &toml::Value) -> Result<Self, ConfigError>;
 
+    /// Convert a configuration object back to a toml string.
+    fn to_toml_string(&self) -> String {
+        toml::ser::to_string(self).unwrap()
+    }
+
+    /// Convert a configuration object back to a toml string.
+    fn to_toml_string_pretty(&self) -> String {
+        toml::ser::to_string_pretty(self).unwrap()
+    }
+
     /// Method to create this configuration trait from a parsed
     /// `&str`.
     ///
-    /// The string is representing a
-    /// [`toml::Value`](../../toml/value/enum.Value.html) and is parsed as such.
+    /// The string is representing a [`toml::Value`] and is parsed as such.
     fn from_string(s: &str) -> Result<Self, ConfigError> {
         match toml::from_str::<toml::Value>(s) {
             Ok(value) => ConfigInstance::from_toml(&value),
@@ -116,8 +130,8 @@ where
     /// Method to create this configuration trait from a parsed
     /// [`std::fs::File`].
     ///
-    /// The file is read into a string representing a
-    /// [`toml::Value`](../../toml/value/enum.Value.html) and parsed as such.
+    /// The file is read into a string representing a [`toml::Value`] and
+    /// parsed as such.
     fn from_file<P: AsRef<std::path::Path> + std::fmt::Debug>(
         path: P,
     ) -> Result<Self, ConfigError> {
@@ -134,6 +148,25 @@ where
     }
 }
 
+/// Convert an object into [`ConfigInstance`].
+///
+/// The goal of this trait is to ease the construction of custom
+/// cache containers configuration by translating from easy to build
+/// [cache builder](../builder/index.html) to a matching configuration.
+///
+/// Understanding [configuration syntax](struct.ConfigBuilder.html) for
+/// complex containers can be tedious. This trait allows to generate it from
+/// an easier to understand container [builder pattern](../builder/index.html).
+///
+/// This trait is intended to be implemented by
+/// [cache builders](../builder/index.html) mainly but could be implemented by
+/// other containers as well.
+pub trait IntoConfig<C: ConfigInstance> {
+    fn into_config(&self) -> C;
+}
+
+/// Identify whether a configuration will result in a `BuildingBlock`
+/// implementing some top-level traits.
 pub(crate) trait ConfigWithTraits {
     /// Return whether this configuration represents a
     /// [`BuildingBlock`](../trait.BuildingBlock.html) that implements the
@@ -183,13 +216,14 @@ where
 }
 
 #[allow(clippy::module_inception)]
-mod builder;
-pub use builder::ConfigBuilder;
-pub(crate) use builder::GenericConfig;
+mod config_builder;
+pub use config_builder::ConfigBuilder;
 mod error;
 pub use error::ConfigError;
 mod dyn_traits;
 pub use dyn_traits::{DynBuildingBlock, DynConcurrent, DynOrdered};
+mod generic_config;
+pub(crate) use generic_config::GenericConfig;
 
 /// The collection of available configurations.
 pub mod configs {
@@ -210,3 +244,6 @@ pub mod configs {
     #[cfg(feature = "stream")]
     pub use crate::stream::config::StreamConfig;
 }
+
+#[cfg(test)]
+pub(crate) mod tests;

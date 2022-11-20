@@ -32,20 +32,16 @@ use std::marker::PhantomData;
 ///     .build();
 /// container.push(vec![(1, 2)]);
 /// ```
-pub struct ExclusiveBuilder<L, LB, R, RB>
-where
-    LB: Build<L>,
-    RB: Build<R>,
-{
-    lbuilder: LB,
-    rbuilder: RB,
+pub struct ExclusiveBuilder<L, LB, R, RB> {
+    pub(super) lbuilder: LB,
+    pub(super) rbuilder: RB,
     unused: PhantomData<(L, R)>,
 }
 
 impl<L, LB, R, RB> Clone for ExclusiveBuilder<L, LB, R, RB>
 where
-    LB: Build<L> + Clone,
-    RB: Build<R> + Clone,
+    LB: Clone,
+    RB: Clone,
 {
     fn clone(&self) -> Self {
         ExclusiveBuilder {
@@ -56,11 +52,7 @@ where
     }
 }
 
-impl<L, LB, R, RB> ExclusiveBuilder<L, LB, R, RB>
-where
-    LB: Build<L>,
-    RB: Build<R>,
-{
+impl<L, LB, R, RB> ExclusiveBuilder<L, LB, R, RB> {
     pub fn new(lbuilder: LB, rbuilder: RB) -> Self {
         Self {
             lbuilder,
@@ -96,7 +88,7 @@ where
 /// let mut container = front.exclusive(back).build();
 /// container.push(vec![(1,2)]);
 /// ```
-pub trait ExclusiveBuild<C>: Build<C> {
+pub trait ExclusiveBuild<C> {
     /// Connection between two building blocks with a
     /// [`Exclusive`](../../struct.Exclusive.html)
     /// [building block](../../trait.BuildingBlock.html).

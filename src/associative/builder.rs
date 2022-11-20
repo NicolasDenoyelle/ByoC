@@ -47,11 +47,10 @@ use std::marker::PhantomData;
 /// ```
 pub struct AssociativeBuilder<C, H, B>
 where
-    H: Hasher + Clone,
-    B: Build<C> + Clone,
+    H: Hasher,
 {
-    builder: B,
-    num_sets: usize,
+    pub(super) builder: B,
+    pub(super) num_sets: usize,
     set_hasher: ExclusiveHasher<H>,
     unused: PhantomData<C>,
 }
@@ -59,7 +58,7 @@ where
 impl<C, H, B> Clone for AssociativeBuilder<C, H, B>
 where
     H: Hasher + Clone,
-    B: Build<C> + Clone,
+    B: Clone,
 {
     fn clone(&self) -> Self {
         AssociativeBuilder {
@@ -74,7 +73,6 @@ where
 impl<C, H, B> AssociativeBuilder<C, H, B>
 where
     H: Hasher + Clone,
-    B: Build<C> + Clone,
 {
     pub fn new(builder: B, key_hasher: H, num_sets: usize) -> Self {
         AssociativeBuilder {

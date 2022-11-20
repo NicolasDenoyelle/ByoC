@@ -23,18 +23,12 @@ use std::marker::PhantomData;
 /// let mut container = ArrayBuilder::new(2).into_sequential().build();
 /// container.push(vec![(1, 2)]);
 /// ```
-pub struct SequentialBuilder<C, B>
-where
-    B: Build<C>,
-{
-    builder: B,
+pub struct SequentialBuilder<C, B> {
+    pub(super) builder: B,
     unused: PhantomData<C>,
 }
 
-impl<C, B> SequentialBuilder<C, B>
-where
-    B: Build<C>,
-{
+impl<C, B> SequentialBuilder<C, B> {
     pub fn new(builder: B) -> Self {
         SequentialBuilder {
             builder,
@@ -45,7 +39,7 @@ where
 
 impl<C, B> Clone for SequentialBuilder<C, B>
 where
-    B: Build<C> + Clone,
+    B: Clone,
 {
     fn clone(&self) -> Self {
         SequentialBuilder {
@@ -73,7 +67,7 @@ where
 /// let mut container = Builder::array(10000).into_sequential().build();
 /// container.push(vec![(1,2)]);
 /// ```
-pub trait SequentialBuild<C>: Build<C> {
+pub trait SequentialBuild<C> {
     /// Wrap a container builder into a
     /// [sequential](../../struct.Sequential.html) building block
     /// to secure concurrent access behind a lock.

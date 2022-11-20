@@ -30,20 +30,14 @@ use std::marker::PhantomData;
 ///     .build();
 /// container.push(vec![(1, 2)]);
 /// ```
-pub struct ProfilerBuilder<C, B>
-where
-    B: Build<C>,
-{
-    builder: B,
-    name: String,
-    output: ProfilerOutputKind,
+pub struct ProfilerBuilder<C, B> {
+    pub(super) builder: B,
+    pub(super) name: String,
+    pub(super) output: ProfilerOutputKind,
     unused: PhantomData<C>,
 }
 
-impl<C, B> ProfilerBuilder<C, B>
-where
-    B: Build<C>,
-{
+impl<C, B> ProfilerBuilder<C, B> {
     pub fn new(
         name: &str,
         output: ProfilerOutputKind,
@@ -60,7 +54,7 @@ where
 
 impl<C, B> Clone for ProfilerBuilder<C, B>
 where
-    B: Build<C> + Clone,
+    B: Clone,
 {
     fn clone(&self) -> Self {
         ProfilerBuilder {

@@ -1,10 +1,10 @@
-use crate::builder::Build;
+use crate::builder::{Build, SequentialBuilder};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue,
+    GenericKey, GenericValue, IntoConfig,
 };
 use crate::{BuildingBlock, Sequential};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`Sequential`](../struct.Sequential.html)
 /// containers.
@@ -33,14 +33,35 @@ use serde::Deserialize;
 ///                .unwrap()
 ///                .build();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct SequentialConfig {
     #[allow(dead_code)]
     id: String,
     container: toml::Value,
 }
 
+impl<C, B> IntoConfig<SequentialConfig> for SequentialBuilder<C, B>
+where
+    C: ConfigInstance,
+    B: IntoConfig<C>,
+{
+    fn into_config(&self) -> SequentialConfig {
+        let container_toml_str =
+            self.builder.into_config().to_toml_string();
+        let container: toml::value::Value =
+            toml::de::from_str(container_toml_str.as_ref()).unwrap();
+        SequentialConfig {
+            id: String::from(SequentialConfig::id()),
+            container,
+        }
+    }
+}
+
 impl ConfigInstance for SequentialConfig {
+    fn id() -> &'static str {
+        "SequentialConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: SequentialConfig = match toml::from_str(&toml) {
@@ -82,7 +103,8 @@ impl ConfigWithTraits for SequentialConfig {
 #[cfg(test)]
 mod tests {
     use super::SequentialConfig;
-    use crate::builder::Build;
+    use crate::builder::{ArrayBuilder, Build, SequentialBuilder};
+    use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
@@ -118,5 +140,11 @@ capacity='ten'
             SequentialConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
+    }
+
+    #[test]
+    fn test_builder_into_config() {
+        let builder = SequentialBuilder::new(ArrayBuilder::<()>::new(2));
+        test_config_builder(builder);
     }
 }

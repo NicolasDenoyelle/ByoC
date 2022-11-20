@@ -1,10 +1,10 @@
-use crate::builder::Build;
+use crate::builder::{Build, StreamBuilder};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
-    GenericValue,
+    GenericValue, IntoConfig,
 };
 use crate::{BuildingBlock, Stream};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use crate::stream::TempFileStreamFactory;
 #[cfg(not(feature = "tempfile"))]
@@ -37,14 +37,27 @@ use crate::stream::VecStreamFactory;
 ///                .unwrap()
 ///                .build();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct StreamConfig {
     #[allow(dead_code)]
     id: String,
     capacity: usize,
 }
 
+impl<T, F> IntoConfig<StreamConfig> for StreamBuilder<T, F> {
+    fn into_config(&self) -> StreamConfig {
+        StreamConfig {
+            id: String::from(StreamConfig::id()),
+            capacity: self.capacity,
+        }
+    }
+}
+
 impl ConfigInstance for StreamConfig {
+    fn id() -> &'static str {
+        "StreamConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         toml::from_str(&toml).map_err(|e| {
@@ -83,8 +96,10 @@ impl ConfigWithTraits for StreamConfig {
 #[cfg(test)]
 mod tests {
     use super::StreamConfig;
-    use crate::builder::Build;
+    use crate::builder::{Build, StreamBuilder};
+    use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::stream::VecStreamFactory;
     use crate::BuildingBlock;
 
     #[test]
@@ -109,5 +124,11 @@ mod tests {
             StreamConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
+    }
+
+    #[test]
+    fn test_builder_into_config() {
+        let builder = StreamBuilder::<(), _>::new(VecStreamFactory {}, 2);
+        test_config_builder(builder);
     }
 }

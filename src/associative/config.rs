@@ -1,11 +1,12 @@
-use crate::builder::Build;
+use crate::builder::{AssociativeBuilder, Build};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue,
+    GenericKey, GenericValue, IntoConfig,
 };
 use crate::{Associative, BuildingBlock};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
+use std::hash::Hasher;
 
 /// Configuration format for [`Associative`](../struct.Associative.html)
 /// containers.
@@ -39,14 +40,38 @@ use std::collections::hash_map::DefaultHasher;
 ///                .unwrap()
 ///                .build();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct AssociativeConfig {
     #[allow(dead_code)]
     id: String,
     container: toml::value::Array,
 }
 
+impl<C, H, B> IntoConfig<AssociativeConfig> for AssociativeBuilder<C, H, B>
+where
+    H: Hasher + Clone,
+    B: IntoConfig<C>,
+    C: ConfigInstance,
+{
+    fn into_config(&self) -> AssociativeConfig {
+        let container_config = self.builder.into_config();
+        let container_config_str = container_config.to_toml_string();
+        let container_config_toml: toml::value::Value =
+            toml::de::from_str(container_config_str.as_ref()).unwrap();
+        let container = vec![container_config_toml; self.num_sets];
+
+        AssociativeConfig {
+            id: String::from(AssociativeConfig::id()),
+            container,
+        }
+    }
+}
+
 impl ConfigInstance for AssociativeConfig {
+    fn id() -> &'static str {
+        "AssociativeConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: AssociativeConfig = match toml::from_str(&toml) {
@@ -99,9 +124,11 @@ impl ConfigWithTraits for AssociativeConfig {
 #[cfg(test)]
 mod tests {
     use super::AssociativeConfig;
-    use crate::builder::Build;
+    use crate::builder::{ArrayBuilder, AssociativeBuilder, Build};
+    use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
+    use std::collections::hash_map::DefaultHasher;
 
     #[test]
     fn test_valid_associative_config() {
@@ -145,5 +172,15 @@ capacity={}
             AssociativeConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
+    }
+
+    #[test]
+    fn test_builder_into_config() {
+        let builder = AssociativeBuilder::new(
+            ArrayBuilder::<()>::new(2),
+            DefaultHasher::new(),
+            2,
+        );
+        test_config_builder(builder);
     }
 }

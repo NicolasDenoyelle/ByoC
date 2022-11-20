@@ -57,7 +57,7 @@ the cache;
 Because there might be delay fetching far data.
 * DONE Get trait with LifetimeGuard wrapper in the return type.
 * TODO Batch builder implementation.
-* TODO Configuration Builder:
+* DONE Configuration Builder:
 + config to toml
 + Build to config
 * TODO Flush stopper:
@@ -69,5 +69,12 @@ Stop flushes between two levels always returning an empty iterator.
 + Connector: For Inclusive, Exclusive
 * TODO Readme and Contributing guide
 * TODO Coverage test
+* TODO Logging
 * TODO CI.
-* TODO builder pattern with associated type.
+* DEL builder pattern with associated type.
+Can't do. Associated type need to have the same generics for all implementations of
+the trait. Here two implementations may have different generics so we can't have
+generics in the associated type. Then if generic are attached to the trait impl
+instead, we have the problem of having unconstrained type parameters when the type
+built has different generics than the type built from.
+

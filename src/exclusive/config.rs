@@ -1,10 +1,10 @@
-use crate::builder::Build;
+use crate::builder::{Build, ExclusiveBuilder};
 use crate::config::{
     ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue,
+    GenericKey, GenericValue, IntoConfig,
 };
 use crate::{BuildingBlock, Exclusive};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`Exclusive`](../struct.Exclusive.html)
 /// containers.
@@ -40,7 +40,7 @@ use serde::Deserialize;
 ///                .unwrap()
 ///                .build();
 /// ```
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct ExclusiveConfig {
     #[allow(dead_code)]
     id: String,
@@ -48,7 +48,35 @@ pub struct ExclusiveConfig {
     back: toml::Value,
 }
 
+impl<L, LB, R, RB> IntoConfig<ExclusiveConfig>
+    for ExclusiveBuilder<L, LB, R, RB>
+where
+    LB: IntoConfig<L>,
+    RB: IntoConfig<R>,
+    L: ConfigInstance,
+    R: ConfigInstance,
+{
+    fn into_config(&self) -> ExclusiveConfig {
+        let left_config: L = self.lbuilder.into_config();
+        let right_config: R = self.rbuilder.into_config();
+        let left_config_str = left_config.to_toml_string();
+        let right_config_str = right_config.to_toml_string();
+        let front = toml::de::from_str(left_config_str.as_ref()).unwrap();
+        let back = toml::de::from_str(right_config_str.as_ref()).unwrap();
+
+        ExclusiveConfig {
+            id: String::from(ExclusiveConfig::id()),
+            front,
+            back,
+        }
+    }
+}
+
 impl ConfigInstance for ExclusiveConfig {
+    fn id() -> &'static str {
+        "ExclusiveConfig"
+    }
+
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: ExclusiveConfig = match toml::from_str(&toml) {
@@ -94,7 +122,8 @@ impl ConfigWithTraits for ExclusiveConfig {
 #[cfg(test)]
 mod tests {
     use super::ExclusiveConfig;
-    use crate::builder::Build;
+    use crate::builder::{ArrayBuilder, Build, ExclusiveBuilder};
+    use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
     use crate::BuildingBlock;
 
@@ -136,5 +165,14 @@ toto='titi'
             ExclusiveConfig::from_toml(&value),
             Err(ConfigError::ConfigFormatError(_))
         ));
+    }
+
+    #[test]
+    fn test_builder_into_config() {
+        let builder = ExclusiveBuilder::new(
+            ArrayBuilder::<()>::new(2),
+            ArrayBuilder::<()>::new(2),
+        );
+        test_config_builder(builder);
     }
 }

@@ -17,7 +17,7 @@ use std::marker::PhantomData;
 /// array.push(vec![(1, 2)]);
 /// ```
 pub struct ArrayBuilder<T> {
-    capacity: usize,
+    pub(super) capacity: usize,
     unused: PhantomData<T>,
 }
 
