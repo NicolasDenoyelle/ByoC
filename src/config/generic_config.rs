@@ -28,7 +28,6 @@ use toml;
 #[derive(Clone, Serialize)]
 pub(crate) struct GenericConfig {
     pub has_concurrent_trait: bool,
-    pub has_ordered_trait: bool,
     toml_config: toml::Value,
 }
 
@@ -46,7 +45,6 @@ impl GenericConfig {
         let toml_value = v.clone();
         C::from_toml(&v).map(move |cfg| GenericConfig {
             has_concurrent_trait: cfg.is_concurrent(),
-            has_ordered_trait: cfg.is_ordered(),
             toml_config: toml_value,
         })
     }

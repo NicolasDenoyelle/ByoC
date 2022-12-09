@@ -1,20 +1,15 @@
-use crate::policy::{Ordered, ReferenceFactory};
+use crate::decorator::DecorationFactory;
 use std::marker::PhantomData;
 
 //------------------------------------------------------------------------//
-// Reference wrapper                                                      //
+// Decoration wrapper                                                      //
 //------------------------------------------------------------------------//
 
-/// Eviction policy for `Ordered` `BuildingBlock`.
+/// Decorator for `BuildingBlock` values.
 ///
 /// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
 ///
-/// This structure implements a wrapper around building blocks that
-/// wraps its values into an orderable cell.
-/// As a result, when popping elements out of this building block, when
-/// the underlying [`BuildingBlock`](trait.BuildingBlock.html)
-/// implements [`Ordered`](../trait.Ordered.html) trait,
-/// the policy of this wrapper decides which element is going to be evicted.
+/// TODO
 ///
 /// ## [`Get`](trait.Get.html) Implementation
 ///
@@ -23,16 +18,16 @@ use std::marker::PhantomData;
 /// therefore, policies should not be used with containers relying on
 /// a stable order of their values. Containers that rely on a
 /// stable order of values should not allow access to their inner values
-/// altogether and should not implement the Ordered trait to avoid this problem.
+/// altogether and should not implement the Ordering trait to avoid this problem.
 ///
 /// ## Examples
 ///
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::{Array, Policy};
-/// use byoc::utils::policy::Fifo;
+/// use byoc::{Array, Decorator};
+/// use byoc::decorator::Fifo;
 ///
-/// let mut c = Policy::new(Array::new(3), Fifo::new());
+/// let mut c = Decorator::new(Array::new(3), Fifo::new());
 /// c.push(vec![("item1",1u16), ("item2",2u16), ("item0",3u16)]);
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item2");
@@ -43,37 +38,35 @@ use std::marker::PhantomData;
 /// [builder pattern](builder/trait.Build.html#method.with_policy) or
 /// built from a
 /// [configuration](config/index.html).
-pub struct Policy<C, V, F>
+pub struct Decorator<C, V, F>
 where
-    C: Ordered<F::Item>,
-    F: ReferenceFactory<V>,
+    F: DecorationFactory<V>,
 {
     pub(super) container: C,
     pub(super) factory: F,
     pub(super) unused: PhantomData<V>,
 }
 
-impl<C, V, F> Policy<C, V, F>
+impl<C, V, F> Decorator<C, V, F>
 where
-    C: Ordered<F::Item>,
-    F: ReferenceFactory<V>,
+    F: DecorationFactory<V>,
 {
-    /// Construct a new policy wrapper.
+    /// Construct a new decorator wrapper.
     pub fn new(container: C, factory: F) -> Self {
-        Policy {
+        Decorator {
             container,
             factory,
             unused: PhantomData,
         }
     }
 }
-impl<C, V, F> Clone for Policy<C, V, F>
+impl<C, V, F> Clone for Decorator<C, V, F>
 where
-    F: ReferenceFactory<V> + Clone,
-    C: Ordered<F::Item> + Clone,
+    F: DecorationFactory<V> + Clone,
+    C: Clone,
 {
     fn clone(&self) -> Self {
-        Policy {
+        Decorator {
             container: self.container.clone(),
             factory: self.factory.clone(),
             unused: PhantomData,
@@ -85,17 +78,4 @@ where
 //  Tests
 //------------------------------------------------------------------------//
 
-#[cfg(test)]
-mod tests {
-    use super::Policy;
-    use crate::policy::Default;
-    use crate::tests::test_ordered;
-    use crate::Array;
-
-    #[test]
-    fn ordered() {
-        for i in [0usize, 10usize, 100usize] {
-            test_ordered(Policy::new(Array::new(i), Default {}));
-        }
-    }
-}
+// TODO

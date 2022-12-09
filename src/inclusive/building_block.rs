@@ -4,33 +4,162 @@ use crate::BuildingBlock;
 
 impl<'a, K, V, L, R> BuildingBlock<'a, K, V> for Inclusive<'a, K, V, L, R>
 where
-    K: 'a + Clone + Ord,
+    K: 'a + Clone,
     V: 'a + Clone,
     L: BuildingBlock<'a, K, InclusiveCell<V>>,
     R: BuildingBlock<'a, K, InclusiveCell<V>>,
 {
     /// Get the maximum "size" that elements in the container can fit.
     ///
-    /// This is the sum of the capacities of the two containers that this
-    /// [`Inclusive`] container is composed of.
+    /// This is the capacity of the `back` container of this [`Inclusive`]
+    /// [`BuildingBlock`] since any element contained in the `front`
+    /// container is also contained in the `back` container.
     fn capacity(&self) -> usize {
-        self.front.capacity() + self.back.capacity()
+        self.back.capacity()
     }
 
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        // Flush front and filter out element that are the same in the back.
-        let front: Vec<(K, InclusiveCell<V>)> = self
-            .front
-            .flush()
-            .filter_map(|(k, c)| match (c.is_cloned(), c.is_updated()) {
-                (true, false) => None,
-                _ => Some((k, c)),
+    /// Get the size currently occupied by elements in this [`BuildingBlock`].
+    ///
+    /// This is the size of the `back` container of this [`Inclusive`]
+    /// [`BuildingBlock`] since any element contained in the `front`
+    /// container is also contained in the `back` container.
+    fn size(&self) -> usize {
+        self.back.size()
+    }
+
+    /// Check if container contains a matching key.
+    ///
+    /// This method first looks for a matching key in the `front` container.
+    /// Only if no matching key is found, then the `back` container is searched
+    /// for a matching key too.
+    fn contains(&self, key: &K) -> bool {
+        self.front.contains(key) || self.back.contains(key)
+    }
+
+    /// Take the matching key/value pair out of the container.
+    ///
+    /// If the key to search is in the container, it will necessarily be in the
+    /// back part of the container and will need to be removed there. Therefore,
+    /// the back container is searched for the key first using its own
+    /// its own [`take()`](trait.BuildingBlock.html#method.take) method.
+    /// If it is not found there, then it is not in the container.
+    /// If it is found there, it may also be present in the front.
+    /// The values in the back container carry a flag that indicates whether
+    /// a copy exists in the front container. If the flag of the found
+    /// element is set, then it is also taken out of the front container using
+    /// the latter [`take()`](trait.BuildingBlock.html#method.take) method.
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
+        match self.back.take(key) {
+            None => None,
+            Some((k, c)) => {
+                if c.is_cloned() {
+                    Some(
+                        self.front
+                            .take(key)
+                            .map(|(k, c)| (k, c.unwrap()))
+                            .unwrap(),
+                    )
+                } else {
+                    Some((k, c.unwrap()))
+                }
+            }
+        }
+    }
+
+    /// Take multiple keys out of a container at once.
+    ///
+    /// Similarly to the [`take()`](struct.Inclusive.html#method.take) method,
+    /// The back container is searched first using its own
+    /// [`take_multiple()`](trait.BuildingBlock.html#method.take_multiple)
+    /// method. Any key that was not found there will not be found in the front
+    /// container either. Found elements are iterated. All the values from
+    /// key/value elements where the value carries the flag indicating it is
+    /// cloned in the front are also taken out of the front container using its
+    /// own [`take_multiple()`](trait.BuildingBlock.html#method.take_multiple)
+    /// method. The found key/value pairs in the front and the not cloned
+    /// key/value pairs found in the back are returned.
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        // First we remove matching keys from the back.
+        let back: Vec<(K, InclusiveCell<V>)> =
+            self.back.take_multiple(keys);
+
+        // Then we take clones in the front too.
+        let mut front_keys: Vec<K> =
+            back.iter()
+                .filter_map(|(k, c)| {
+                    if c.is_cloned() {
+                        Some(k.clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        let front = self.front.take_multiple(&mut front_keys);
+
+        // Finally we remove outdated elements from the back and chain the
+        // remaining ones to elements from the front.
+        back.into_iter()
+            .filter(|(_, c)| !c.is_cloned())
+            .chain(front.into_iter())
+            .map(|(k, c)| (k, c.unwrap()))
+            .collect()
+    }
+
+    /// Free up to `size` space from the container.
+    ///
+    /// This method will first attempt to pop `size` from the back container
+    /// using its own its own [`pop()`](trait.BuildingBlock.html#method.pop)
+    /// method. Key/value pairs popped out are iterated. If the value carries
+    /// the flag indicating it is cloned in the front, then it will be taken out
+    /// of the front container and will be replaced by the front value in the
+    /// returned vector of victims.
+    fn pop(&mut self, size: usize) -> Vec<(K, V)> {
+        // We only pop values in the back.
+        // This is because the meaning of `size` may not be the same at
+        // the front and at the back and there is no uniform method to obtain
+        // the size of elements in each.
+        let out = self.back.pop(size);
+
+        // Values popped in the back need to be removed from the front too.
+        // We return the front values rather than the back ones because they
+        // might be fresher.
+        out.into_iter()
+            .map(|(k, c)| {
+                if c.is_cloned() {
+                    self.front
+                        .take(&k)
+                        .map(|(k, c)| (k, c.unwrap()))
+                        .unwrap()
+                } else {
+                    (k, c.unwrap())
+                }
             })
+            .collect()
+    }
+
+    /// Insert key/value pairs in the container.
+    ///
+    /// Elements are always inserted in the `back` container.
+    /// Any element popping from the `back` in the operation is also removed
+    /// from the `front`. Newly inserted elements are not inserted at the
+    /// `front`. They will move there only when they are accessed with the
+    /// [`Get`](trait.Get.html) and [`GetMut`](trait.GetMut.html) traits.
+    ///
+    /// See also [`BuildingBlock`]
+    /// [`push()` method](trait.BuildingBlock.html#method.push) documentation.
+    fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        // Wrap elements into a cell with metadata.
+        let elements = elements
+            .into_iter()
+            .map(|(k, v)| (k, InclusiveCell::new(v)))
             .collect();
 
-        // Remove keys in the back that are also in the front.
+        // Push to the back and save what pops out.
+        let back_pop = self.back.push(elements);
+
+        // Enumerate matching keys that need to be removed at the front.
         let mut front_keys =
-            front
+            back_pop
                 .iter()
                 .filter_map(|(k, c)| {
                     if c.is_cloned() {
@@ -40,123 +169,41 @@ where
                     }
                 })
                 .collect();
-        drop(self.back.take_multiple(&mut front_keys));
-        drop(front_keys);
 
-        // Piggy back back to front.
-        let front = front.into_iter().map(|(k, c)| (k, c.unwrap()));
-        let back = self.back.flush().map(|(k, c)| (k, c.unwrap()));
-        Box::new(front.chain(back))
-    }
-
-    /// The front is looked first and if the key is not
-    /// found, it is searched in the back.
-    fn contains(&self, key: &K) -> bool {
-        self.front.contains(key) || self.back.contains(key)
-    }
-
-    fn size(&self) -> usize {
-        self.front.size() + self.back.size()
-    }
-
-    fn take(&mut self, key: &K) -> Option<(K, V)> {
-        match self.front.take(key) {
-            None => self.back.take(key).map(|(k, c)| (k, c.unwrap())),
-            Some((k, c)) => {
-                if c.is_cloned() {
-                    drop(self.back.take(key));
-                }
+        // Iterate elements that are removed from the back.
+        let back_elements = back_pop.into_iter().filter_map(|(k, c)| {
+            if c.is_cloned() {
+                None
+            } else {
                 Some((k, c.unwrap()))
             }
-        }
-    }
+        });
 
-    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
-        // First we remove matching keys from the front.
-        let mut front: Vec<(K, InclusiveCell<V>)> =
-            self.front.take_multiple(keys);
-
-        // We remove matching keys from the front out of the back.
-        drop(self.back.take_multiple(
-            &mut front.iter().map(|(k, _)| k.clone()).collect(),
-        ));
-
-        // We take remaining matching keys from the back.
-        front.append(&mut self.back.take_multiple(keys));
-        front.into_iter().map(|(k, c)| (k, c.unwrap())).collect()
-    }
-
-    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
-        // We pop from the back. If a value has been cloned to the front,
-        // we have to make sure it is removed there too. If it is there,
-        // we rather return the value there because it might be fresher.
-        let old_back_size = self.back.size();
-        let mut out: Vec<(K, V)> = self
-            .back
-            .pop(n)
-            .into_iter()
-            .filter_map(|(k, c)| {
-                if !c.is_cloned() {
-                    Some((k, c.unwrap()))
-                } else if self.front.contains(&k) {
-                    // The room is freed.
-                    // However, we don't return the element because a
-                    // fresher copy is in the front container.
-                    None
-                } else {
-                    Some((k, c.unwrap()))
-                }
-            })
-            .collect();
-
-        // If we were not able to pop enough elements from the back,
-        // we pop remaining requested size from the front.
-        let remaining = n - (old_back_size - self.back.size());
-        if remaining > 0 {
-            let mut front: Vec<(K, V)> = self
-                .front
-                .pop(remaining)
-                .into_iter()
-                .map(|(k, c)| (k, c.unwrap()))
-                .collect();
-            out.append(&mut front);
-        }
-        out
-    }
-
-    fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        // Wrap elements into a cell with metadata.
-        let elements = elements
-            .into_iter()
-            .map(|(k, v)| (k, InclusiveCell::new(v)))
-            .collect();
-
-        // Insert element at the front and filter evicted elements to keep the
-        // one that need to be inserted at the back.
-        let mut outdated = Vec::<K>::new();
-        let popped = self
+        // Iterate elements that are removed from the front.
+        let front_elements = self
             .front
-            .push(elements)
+            .take_multiple(&mut front_keys)
             .into_iter()
-            .filter_map(|(k, c)| match (c.is_cloned(), c.is_updated()) {
-                (true, false) => None,
-                (true, true) => {
-                    outdated.push(k.clone());
-                    Some((k, c))
-                }
-                _ => Some((k, c)),
-            })
-            .collect();
+            .map(|(k, c)| (k, c.unwrap()));
 
-        // Remove outdated element in the back.
-        drop(self.back.take_multiple(&mut outdated));
+        back_elements.chain(front_elements).collect()
+    }
 
-        // Push elements evicted from the front and unwrap popped victims.
-        self.back
-            .push(popped)
-            .into_iter()
-            .map(|(k, c)| (k, c.unwrap()))
-            .collect()
+    /// Empty the container and retrieve all of its elements.
+    ///
+    /// This function returns chained iterators from flushing elements in the
+    /// front and flushing elements in the back, where elements in the back are
+    /// filtered to only keep those that were not in the front.
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        let front = self.front.flush().map(|(k, c)| (k, c.unwrap()));
+        let back = self.back.flush().filter_map(|(k, c)| {
+            if c.is_cloned() {
+                None
+            } else {
+                Some((k, c.unwrap()))
+            }
+        });
+        Box::new(front.chain(back))
     }
 }
 
@@ -174,10 +221,6 @@ mod tests {
         );
         test_building_block(
             Inclusive::new(Array::new(0), Array::new(10)),
-            true,
-        );
-        test_building_block(
-            Inclusive::new(Array::new(10), Array::new(0)),
             true,
         );
         test_building_block(

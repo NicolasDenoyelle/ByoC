@@ -45,6 +45,8 @@ pub struct BatchConfig {
     container: toml::value::Array,
 }
 
+impl ConfigWithTraits for BatchConfig {}
+
 impl ConfigInstance for BatchConfig {
     fn id() -> &'static str {
         "BatchConfig"
@@ -78,15 +80,6 @@ where
             .map(|cfg| GenericConfig::from_toml(&cfg).unwrap().build())
             .fold(Batch::new(), |acc, batch| acc.append(batch));
         Box::new(c)
-    }
-}
-
-impl ConfigWithTraits for BatchConfig {
-    fn is_ordered(&self) -> bool {
-        self.container
-            .iter()
-            .map(|cfg| GenericConfig::from_toml(cfg).unwrap())
-            .all(|cfg| cfg.is_ordered())
     }
 }
 

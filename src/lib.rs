@@ -31,8 +31,8 @@ mod inclusive;
 pub use inclusive::Inclusive;
 mod profiler;
 pub use profiler::Profiler;
-mod policy;
-pub use policy::policy::Policy;
+pub mod decorator;
+pub use decorator::decorator::Decorator;
 mod sequential;
 pub use sequential::Sequential;
 #[cfg(feature = "socket")]

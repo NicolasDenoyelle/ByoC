@@ -11,37 +11,39 @@
 //! [Array](../struct.Array.html) building block with
 //! a capacity of 1000000 elements. The two containers are connected
 //! with a [Exclusive](../struct.Exclusive.html) connector.
-//! We want the [most recently used](../policy/struct.Lru.html) elements
+//! We want the [most recently used](../decorator/struct.Lru.html) elements
 //! to stay in the first layer, and we want to be able to access the
 //! container [concurrently](../trait.Concurrent.html).
 //!
 //! Without the builder pattern, such container would be built as follow:
 //! ```
 //! use byoc::BuildingBlock;
-//! use byoc::{Array, Exclusive, Sequential, Policy};
-//! use byoc::utils::policy::{Lru, timestamp::Clock};
+//! use byoc::{Array, Exclusive, Sequential, Decorator};
+//! use byoc::utils::timestamp::Clock;
+//! use byoc::decorator::Lru;
 //!
 //! let front = Array::new(10000);
 //! let back = Array::new(1000000);
 //! let exclusive = Exclusive::new(front, back);
-//! let policy = Policy::new(exclusive, Lru::<Clock>::new());
-//! let mut container = Sequential::new(policy);
+//! let decorator = Decorator::new(exclusive, Lru::<Clock>::new());
+//! let mut container = Sequential::new(decorator);
 //! container.push(vec![(1,2)]);
 //! ```
 //!
 //! With a builder pattern, the same code becomes:
 //! ```
 //! use byoc::BuildingBlock;
-//! use byoc::utils::policy::{Lru, timestamp::Clock};
+//! use byoc::utils::timestamp::Clock;
+//! use byoc::decorator::Lru;
 //! use byoc::builder::{Build,
 //!                     Builder,
 //!                     ExclusiveBuild,
-//!                     PolicyBuild,
+//!                     DecoratorBuild,
 //!                     SequentialBuild};
 //!
 //! let mut container = Builder::array(10000)
 //!                             .exclusive(Builder::array(1000000))
-//!                             .with_policy(Lru::<Clock>::new())
+//!                             .with_decorator(Lru::<Clock>::new())
 //!                             .into_sequential()
 //!                             .build();
 //! container.push(vec![(1,2)]);
@@ -60,9 +62,9 @@ pub use crate::associative::builder::AssociativeBuilder;
 pub use crate::btree::builder::BTreeBuilder;
 #[cfg(feature = "compression")]
 pub use crate::compression::builder::CompressedBuilder;
+pub use crate::decorator::builder::DecoratorBuilder;
 pub use crate::exclusive::builder::ExclusiveBuilder;
 pub use crate::inclusive::builder::InclusiveBuilder;
-pub use crate::policy::builder::PolicyBuilder;
 pub use crate::profiler::builder::ProfilerBuilder;
 pub use crate::sequential::builder::SequentialBuilder;
 #[cfg(feature = "socket")]
@@ -73,8 +75,8 @@ pub use crate::socket::builder::{
 pub use crate::stream::builder::StreamBuilder;
 
 pub use crate::associative::builder::AssociativeBuild;
+pub use crate::decorator::builder::DecoratorBuild;
 pub use crate::exclusive::builder::ExclusiveBuild;
 pub use crate::inclusive::builder::InclusiveBuild;
-pub use crate::policy::builder::PolicyBuild;
 pub use crate::profiler::builder::ProfilerBuild;
 pub use crate::sequential::builder::SequentialBuild;

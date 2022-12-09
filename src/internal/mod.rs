@@ -8,3 +8,6 @@ pub use shared_ptr::SharedPtr;
 pub mod kmin;
 /// Library custom read/write lock.
 pub mod lock;
+
+/// Size computation utils.
+pub mod size;

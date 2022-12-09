@@ -25,22 +25,24 @@ where
     let popped: Vec<(K, InclusiveCell<V>)> = to
         .push(vec![(key.clone(), c.clone())])
         .into_iter()
-        .filter_map(|(k, c)| match (c.is_updated(), c.is_cloned()) {
-            (false, true) => None, // The value is already in the from container
-            _ => Some((k, c)),
-        })
+        .filter_map(
+            |(k, c)| if c.is_updated() { Some((k, c)) } else { None },
+        )
         .collect();
 
     if popped.is_empty() {
         return true;
     }
 
-    let overflow = from.push(popped);
-    if overflow.is_empty() {
-        return true;
+    // Remove outdated elements in the container where we need to push.
+    from.take_multiple(
+        &mut popped.iter().map(|(k, _)| k.clone()).collect(),
+    );
+    if !from.push(popped).is_empty() {
+        panic!("Downgrading InclusiveCell from back container to front container resulted in an overflow in the back container.");
     }
 
-    panic!("Downgrading InclusiveCell from back container to front container resulted in an overflow in the back container.");
+    true
 }
 
 pub struct InclusiveGetCell<V> {
@@ -77,6 +79,14 @@ where
 {
     type Target = InclusiveGetCell<L::Target>;
 
+    /// Get a read-only smart pointer to a value inside the container.
+    ///
+    /// This method will look for the element in the `front` container first.
+    /// If it is found, it is returned.
+    /// Else, it will look for the element  in the `back` container.
+    /// If it is not found, `None` is returned. Else, the element is copied
+    /// into the `front` container and a smart-pointer to the latter is
+    /// returned.
     fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         if self.front.contains(key)
             || downgrade(&mut self.back, &mut self.front, key)
@@ -100,6 +110,14 @@ where
 {
     type Target = InclusiveGetCell<L::Target>;
 
+    /// Get a smart pointer to a mutable value inside the container.
+    ///
+    /// This method will look for the element in the `front` container first.
+    /// If it is found, it is returned.
+    /// Else, it will look for the element  in the `back` container.
+    /// If it is not found, `None` is returned. Else, the element is copied
+    /// into the `front` container and an exclusive smart-pointer to the latter
+    /// is returned.
     fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         if self.front.contains(key)
             || downgrade(&mut self.back, &mut self.front, key)
@@ -121,9 +139,7 @@ mod tests {
 
     #[test]
     fn get() {
-        test_get(Inclusive::new(Array::new(10), Array::new(0)));
         test_get(Inclusive::new(Array::new(10), Array::new(100)));
-        test_get_mut(Inclusive::new(Array::new(10), Array::new(0)));
         test_get_mut(Inclusive::new(Array::new(10), Array::new(100)));
     }
 }

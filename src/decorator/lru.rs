@@ -1,11 +1,11 @@
-use crate::policy::timestamp::Timestamp;
-use crate::policy::{Reference, ReferenceFactory};
+use crate::decorator::{Decoration, DecorationFactory};
+use crate::utils::timestamp::Timestamp;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;
 use std::cmp::{Ord, Ordering};
 
-/// Implementation of [`Reference`](trait.Reference.html)
+/// Implementation of [`Decoration`](trait.Decoration.html)
 /// with a Least Recently Used (Lru) eviction policy.
 ///
 /// See /// See [`Lru`](struct.Lru.html)
@@ -17,7 +17,7 @@ pub struct LruCell<V, T: Timestamp> {
     timestamp: Cell<T>,
 }
 
-/// Reference implementation of Least Recently Used ordering.
+/// Decoration implementation of Least Recently Used ordering.
 ///
 /// `Lru` wraps values into cells implementing Lru ordering policy.
 /// The purpose of this policy is to keep in the cache the most recently
@@ -31,11 +31,11 @@ pub struct LruCell<V, T: Timestamp> {
 /// ## Examples
 ///
 /// ```
-/// use byoc::{Array, Policy};
-/// use byoc::utils::policy::Lru;
-/// use byoc::utils::policy::timestamp::Clock;
+/// use byoc::{Array, Decorator};
+/// use byoc::decorator::Lru;
+/// use byoc::utils::timestamp::Clock;
 ///
-/// // let c = Policy::new(Array::new(3), Lru::<Clock>::new());
+/// // let c = Decorator::new(Array::new(3), Lru::<Clock>::new());
 /// ```
 pub struct Lru<T: Timestamp> {
     phantom: std::marker::PhantomData<T>,
@@ -63,7 +63,7 @@ impl<T: Timestamp> Default for Lru<T> {
     }
 }
 
-impl<V, T: Timestamp> ReferenceFactory<V> for Lru<T> {
+impl<V, T: Timestamp> DecorationFactory<V> for Lru<T> {
     type Item = LruCell<V, T>;
     fn wrap(&mut self, v: V) -> Self::Item {
         LruCell {
@@ -109,7 +109,7 @@ impl<V, T: Timestamp> PartialEq for LruCell<V, T> {
 
 impl<V, T: Timestamp> Eq for LruCell<V, T> {}
 
-impl<V, T: Timestamp> Reference<V> for LruCell<V, T> {
+impl<V, T: Timestamp> Decoration<V> for LruCell<V, T> {
     fn unwrap(self) -> V {
         self.value
     }
@@ -126,8 +126,8 @@ impl<V, T: Timestamp> Reference<V> for LruCell<V, T> {
 #[cfg(test)]
 mod tests {
     use super::LruCell;
-    use crate::policy::timestamp::Counter;
-    use crate::policy::Reference;
+    use crate::decorator::Decoration;
+    use crate::utils::timestamp::Counter;
 
     #[test]
     fn test_lru_ref() {

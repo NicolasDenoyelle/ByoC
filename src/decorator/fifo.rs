@@ -1,4 +1,4 @@
-use crate::policy::{Reference, ReferenceFactory};
+use crate::decorator::{Decoration, DecorationFactory};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::cmp::{Ord, Ordering};
@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU64, Ordering::Relaxed};
 // Fifo eviction policy                                                       //
 //----------------------------------------------------------------------------//
 
-/// Implementation of [`Reference`](trait.Reference.html) with
+/// Implementation of [`Decoration`](trait.Decoration.html) with
 /// a First In First Out eviction policy.
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -16,7 +16,7 @@ pub struct FifoCell<V> {
     counter: u64,
 }
 
-/// Reference implementation of First In First Out ordering.
+/// Decoration implementation of First In First Out ordering.
 ///
 /// `Fifo` wraps values into cells implementing Fifo ordering policy.
 /// It tries to keep in cache last inserted elements while evicting older
@@ -24,17 +24,17 @@ pub struct FifoCell<V> {
 ///
 /// Fifo implementations keeps a counter of fifo cells creation and
 /// attached the counter value to the value wrapped into a Fifo cell.
-/// Fifo cells are further ordered in reverse order of their counter value
+/// Fifo cells are further ordering in reverse order of their counter value
 /// such that the oldest counter are the one evicted first.
 ///
 /// ## Examples
 ///
 /// ```
 /// use byoc::BuildingBlock;
-/// use byoc::{Array, Policy};
-/// use byoc::utils::policy::Fifo;
+/// use byoc::{Array, Decorator};
+/// use byoc::decorator::Fifo;
 ///
-/// let mut c = Policy::new(Array::new(3), Fifo::new());
+/// let mut c = Decorator::new(Array::new(3), Fifo::new());
 /// assert_eq!(c.push(vec![("item1",1u16), ("item2",2u16), ("item0",3u16)])
 ///             .len(), 0);
 /// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
@@ -66,7 +66,7 @@ impl Clone for Fifo {
     }
 }
 
-impl<V> ReferenceFactory<V> for Fifo {
+impl<V> DecorationFactory<V> for Fifo {
     type Item = FifoCell<V>;
 
     fn wrap(&mut self, v: V) -> Self::Item {
@@ -104,7 +104,7 @@ impl<V> PartialEq for FifoCell<V> {
 
 impl<V> Eq for FifoCell<V> {}
 
-impl<V> Reference<V> for FifoCell<V> {
+impl<V> Decoration<V> for FifoCell<V> {
     fn unwrap(self) -> V {
         self.value
     }

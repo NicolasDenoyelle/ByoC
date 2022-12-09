@@ -50,12 +50,14 @@ pub struct CompressedConfig {
     capacity: usize,
 }
 
+impl ConfigWithTraits for CompressedConfig {}
+
 impl<T> IntoConfig<CompressedConfig>
     for CompressedBuilder<T, VecStreamFactory>
 where
     T: Serialize + DeserializeOwned,
 {
-    fn into_config(&self) -> CompressedConfig {
+    fn as_config(&self) -> CompressedConfig {
         CompressedConfig {
             id: String::from(CompressedConfig::id()),
             filename: None,
@@ -68,7 +70,7 @@ where
 impl<T> IntoConfig<CompressedConfig>
     for CompressedBuilder<T, TempFileStreamFactory>
 {
-    fn into_config(&self) -> CompressedConfig {
+    fn as_config(&self) -> CompressedConfig {
         let tmp =
             NamedTempFile::new().expect("Failed to create temporary file");
         let tmp_name =
@@ -122,12 +124,6 @@ where
     }
 }
 
-impl ConfigWithTraits for CompressedConfig {
-    fn is_ordered(&self) -> bool {
-        true
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::CompressedConfig;
@@ -163,7 +159,7 @@ mod tests {
     }
 
     #[test]
-    fn test_builder_into_config() {
+    fn test_builder_as_config() {
         let builder =
             CompressedBuilder::<(), _>::new(2, VecStreamFactory {});
         test_config_builder(builder);

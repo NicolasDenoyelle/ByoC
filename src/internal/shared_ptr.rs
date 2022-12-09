@@ -1,4 +1,3 @@
-use crate::policy::Ordered;
 use crate::utils::get::LifeTimeGuard;
 use crate::{BuildingBlock, Concurrent, Get, GetMut};
 use std::marker::Sync;
@@ -11,7 +10,7 @@ use std::sync::{
 // A Shared ptr blocking on access.
 //-------------------------------------------------------------------------
 
-/// Reference counting wrapper to allow safe concurrent access to an object.
+/// Decoration counting wrapper to allow safe concurrent access to an object.
 ///
 /// [`SharedPtr`] stores its content on the heap and can create shadow
 /// copies, i.e copies of the pointer to the same content. When the last copy of
@@ -193,8 +192,6 @@ impl<C: Send + Sync> Concurrent for SharedPtr<C> {
         Clone::clone(self)
     }
 }
-
-impl<V: Ord, C: Ordered<V>> Ordered<V> for SharedPtr<C> {}
 
 //------------------------------------------------------------------------//
 // Get trait implementation

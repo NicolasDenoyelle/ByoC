@@ -2,37 +2,28 @@ use std::vec::Vec;
 
 /// In-memory container implementation as a fixed size array of key/value pairs.
 ///
-/// [`Array`] is an unordered container built on top of a [`std::vec::Vec`].
+/// [`Array`] is a container that stores its elements in a [`std::vec::Vec`].
 ///
-/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
+/// Elements that go into an [`Array`] are sized with a function
+/// `element_size()` set with the method
+/// [`with_element_size()`](struct.Array.html#method.with_element_size) such
+/// that the sum of the sizes of [`Array`] elements never exceed its set
+/// capacity. The default size for a key/value pair element is `1` and therefore
+/// the container capacity in this circumstance is the number of elements it can
+/// contain.
 ///
-/// The number of elements fitting in this container is computed as the sum of
-/// its [elements size](struct.Array.html#method.with_element_size)
-/// where the default size for a key/value pair is 1.
+/// Elements within an [`Array`] are stored out of order, however, when
+/// [popping](struct.struct.Array.html#method.pop) out, the elements with
+/// the greatest values are evicted first. The same applies when pushing more
+/// elements that can fit into the container, i.e the greatest elements within
+/// the container are popped before inserting the new elements.
 ///
-/// * Insertion complexity is `$O(n)$`.
-/// The whole array is walked to look for matching keys and avoid collisions.
-/// * Removal complexity is `$O(n)$`.
-/// The whole array is walked to look for matching keys.
-/// * Eviction complexity is `$O(n*log(n))$`.
-/// The whole array is sorted to remove the top `k` elements.
-/// * Keys lookup complexity is `$O(n)$`.
-/// * Capacity and count queries are `$O(1)$`.
-///
-/// Removal performance can be slightly better using the
-/// [`take_multiple()`](struct.Array.html#method.take_multiple) method.
-/// The removal complexity is `$O(k*log(k) + n*log(k))$` where `n` is the number
-/// of elements in the container and `k` is the number of keys to lookup.
-///
-/// ## [`Get`](trait.Get.html) Implementation
+/// See [`BuildingBlock` implementation](struct.Array.html#impl-BuildingBlock)
+/// for more detail on how does the container operates.
 ///
 /// Elements within the array can be accessed with the [`Get`](trait.Get.html)
 /// [`GetMut`](trait.GetMut.html) traits. These traits return a pointer to
-/// an element inside the underlying [`std::vec::Vec`] and are safe to use
-/// as long as the borrow rule are respected.
-///
-/// This container implements the [`Ordered`](../policy/trait.Ordered.html)
-/// trait and can be safely used with a custom [policy](policy/index.html).
+/// an element inside the underlying [`std::vec::Vec`].
 ///
 /// ## Examples
 ///
@@ -49,7 +40,8 @@ use std::vec::Vec;
 ///                     ("second", 2),
 ///                     ("third", 3)]).pop().is_none());
 ///
-/// // Array is full and pops a victim before inserting value.
+/// // Array is full and pops a victim with the highest value within the
+/// // container before inserting the new value.
 /// let mut popped = c.push(vec![("fourth", 12)]);
 /// assert_eq!(popped.len(), 1);
 /// let (key, _) = popped.pop().unwrap();
@@ -78,7 +70,7 @@ impl<T> Array<T> {
     /// Create a new [`Array`] container with `size`
     /// [`capacity`](struct.Array.html#method.capacity).
     ///
-    /// The meaning of this capacity depends on the `element_size` function
+    /// The meaning of this capacity depends on the `element_size()` function
     /// set with
     /// [`with_element_size()`](struct.Array.html#method.with_element_size).
     /// The default is to set every elements size to `1usize` and therefore,

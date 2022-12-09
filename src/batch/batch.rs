@@ -3,6 +3,8 @@ use std::collections::LinkedList;
 /// Chunk a big `BuildingBlock` into small batches.
 ///
 /// This container is implemented as an array of building blocks.
+/// Each [`BuildingBlock`](trait.BuildingBlock.html) of this
+/// [`Batch`] container is named a batch.
 /// The goal of this container is to cut the cost of accessing a
 /// building block into small pieces (or batches). Specifically, when the
 /// underlying building block is a [`Compressed`](struct.Compressed.html),
@@ -11,26 +13,11 @@ use std::collections::LinkedList;
 /// reducing the memory footprint and enable managing data that would otherwise
 /// be unmanageable due to its size.
 ///
-/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
-///
-/// The [`pop(n)`](trait.BuildingBlock.html#tymethod.pop) method will try to
-/// pop `n` elements from each batch into main memory and keep the top `k`
-/// elements out while pushing other elements back in.
-/// The [`push()`](trait.BuildingBlock.html#tymethod.push) method will try to
-/// push elements in the first batch. Elements not fitting in the first batch
-/// are then pushed in the second batch and so forth until all elements have
-/// been inserted or all batches are full.
-/// The [`take()`](trait.BuildingBlock.html#tymethod.take)
-/// iterate through all batches and stop at the first batch with a matching key.
-/// The [`take_multiple()`](trait.BuildingBlock.html#tymethod.take_multiple)
-/// sibling method will iterate batches until all vector of keys to lookup for
-/// has been emptyied by the batches with matches.
-///
 /// ## [`Get`](trait.Get.html) Implementation
 ///
 /// [`Get`](trait.Get.html) and [`Concurrent`](trait.Concurrent.html)
 /// traits are inherited from the type of container used to build this
-/// associative container. [`Get`](trait.Get.html) trait works similarly as
+/// batch container. [`Get`](trait.Get.html) trait works similarly as
 /// [`take()`](trait.BuildingBlock.html#tymethod.take) method. It iterates
 /// batches from front to back and stops at the first match.
 ///

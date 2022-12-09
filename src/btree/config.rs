@@ -69,7 +69,7 @@ impl ConfigWithTraits for BTreeConfig {}
 impl<K: Ord + Copy, V: Ord> IntoConfig<BTreeConfig>
     for BTreeBuilder<K, V>
 {
-    fn into_config(&self) -> BTreeConfig {
+    fn as_config(&self) -> BTreeConfig {
         BTreeConfig {
             id: String::from(BTreeConfig::id()),
             capacity: self.capacity,
@@ -110,7 +110,7 @@ mod tests {
     }
 
     #[test]
-    fn test_builder_into_config() {
+    fn test_builder_as_config() {
         let builder = BTreeBuilder::<(), ()>::new(2);
         test_config_builder(builder);
     }

@@ -6,39 +6,28 @@ use std::rc::Rc;
 /// [`BTree`] is a container organized with binary tree structures for keys
 /// and values. Keys are kept in a binary tree for fast lookups.
 /// Values are kept in a binary tree for fast search of eviction candidates.
-/// This container cannot contain matching pairs of a key and a value.
+/// When evicting candidates, key/value pairs with the greatest values are
+/// evicted first.
+///
+/// Elements that go into a [`BTree`] are sized with a function
+/// `element_size()` set with the method
+/// [`with_element_size()`](struct.BTree.html#method.with_element_size) such
+/// that the sum of the sizes of [`BTree`] elements never exceed its set
+/// capacity. The default size for a key/value pair element is `1` and therefore
+/// the container capacity in this circumstance is the number of elements it can
+/// contain.
+///
+/// This container cannot contain matching pairs of couple (key, value).
 /// However, it can store matching values or matching keys.
-/// Additionally, because [`BTree`] is an ordered container,
+/// Additionally, because [`BTree`] is an ordering container,
 /// it is not safe to store keys or values for which the order may change
-/// through time. Specifically, using [`Lru`](./policy/struct.Lru.html)
-/// or [`Lrfu`](./policy/struct.Lrfu.html) policies is not safe.
+/// through time.
 ///
-/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
+/// See [`BuildingBlock` implementation](struct.BTree.html#impl-BuildingBlock)
+/// for more detail on how does the container operates.
 ///
-/// The number of elements fitting in the container is computed similarly
-/// to [`Array`](struct.Array.html) container. The default behavior is to set
-/// the capacity in numbers of element. The method
-/// [`with_element_size()`](struct.BTree.html#method.with_element_size) allows
-/// to adjust the meaning of container capacity and the size of its elements.
-///
-/// * Insertion complexity is `$O(log(n))$`.
-/// The whole array is walked to look for matching keys and avoid collisions.
-/// * Removal complexity is `$O(log(n))$`.
-/// The whole array is walked to look for matching keys.
-/// * Eviction complexity is `$O(log(n))$`.
-/// The whole array is sorted to remove the top `k` elements.
-/// * Keys lookup complexity is `$O(log(n))$`.
-/// * Capacity and count queries are `$O(1)$`.
-///
-/// ## [`Get`](trait.Get.html) Implementation
-///
-/// [`BTree`] does not implement [`Get`](trait.Get.html) trait because
-/// accessing modifying values is likely to modify their order and break the
-/// container logic.
-///
-/// This container implements the [`Ordered`](../policy/trait.Ordered.html)
-/// (although it cannot be safely used with a [policy](policy/index.html))
-/// because eviction will evict the top `k` elements.
+/// Elements within the array can be accessed with the [`Get`](trait.Get.html)
+/// and [`GetMut`](trait.GetMut.html) traits.
 ///
 /// ## Examples
 ///
@@ -53,17 +42,23 @@ use std::rc::Rc;
 /// // No element is rejected.
 /// assert!(c.push(vec![("first", 1), ("second", 2)]).pop().is_none());
 ///
-/// // Overflow pops enough size. Then duplicate or rejected as well.
-/// let out = c.push(vec![("first", 1), ("third", 3)]);
-/// assert_eq!(out.len(), 2);
-/// // Overflow
-/// assert_eq!(out[0].0, "second");
-/// // Already in the container.
-/// assert_eq!(out[1].0, "first");
+/// // Pushing pops out duplicates. If there is enough size for the rest, the
+/// // rest will fit.
+/// let out = c.push(vec![("first", 2), ("third", 3)]);
+/// assert_eq!(out.len(), 1);
+/// assert_eq!(out[0].0, "first");
+///
+/// // Overflowing pushes will pop enough room for new elements:
+/// let out = c.push(vec![("fourth", 4)]);
+/// assert_eq!(out.len(), 1);
+/// // Popped element is the greatest value already present before push.
+/// assert_eq!(out[0].0, "third");
 ///
 /// // BTree pops elements in order of the highest values.
 /// let (key, value) = c.pop(1).pop().unwrap();
-/// assert_eq!(key, "third");
+/// assert_eq!(key, "fourth");
+/// let (key, value) = c.pop(1).pop().unwrap();
+/// assert_eq!(key, "second");
 /// let (key, value) = c.pop(1).pop().unwrap();
 /// assert_eq!(key, "first");
 /// assert!(c.pop(1).is_empty());
@@ -80,8 +75,8 @@ where
     // BuildingBlock capacity
     pub(super) capacity: usize,
     pub(super) total_size: usize,
-    pub(super) element_size: fn(&K, &V) -> usize,
-    // Ordered set of references. Used for eviction.
+    pub(super) element_size: fn((&K, &V)) -> usize,
+    // Ordering set of references. Used for eviction.
     pub(super) set: BTreeSet<(Rc<V>, K)>,
     // Map of references keys and index.
     pub(super) map: BTreeMap<K, Rc<V>>,
@@ -105,7 +100,7 @@ where
         BTree {
             capacity: size,
             total_size: 0,
-            element_size: |_, _| 1,
+            element_size: |_| 1,
             set: BTreeSet::new(),
             map: BTreeMap::new(),
         }
@@ -122,7 +117,7 @@ where
     /// [`capacity`](struct.BTree.html#method.capacity).
     pub fn with_element_size(
         mut self,
-        element_size: fn(&K, &V) -> usize,
+        element_size: fn((&K, &V)) -> usize,
     ) -> Self {
         if self.total_size > 0 {
             panic!("It is not allowed to set a non empty BTree container element_size method.")
@@ -133,5 +128,16 @@ where
 
     pub(super) fn as_value(rc: Rc<V>) -> V {
         Rc::try_unwrap(rc).map_err(|_| panic!("")).unwrap()
+    }
+
+    pub(super) fn insert_values_unchecked(
+        &mut self,
+        elements: Vec<(K, V)>,
+    ) {
+        for (key, value) in elements.into_iter() {
+            let value = Rc::new(value);
+            self.set.insert((Rc::clone(&value), key));
+            self.map.insert(key, value);
+        }
     }
 }

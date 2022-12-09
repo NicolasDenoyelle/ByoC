@@ -14,6 +14,8 @@ pub struct InclusiveConfig {
     back: toml::Value,
 }
 
+impl ConfigWithTraits for InclusiveConfig {}
+
 impl<L, LB, R, RB> IntoConfig<InclusiveConfig>
     for InclusiveBuilder<L, LB, R, RB>
 where
@@ -22,9 +24,9 @@ where
     L: ConfigInstance,
     R: ConfigInstance,
 {
-    fn into_config(&self) -> InclusiveConfig {
-        let left_config: L = self.lbuilder.into_config();
-        let right_config: R = self.rbuilder.into_config();
+    fn as_config(&self) -> InclusiveConfig {
+        let left_config: L = self.lbuilder.as_config();
+        let right_config: R = self.rbuilder.as_config();
         let left_config_str = left_config.to_toml_string();
         let right_config_str = right_config.to_toml_string();
         let front = toml::de::from_str(left_config_str.as_ref()).unwrap();
@@ -74,17 +76,6 @@ where
     }
 }
 
-impl ConfigWithTraits for InclusiveConfig {
-    fn is_ordered(&self) -> bool {
-        GenericConfig::from_toml(&self.front)
-            .unwrap()
-            .has_ordered_trait
-            && GenericConfig::from_toml(&self.back)
-                .unwrap()
-                .has_ordered_trait
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::InclusiveConfig;
@@ -111,7 +102,7 @@ capacity={}
             toml::from_str(config_str.as_str()).unwrap();
         let config = InclusiveConfig::from_toml(&value).unwrap();
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
-        assert_eq!(container.capacity(), array_capacity * 2);
+        assert_eq!(container.capacity(), array_capacity);
     }
 
     #[test]
@@ -134,7 +125,7 @@ toto='titi'
     }
 
     #[test]
-    fn test_builder_into_config() {
+    fn test_builder_as_config() {
         let builder = InclusiveBuilder::new(
             ArrayBuilder::<()>::new(2),
             ArrayBuilder::<()>::new(2),

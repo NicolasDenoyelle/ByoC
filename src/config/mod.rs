@@ -28,10 +28,9 @@
 //! generated from a configuration.
 //!
 //! If the [`DynBuildingBlock`] obtained from a configuration implements
-//! respectively the [`Ordered`](../policy/trait.Ordered.html) or the
-//! [`Concurrent`](../trait.Concurrent.html) trait, then it should be detected
-//! at runtime and the former struct can be turned respectively into a
-//! [`DynOrdered`] or a [`DynConcurrent`] [`BuildingBlock`]
+//! the [`Concurrent`](../trait.Concurrent.html) trait, then it should be
+//! detected at runtime and the former struct can be turned respectively into a
+//! [`DynConcurrent`] [`BuildingBlock`]
 
 use crate::builder::Build;
 use crate::BuildingBlock;
@@ -162,7 +161,7 @@ where
 /// [cache builders](../builder/index.html) mainly but could be implemented by
 /// other containers as well.
 pub trait IntoConfig<C: ConfigInstance> {
-    fn into_config(&self) -> C;
+    fn as_config(&self) -> C;
 }
 
 /// Identify whether a configuration will result in a `BuildingBlock`
@@ -172,13 +171,6 @@ pub(crate) trait ConfigWithTraits {
     /// [`BuildingBlock`](../trait.BuildingBlock.html) that implements the
     /// [`Concurrent`](../trait.Concurrent.html) trait.
     fn is_concurrent(&self) -> bool {
-        false
-    }
-
-    /// Return whether this configuration represents a
-    /// [`BuildingBlock`](../trait.BuildingBlock.html) that implements the
-    /// [`Ordered`](../policy/trait.Ordered.html) trait.
-    fn is_ordered(&self) -> bool {
         false
     }
 }
@@ -221,7 +213,7 @@ pub use config_builder::ConfigBuilder;
 mod error;
 pub use error::ConfigError;
 mod dyn_traits;
-pub use dyn_traits::{DynBuildingBlock, DynConcurrent, DynOrdered};
+pub use dyn_traits::{DynBuildingBlock, DynConcurrent};
 mod generic_config;
 pub(crate) use generic_config::GenericConfig;
 
