@@ -10,11 +10,18 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Copy, Clone)]
 #[serde(tag = "kind", content = "exponent")]
-pub enum Decoration {
+pub enum DecorationType {
     Lrfu(f32),
     Lru,
     Fifo,
     None,
+}
+
+impl Default for DecorationType {
+    /// The default value of a [`DecorationType`] is `None`, i.e no decoration.
+    fn default() -> Self {
+        DecorationType::None
+    }
 }
 
 /// Configuration format for [`Decorator`](../struct.Decorator.html)
@@ -31,7 +38,7 @@ pub enum Decoration {
 ///
 /// This configuration format is composed of     
 /// * an `id` field where the `id` value must be "DecoratorConfig",
-/// * `decorator.kind` field which accept values defined in the [`Decoration`]
+/// * `decorator.kind` field which accept values defined in the [`DecorationType`]
 /// enum,
 /// * `decorator.exponent` field that sets the floating point value for the
 /// [`Lrfu`](../decorator/struct.Lrfu.html) decorator.
@@ -61,14 +68,14 @@ pub enum Decoration {
 pub struct DecoratorConfig {
     #[allow(dead_code)]
     id: String,
-    decorator: Decoration,
+    decorator: DecorationType,
     container: toml::Value,
 }
 
 impl DecoratorConfig {
     fn from_builder<C: ConfigInstance, B: IntoConfig<C>>(
         builder: &B,
-        decorator: Decoration,
+        decorator: DecorationType,
     ) -> Self {
         let container_config_str = builder.as_config().to_toml_string();
         let container: toml::value::Value =
@@ -90,7 +97,7 @@ where
     T: Timestamp,
 {
     fn as_config(&self) -> DecoratorConfig {
-        DecoratorConfig::from_builder(&self.builder, Decoration::Lru)
+        DecoratorConfig::from_builder(&self.builder, DecorationType::Lru)
     }
 }
 
@@ -104,7 +111,7 @@ where
     fn as_config(&self) -> DecoratorConfig {
         DecoratorConfig::from_builder(
             &self.builder,
-            Decoration::Lrfu(self.decorator.exponent()),
+            DecorationType::Lrfu(self.decorator.exponent()),
         )
     }
 }
@@ -116,7 +123,7 @@ where
     B: IntoConfig<C>,
 {
     fn as_config(&self) -> DecoratorConfig {
-        DecoratorConfig::from_builder(&self.builder, Decoration::Fifo)
+        DecoratorConfig::from_builder(&self.builder, DecorationType::Fifo)
     }
 }
 
@@ -139,19 +146,19 @@ where
 {
     fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
         match self.decorator {
-            Decoration::Lrfu(exponent) => Box::new(Decorator::new(
+            DecorationType::Lrfu(exponent) => Box::new(Decorator::new(
                 GenericConfig::from_toml(&self.container).unwrap().build(),
                 Lrfu::<Counter>::new(exponent),
             )),
-            Decoration::Lru => Box::new(Decorator::new(
+            DecorationType::Lru => Box::new(Decorator::new(
                 GenericConfig::from_toml(&self.container).unwrap().build(),
                 Lru::<Counter>::new(),
             )),
-            Decoration::Fifo => Box::new(Decorator::new(
+            DecorationType::Fifo => Box::new(Decorator::new(
                 GenericConfig::from_toml(&self.container).unwrap().build(),
                 Fifo::new(),
             )),
-            Decoration::None => {
+            DecorationType::None => {
                 GenericConfig::from_toml(&self.container).unwrap().build()
             }
         }

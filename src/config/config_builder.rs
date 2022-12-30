@@ -3,7 +3,7 @@ use super::{
 };
 use crate::builder::Build;
 use crate::config::DynBuildingBlock;
-use crate::decorator::config::Decoration;
+use crate::decorator::config::DecorationType;
 use crate::decorator::{Fifo, Lrfu, Lru};
 use crate::utils::timestamp::Counter;
 use crate::Decorator;
@@ -140,7 +140,7 @@ use toml;
 #[derive(Clone, Serialize)]
 pub struct ConfigBuilder {
     config: GenericConfig,
-    decorator: Decoration,
+    decorator: DecorationType,
 }
 
 impl ConfigBuilder {
@@ -169,16 +169,16 @@ impl ConfigInstance for ConfigBuilder {
         };
 
         let decorator = match table.get("decorator") {
-            None => Decoration::None,
+            None => DecorationType::None,
             Some(toml::value::Value::Table(t)) => match t.get("kind") {
-		None => Decoration::None,
+		None => DecorationType::None,
 		Some(toml::value::Value::String(s)) => match s.as_ref() {
-		"Fifo" => Decoration::Fifo,
-		"Lru" => Decoration::Lru,
+		"Fifo" => DecorationType::Fifo,
+		"Lru" => DecorationType::Lru,
 		"Lrfu" => {
 		    match table.get("decorator.Lrfu.exponent") {
-			None => Decoration::Lrfu(1.0),
-			Some(&toml::value::Value::Float(f)) => Decoration::Lrfu(f as f32),
+			None => DecorationType::Lrfu(1.0),
+			Some(&toml::value::Value::Float(f)) => DecorationType::Lrfu(f as f32),
 			_ => return Err(ConfigError::ConfigFormatError(format!("Invalid exponent format for decorator {},", s)))
 		    }
 		},
@@ -207,15 +207,15 @@ where
     fn build(self) -> DynBuildingBlock<'a, K, V> {
         let has_concurrent_trait = self.config.has_concurrent_trait;
         let build = match self.decorator {
-            Decoration::None => self.config.build(),
-            Decoration::Fifo => {
+            DecorationType::None => self.config.build(),
+            DecorationType::Fifo => {
                 Box::new(Decorator::new(self.config.build(), Fifo::new()))
             }
-            Decoration::Lru => Box::new(Decorator::new(
+            DecorationType::Lru => Box::new(Decorator::new(
                 self.config.build(),
                 Lru::<Counter>::new(),
             )),
-            Decoration::Lrfu(e) => Box::new(Decorator::new(
+            DecorationType::Lrfu(e) => Box::new(Decorator::new(
                 self.config.build(),
                 Lrfu::<Counter>::new(e),
             )),
