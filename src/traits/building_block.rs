@@ -2,9 +2,9 @@
 /// key/value storage.
 ///
 /// `BuildingBlock` trait defines the primitives to build a
-/// data processing pipeline implementing a key/value data container.
+/// key/value data storage pipeline of containers.
 /// The interface is made such that `BuildingBlock` implementers can be
-/// assembled in a pipeline fashion to build a container that will meet
+/// assembled in a pipelined fashion to build a container that will meet
 /// features and performance requirement of users key/value access
 /// workloads.
 ///
@@ -17,82 +17,104 @@
 /// [`BuildingBlock` implementors](trait.BuildingBlock.html#implementors)
 /// for more details on structuring building blocks together.
 pub trait BuildingBlock<'a, K: 'a, V: 'a> {
-    /// Get the maximum "size" that elements in the container can fit.
+    /// Get the maximum storage size of this [`BuildingBlock`].
     ///
     /// This value emulate the container maximum memory footprint.
     /// The real meaning of this value depends on the implementation.
     /// For instance, it could represent the maximum disk footprint of the file
     /// where elements are stored, or the maximum memory footprint of elements
-    /// in device memory.
+    /// in a device memory.
     ///
-    /// As a rule of thumbs,
-    /// adding elements to a container should be O(n) in space complexity
-    /// while metadata should occupy O(1) (or something negligible,
-    /// e.g O(log(n))) space complexity. At any point in time, the
+    /// At any point in time, the
     /// [`size()`](trait.BuildingBlock.html#tymethod.size) should be less or
-    /// equal than [`capacity()`](trait.BuildingBlock.html#tymethod.capacity).
+    /// equal to [`capacity()`](trait.BuildingBlock.html#tymethod.capacity).
     fn capacity(&self) -> usize;
 
-    /// Get the "size" occupied by this container.
+    /// Get the size currently occupied by elements in this [`BuildingBlock`].
     ///
     /// This value emulate the container memory footprint.
     /// The real meaning of this value depends on the implementation.
-    /// Here the footprint may decouple the size of container metadata,
-    /// versus the footprint of elements where they are stored, to only
-    /// report the latter.
+    /// Getting a real memory footprint may be hard. It depends on the
+    /// medium where the container is stored. We may expect that insertion
+    /// without overflow are going to increase container size and that removal
+    /// of elements decreases it.
     ///
-    /// This is hard to test because it depends on the medium where the
-    /// container is stored. We may expect that insertion without overflow
-    /// are going to increase container size, that removal of elements decreases
-    /// it and that container [`size()`](trait.BuildingBlock.html#tymethod.size)
-    /// will never exceed its
+    /// It is compulsory that a container
+    /// [`size()`](trait.BuildingBlock.html#tymethod.size) will never exceed its
     /// [`capacity()`](trait.BuildingBlock.html#tymethod.capacity).
     fn size(&self) -> usize;
 
-    /// Check if container contains a matchig key.
+    /// Check if container contains a matching key.
     fn contains(&self, key: &K) -> bool;
 
     /// Take the matching key/value pair out of the container.
+    ///
+    /// After this method is called, if the key was present in the container,
+    /// calling [`contains()`](trait.BuildingBlock.html#tymethod.contains) on
+    /// the same key should return `false` if the container does not store
+    /// duplicate keys.
     fn take(&mut self, key: &K) -> Option<(K, V)>;
 
-    /// Optimized implementation to take multiple keys out of a building
-    /// block. This method returns a vector of all elements matching input
-    /// `keys` that were inside a building block. Input keys can be
-    /// altered only to remove keys that have been taken out of the
-    /// building block.
+    /// Take multiple keys out of a container at once.
+    ///
+    /// This intended to optimize the process of taking multiple keys out of a
+    /// building block, compared to using
+    /// [`take()`](trait.BuildingBlock.html#tymethod.take) method repeatedly.
+    ///
+    /// This method returns a vector of all elements matching input `keys` that
+    /// were inside a building block. Input `keys` vector may be altered to
+    /// remove keys that have been taken out of the building block. This is used
+    /// when forwarding the `take_multiple()` request to multiple building
+    /// blocks, avoiding query a found key multiple times.
+    ///
+    /// As for [`take()`](trait.BuildingBlock.html#tymethod.take), for every key
+    /// taken out of the container,
+    /// [`contains()`](trait.BuildingBlock.html#tymethod.contains) is expected
+    /// to return `false` if the container does not store duplicate keys.
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
         keys.iter().filter_map(|k| self.take(k)).collect()
     }
 
-    /// Remove up to `n` values from the container.
-    /// If less than `n` values are stored in the container,
+    /// Free up to `size` space from the container.
+    ///
+    /// The meaning of `size should be the same as for
+    /// [`size()`](trait.BuildingBlock.html#tymethod.size) and
+    /// [`capacity()`](trait.BuildingBlock.html#tymethod.capacity) methods.
+    ///
+    /// If the container [`size()`](trait.BuildingBlock.html#tymethod.size) is
+    /// greater than `size` argument, at least `size` space needs to be freed
+    /// by returning elements occupying that space.
+    /// If less than `size` space is occupied by values in the container,
     /// the returned vector contains all the container values and
     /// the container is left empty.
+    ///
     /// The eviction policy deciding which elements are popped out is
     /// implementation defined.
-    /// Implementations also implementing the marker trait
-    /// [`Ordered`](policy/trait.Ordered.html) will guarantee the eviction
-    /// of elements with the largest value. Usually, such building block
-    /// are meant to be wrapped into a
-    /// [`Policy`](struct.Policy.html)
-    /// `BuildingBlock` to define the eviction policy.
-    fn pop(&mut self, n: usize) -> Vec<(K, V)>;
+    fn pop(&mut self, size: usize) -> Vec<(K, V)>;
 
-    /// Insert key/value pairs in the container. If the container cannot
-    /// store all the values, some values are returned.
-    /// The trait does not make a contract on what is returned.
-    /// It could be for instance the values not fitting in the container or
-    /// some values from the container depending on trade-offs
-    /// or desired behavior.
+    /// Insert key/value pairs in the container.
+    ///
+    /// It is up to the implementation to decide whether redundant keys can be
+    /// inserted or not.
+    ///
+    /// If the container cannot store all the values, some values are returned.
+    /// It is up to the implementation to decide which elements get evicted or
+    /// if all the values are attempted to be inserted once the container is
+    /// full.
     fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)>;
 
     /// Empty the container and retrieve all of its elements.
+    ///
     /// The container becomes empty and available at the end of the call.
     /// This functions yields an iterator because the amount of items to
     /// iterate over might exceed the size of computer memory.
+    /// For instance, when flushing a large number of elements out of a file,
+    /// the file containing the elements can be moved into a temporary file,
+    /// and an iterator over that file elements could be returned.
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
 }
 
+// Auto implementation of the trait for a boxed trait.
 impl<'a, K: 'a, V: 'a> BuildingBlock<'a, K, V>
     for Box<dyn BuildingBlock<'a, K, V> + 'a>
 {

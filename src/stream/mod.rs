@@ -10,7 +10,6 @@ mod io_vec;
 pub(crate) use io_vec::{IOStructMut, IOVec};
 mod error;
 pub(crate) use error::{IOError, IOResult};
-mod ordered;
 pub use file_stream::FileStream;
 #[cfg(feature = "tempfile")]
 pub use file_stream::TempFileStreamFactory;

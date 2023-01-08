@@ -9,19 +9,16 @@ use std::marker::PhantomData;
 /// This building blocks stores its elements in a serialized vector,
 /// compressed on a stream. Compression/decompression is managed with
 /// [`lz4`](../lz4/index.html) backend.
-/// By itself, this building is rather performing poorly both memory and
-/// speed wise. It is supposed to be used embedded in another container
-/// such as a [`Batch`](struct.Batch.html) or an
+/// This [`BuildingBlock`](trait.BuildingBlock.html) is meant to be used
+/// embedded in another container such as a [`Batch`](struct.Batch.html) or an
 /// [`Associative`](struct.Associative.html) container to split the memory
 /// footprint into smaller chunks and accelerating lookups.
 ///
 /// The [builder](./builder/compression/struct.CompressedBuilder.html) of this
-/// building block will automatically embed it into a `Batch` building block.
+/// building block will automatically embed it into a
+/// [`Batch`](struct.Batch.html) building block.
 ///
 /// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
-///
-/// The container capacity is the in-memory size of the serialized container
-/// elements before compression. The compressed size will likely be smaller.
 ///
 /// When performing read only operations, the whole content is
 /// decompressed and deserialized into a vector of key/value pairs.

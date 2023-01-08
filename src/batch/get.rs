@@ -7,6 +7,12 @@ where
     C: Get<K, V>,
 {
     type Target = C::Target;
+    /// Get a read-only smart pointer to a value inside the container.
+    ///
+    /// [`get()`](trait.Get.html#method.get) method works similarly
+    /// as [`take()`](trait.BuildingBlock.html#tymethod.take) method.
+    /// It iterates batches from the front to the back and stops at the first
+    /// match.
     fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.bb.iter_mut().find_map(|c| c.get(key))
     }
@@ -18,6 +24,12 @@ where
 {
     type Target = C::Target;
 
+    /// Get a smart pointer to a mutable value inside the container.
+    ///
+    /// [`get_mut()`](trait.GetMut.html#method.get_mut) method works similarly
+    /// as [`take()`](trait.BuildingBlock.html#tymethod.take) method.
+    /// It iterates batches from the front to the back and stops at the first
+    /// match.
     fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         self.bb.iter_mut().find_map(|c| c.get_mut(key))
     }

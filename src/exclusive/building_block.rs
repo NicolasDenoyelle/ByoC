@@ -16,23 +16,28 @@ where
         self.front.capacity() + self.back.capacity()
     }
 
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        Box::new(self.front.flush().chain(self.back.flush()))
-    }
-
-    /// The front is looked first and if the key is not
-    /// found, it is searched in the back.
-    fn contains(&self, key: &K) -> bool {
-        self.front.contains(key) || self.back.contains(key)
-    }
-
+    /// Get the size currently occupied by elements in this [`BuildingBlock`].
+    ///
+    /// This is the sum of the sizes held in the two containers that this
+    /// [`Exclusive`] container is composed of.
     fn size(&self) -> usize {
         self.front.size() + self.back.size()
     }
 
+    /// Check if container contains a matching key.
+    ///
+    /// This method will lookup the front container first.
+    /// If the the key is not found, then only it is searched in the back
+    /// container.
+    fn contains(&self, key: &K) -> bool {
+        self.front.contains(key) || self.back.contains(key)
+    }
+
     /// Take the matching key/value pair out of the container.
-    /// The front is looked first and if the key is not
-    /// found, it is searched in the back.
+    ///
+    /// This method will lookup the front container first.
+    /// If the the key is not found, then only it is searched in the back
+    /// container.
     fn take(&mut self, key: &K) -> Option<(K, V)> {
         match self.front.take(key) {
             Some(x) => Some(x),
@@ -40,12 +45,15 @@ where
         }
     }
 
-    /// This method will take matching keys on the front then on
-    /// the back.
-    /// Matching keys found on the front are not searched on the back
-    /// side.
-    /// Input `keys` is updated as a side effect to contain
-    /// only non matching keys.
+    /// Take multiple keys out of a container at once.
+    ///
+    /// Input `keys` are first sorted before matching keys are taken from the
+    /// front container. The keys taken out are then searched and removed from
+    /// the input `keys`. If some keys are left in the input `keys` vector, they
+    /// are attemptively taken out of the back container. Keys that were
+    /// successfully taken out of the back container are also removed from the
+    /// input `keys`. Finally, all the key/value pairs that were found either
+    /// in the front or the back container are returned in a vector.
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
         keys.sort();
 
@@ -73,73 +81,64 @@ where
         front
     }
 
-    /// Remove up to `n` values from the container.
-    /// If less than `n` values are stored in the container,
-    /// the returned vector contains all the container values and
-    /// the container is front empty.
-    /// Pop will remove values from the back all it can.
-    /// If there were less than `n` values in the back,
-    /// then more values from the front are popped.
-    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+    /// Free up to `size` space from the container.
+    ///
+    /// This function first attempts to free `size` space from the back
+    /// container with its own [`pop()`](trait.BuildingBlock.html#method.pop)
+    /// method. If less than `size` space was successfully freed, then
+    /// the remaining size to free is popped from the front container also with
+    /// its own [`pop()`](trait.BuildingBlock.html#method.pop) method.
+    ///
+    /// If less than `size` elements were stored in the container,
+    /// the returned vector will contain all the container values and
+    /// the container will be left empty.
+    fn pop(&mut self, size: usize) -> Vec<(K, V)> {
         let old_size = self.back.size();
-        let mut v = self.back.pop(n);
+        let mut v = self.back.pop(size);
         let evicted_size = old_size - self.back.size();
 
-        if evicted_size < n {
-            v.append(&mut self.front.pop(n - evicted_size));
+        if evicted_size < size {
+            v.append(&mut self.front.pop(size - evicted_size));
         }
         v
     }
 
-    /// Insert key/value pairs in the container. If the container cannot
-    /// store all the values, some values are returned.
+    /// Insert key/value pairs in the container.
     ///
-    /// Push will make room (pop) from the front to the back to
-    /// fit as many new `elements` as possible. If there is more elements
-    /// than capacity in the front, the front is flushed to the
-    /// back. At this point, everything that overflows the back
-    /// will be returned.
-    /// Once room has been made, `elements` are inserted to the front.
-    /// If new elements pop in the process, they are inserted to the
-    /// back. If elements pop again on the back, they are
-    /// also returned.
+    /// This function pushes the input `elements` to the front container with
+    /// its own [`push()`](trait.BuildingBlock.html#method.push) method and will
+    /// push all returned elements to the back container, also using its own
+    /// [`push()`](trait.BuildingBlock.html#method.push) method.
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        let front_capacity = self.front.capacity();
-        let front_count = self.front.size();
+        self.back.push(self.front.push(elements))
+    }
 
-        let mut front_pop = if elements.len()
-            <= (front_capacity - front_count)
-        {
-            Vec::new()
-        } else if elements.len() <= front_capacity {
-            let pop_count = elements.len() + front_count - front_capacity;
-            self.front.pop(pop_count)
-        } else {
-            self.front.flush().collect()
-        };
-        let mut elements = self.front.push(elements);
-        elements.append(&mut front_pop);
-
-        if elements.is_empty() {
-            return elements;
-        }
-
-        let back_capacity = self.back.capacity();
-        let back_count = self.back.size();
-        let mut back_pop = if elements.len()
-            <= (back_capacity - back_count)
-        {
-            Vec::new()
-        } else if elements.len() <= back_capacity {
-            let pop_count = elements.len() + back_count - back_capacity;
-            self.back.pop(pop_count)
-        } else {
-            self.back.flush().collect()
-        };
-        let mut elements = self.back.push(elements);
-        elements.append(&mut back_pop);
-
-        elements
+    /// Empty the container and retrieve all of its elements.
+    ///
+    /// This method moves elements towards the end of the container and flushes
+    /// them from the back of the container as follow.
+    ///
+    /// 1. This method flushes first the back container.
+    ///
+    /// 2. Then elements from the front container are flushed and pushed in the
+    /// back container. Popping element are chained to the flushed elements in
+    /// step 1.
+    ///
+    /// 3. Elements in the back are flushed and chained to elements from the two
+    /// former steps.
+    ///
+    ///
+    /// This is conveniently composable with
+    /// [`FlushStopper`](struct.FlushStopper.html) building block.
+    /// When composed together, the new container `flush()` method pushes
+    /// elements from the front container to the back and returns any popping
+    /// element.
+    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+        let back = self.back.flush();
+        let front = self.front.flush().collect();
+        let front = self.back.push(front).into_iter();
+        let new_back = self.back.flush();
+        Box::new(back.chain(front.chain(new_back)))
     }
 }
 

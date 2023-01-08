@@ -93,7 +93,7 @@ where
     T: Read + Write + Seek + Clone,
 {
     stream: T,
-    chunk_size: usize,
+    pub(super) chunk_size: usize,
     _o: PhantomData<O>,
 }
 
@@ -409,6 +409,11 @@ where
             chunk_size,
             _o: PhantomData,
         }
+    }
+
+    /// Return the storage size of one element in this [`IOVec`].
+    pub fn element_size(&self) -> usize {
+        self.chunk_size
     }
 
     /// The number of element in the vector.

@@ -1,21 +1,15 @@
 use crate::config::ConfigError;
 use crate::internal::lock::RWLock;
-use crate::policy::Ordered;
 use crate::{BuildingBlock, Concurrent};
-use std::cmp::Ord;
 
 /// A Boxed [`BuildingBlock`] returned by a `ConfigBuilder`.
 ///
 /// This object encapsulate a container built from a [configuration](index.html)
 /// and whether it implements some of the crate top-level traits:
-/// * [`Ordered`](../policy/trait.Ordered.html),
 /// * [`Concurrent`](../trait.Concurrent.html)
 ///
-/// Consequently, this object can be made into a similar object [`DynOrdered`]
-/// that will also implements the [`Ordered`](../policy/trait.Ordered.html)
-/// trait with the method
-/// [`into_ordered()`](struct.DynBuildingBlock.html#method.into_ordered) or into a
-/// [`DynConcurrent`] that will also implement the
+/// Consequently, this object can be made into a similar
+/// [`DynConcurrent`] object that will also implement the
 /// [`Concurrent`](../trait.Concurrent.html) trait with the method
 /// [`into_concurrent()`](struct.DynBuildingBlock.html#method.into_concurrent).
 /// Of course, this dynamic trait implementation will only succeed if the
@@ -26,15 +20,13 @@ use std::cmp::Ord;
 ///
 /// Making a valid configuration into a
 /// [`BuildingBlock`](../trait.BuildingBlock.html) that carries the
-/// [`Ordered`](../policy/trait.Ordered.html) trait or/and the
 /// [`Concurrent`](../trait.Concurrent.html) trait.
 /// ```
 /// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock, DynConcurrent,
-///                    DynOrdered};
+/// use byoc::config::{ConfigBuilder, DynBuildingBlock, DynConcurrent};
 ///
-/// // Write a `Concurrent` and `Ordered` container configuration
-/// // and make a `Builder` object from it.
+/// // Write a `Concurrent` container configuration and make a `Builder`
+/// // object from it.
 /// let config = "
 /// id='SequentialConfig'
 /// [container]
@@ -44,22 +36,9 @@ use std::cmp::Ord;
 /// // The configuration is valid so we can `unwrap()`.
 /// let builder = ConfigBuilder::from_string(config).unwrap();
 ///
-/// // This configuration can be made into an `Ordered` `BuildingBlock`.
-/// let container: DynOrdered<DynBuildingBlock<u64,u64>> =
-///                builder.clone().build().into_ordered().unwrap();
-///
 /// // This configuration can be made into an `Concurrent` `BuildingBlock`.
 /// let container: DynConcurrent<DynBuildingBlock<u64,u64>> =
 ///                builder.clone().build().into_concurrent().unwrap();
-///
-/// // This configuration can be made both `Concurrent` and `Ordered`.
-/// let container: DynConcurrent<DynOrdered<DynBuildingBlock<u64,u64>>> =
-///                builder.clone()
-///                       .build()
-///                       .into_ordered()
-///                       .unwrap()
-///                       .into_concurrent()
-///                       .unwrap();
 /// ```
 ///
 /// Not all the configurations can support these traits.
@@ -68,22 +47,16 @@ use std::cmp::Ord;
 /// use byoc::config::{ConfigBuilder,
 ///                    ConfigError,
 ///                    DynBuildingBlock,
-///                    DynConcurrent,
-///                    DynOrdered};
+///                    DynConcurrent};
 ///
-/// // Write a `Concurrent` and `Ordered` container configuration
-/// // and make a `Builder` object from it.
+/// // Write a `Concurrent` container configuration and make a `Builder`
+/// // object from it.
 /// let config = "
 /// id='BTreeConfig'
 /// capacity=10
 /// ";
 /// // The configuration is valid so we can `unwrap()`.
 /// let builder = ConfigBuilder::from_string(config).unwrap();
-///
-/// // This configuration cannot be made into an `Ordered` `BuildingBlock`.
-/// let result: Result<DynOrdered<DynBuildingBlock<u64,u64>>, ConfigError> =
-///          builder.clone().build().into_ordered();
-/// assert!(result.is_err());
 ///
 /// // This configuration cannot be made into an `Concurrent` `BuildingBlock`.
 /// let result: Result<DynConcurrent<DynBuildingBlock<u64,u64>>, ConfigError> =
@@ -93,44 +66,21 @@ use std::cmp::Ord;
 pub struct DynBuildingBlock<'a, K, V> {
     building_block: Box<dyn BuildingBlock<'a, K, V> + 'a>,
     has_concurrent_trait: bool,
-    has_ordered_trait: bool,
 }
 
 impl<'a, K, V> DynBuildingBlock<'a, K, V> {
     pub(super) fn new(
         building_block: Box<dyn BuildingBlock<'a, K, V> + 'a>,
         has_concurrent_trait: bool,
-        has_ordered_trait: bool,
     ) -> Self {
         Self {
             building_block,
             has_concurrent_trait,
-            has_ordered_trait,
         }
     }
 
     /// Make this [`BuildingBlock`](../trait.BuildingBlock.html) into an
-    /// [`Ordered`](../policy/trait.Ordered.html)
-    /// [`BuildingBlock`](../trait.BuildingBlock.html).
-    /// If the initial configuration that was used to make this
-    /// [`DynBuildingBlock`] did not support the
-    /// [`Ordered`](../policy/trait.Ordered.html) trait, a
-    /// [`ConfigError::UnsupportedTraitError`] is returned, else,
-    /// a [`BuildingBlock`](../trait.BuildingBlock.html) that carries
-    /// the [`Ordered`](../policy/trait.Ordered.html) trait is returned.
-    pub fn into_ordered(self) -> Result<DynOrdered<Self>, ConfigError> {
-        let has_concurrent_trait = self.has_concurrent_trait;
-        if self.has_ordered_trait {
-            Ok(DynOrdered::new(self, has_concurrent_trait))
-        } else {
-            Err(ConfigError::UnsupportedTraitError(String::from(
-                "This container configuration does not support the Ordered trait."),
-            ))
-        }
-    }
-
-    /// Make this [`BuildingBlock`](../trait.BuildingBlock.html) into an
-    /// [`Concurrent`](../policy/trait.Concurrent.html)
+    /// [`Concurrent`](../traits/trait.Concurrent.html)
     /// [`BuildingBlock`](../trait.BuildingBlock.html).
     /// If the initial configuration that was used to make this
     /// [`DynBuildingBlock`] did not support the
@@ -141,9 +91,8 @@ impl<'a, K, V> DynBuildingBlock<'a, K, V> {
     pub fn into_concurrent(
         self,
     ) -> Result<DynConcurrent<Self>, ConfigError> {
-        let has_ordered_trait = self.has_ordered_trait;
         if self.has_concurrent_trait {
-            Ok(DynConcurrent::new(self, has_ordered_trait))
+            Ok(DynConcurrent::new(self))
         } else {
             Err(ConfigError::UnsupportedTraitError(String::from(
                 "This container configuration does not support the Concurrent trait."),
@@ -183,125 +132,6 @@ where
     }
 }
 
-/// A wrapper around a `DynBuildingBlock` that provides the `Ordered` trait.
-///
-/// This object is obtained from building a [config](index.html)
-/// [`Builder`](struct.Builder.html) object into a [`DynBuildingBlock`]
-/// and further calling the
-/// [`into_ordered()`](struct.DynBuildingBlock.html#method.into_ordered) method
-/// of the [`DynBuildingBlock`] object.
-///
-/// This object can be made into an object that also implements
-/// the[`Concurrent`](../trait.Concurrent.html) trait if the container that
-/// is described by the initial configuration implements the latter.
-///
-/// ## Examples
-///
-/// ```
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
-///
-/// // Build a container from a configuration.
-/// let container: DynBuildingBlock<u64, u64> =
-///                ConfigBuilder::from_string("
-/// id='SequentialConfig'
-/// [container]
-/// id='ArrayConfig'
-/// capacity=10
-/// ").unwrap().build();
-///
-/// // Array containers are `Ordered` so it is ok to call the `into_ordered()`
-/// // method.
-/// let container = container.into_ordered().unwrap();
-///
-/// // Sequential container is a `Concurrent` container so it is ok to call
-/// // the `into_concurrent()` method.
-/// let container = container.into_concurrent().unwrap();
-/// ```
-pub struct DynOrdered<C> {
-    pub(super) building_block: C,
-    has_concurrent_trait: bool,
-}
-
-impl<C> DynOrdered<C> {
-    pub(crate) fn new(
-        building_block: C,
-        has_concurrent_trait: bool,
-    ) -> Self {
-        Self {
-            building_block,
-            has_concurrent_trait,
-        }
-    }
-
-    /// Make this [`Ordered`](../policy/trait.Ordered.html)
-    /// [`BuildingBlock`](../trait.BuildingBlock.html) into a
-    /// [`Concurrent`](../policy/trait.Concurrent.html) and
-    /// [`Ordered`](../policy/trait.Ordered.html)
-    /// [`BuildingBlock`](../trait.BuildingBlock.html).
-    /// If the initial configuration that was used to make this
-    /// [`DynBuildingBlock`] did not support the
-    /// [`Concurrent`](../trait.Concurrent.html) trait, a
-    /// [`ConfigError::UnsupportedTraitError`] is returned, else,
-    /// a [`BuildingBlock`](../trait.BuildingBlock.html) that carries
-    /// the [`Concurrent`](../trait.Concurrent.html) trait and the
-    /// [`Ordered`](../policy/trait.Ordered.html) trait is returned.
-    pub fn into_concurrent(
-        self,
-    ) -> Result<DynConcurrent<Self>, ConfigError> {
-        if self.has_concurrent_trait {
-            Ok(DynConcurrent::new(self, true))
-        } else {
-            Err(ConfigError::UnsupportedTraitError(String::from(
-                "This container configuration does not support the Concurrent trait."),
-            ))
-        }
-    }
-}
-
-impl<'a, K, R, C> BuildingBlock<'a, K, R> for DynOrdered<C>
-where
-    K: 'a,
-    R: 'a,
-    C: BuildingBlock<'a, K, R>,
-{
-    fn capacity(&self) -> usize {
-        self.building_block.capacity()
-    }
-    fn size(&self) -> usize {
-        self.building_block.size()
-    }
-    fn contains(&self, key: &K) -> bool {
-        self.building_block.contains(key)
-    }
-    fn take(&mut self, key: &K) -> Option<(K, R)> {
-        self.building_block.take(key)
-    }
-    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, R)> {
-        self.building_block.take_multiple(keys)
-    }
-    fn pop(&mut self, n: usize) -> Vec<(K, R)> {
-        self.building_block.pop(n)
-    }
-    fn push(&mut self, values: Vec<(K, R)>) -> Vec<(K, R)> {
-        self.building_block.push(values)
-    }
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, R)> + 'a> {
-        self.building_block.flush()
-    }
-}
-
-impl<R: Ord, C> Ordered<R> for DynOrdered<C> {}
-
-impl<C: Concurrent> Concurrent for DynOrdered<C> {
-    fn clone(&self) -> Self {
-        Self {
-            building_block: self.building_block.clone(),
-            has_concurrent_trait: self.has_concurrent_trait,
-        }
-    }
-}
-
 /// A wrapper around a `DynBuildingBlock` that provides the `Concurrent` trait.
 ///
 /// This object is obtained from building a [config](index.html)
@@ -309,10 +139,6 @@ impl<C: Concurrent> Concurrent for DynOrdered<C> {
 /// and further calling the
 /// [`into_concurrent()`](struct.DynBuildingBlock.html#method.into_concurrent)
 /// method of the [`DynBuildingBlock`] object.
-///
-/// This object can be made into an object that also implements
-/// the[`Ordered`](../policy/trait.Ordered.html) trait if the container that
-/// is described by the initial configuration implements the latter.
 ///
 /// Under the hood, this structure wraps a reference counter on a pointer to
 /// a [`DynBuildingBlock`] object. When the
@@ -342,46 +168,20 @@ impl<C: Concurrent> Concurrent for DynOrdered<C> {
 /// // Sequential containers are `Concurrent` so it is ok to call the
 /// // `into_concurrent()` method.
 /// let container = container.into_concurrent().unwrap();
-///
-/// // Array container is an `Ordered` container and therefore, so it the
-/// // Sequential container. It is ok to call the `into_ordered()` method.
-/// let container = container.into_ordered().unwrap();
 /// ```
 pub struct DynConcurrent<C> {
     building_block: *mut C,
-    has_ordered_trait: bool,
     rc: RWLock,
 }
 
 impl<C> DynConcurrent<C> {
-    pub(crate) fn new(bb: C, has_ordered_trait: bool) -> Self {
+    pub(crate) fn new(bb: C) -> Self {
         let rc = RWLock::new();
         rc.lock().unwrap();
         let bb = Box::into_raw(Box::new(bb));
         Self {
             building_block: bb,
-            has_ordered_trait,
             rc,
-        }
-    }
-
-    /// Make this [`BuildingBlock`](../trait.BuildingBlock.html) into an
-    /// [`Ordered`](../policy/trait.Ordered.html)
-    /// [`BuildingBlock`](../trait.BuildingBlock.html).
-    /// If the initial configuration that was used to make this
-    /// [`DynConcurrent`]`<`[`DynBuildingBlock`]`>` did not support the
-    /// [`Ordered`](../policy/trait.Ordered.html) trait, a
-    /// [`ConfigError::UnsupportedTraitError`] is returned, else,
-    /// a [`BuildingBlock`](../trait.BuildingBlock.html) that carries
-    /// the [`Ordered`](../policy/trait.Ordered.html) trait and the
-    /// [`Concurrent`](../trait.Concurrent.html) trait is returned.
-    pub fn into_ordered(self) -> Result<DynOrdered<Self>, ConfigError> {
-        if self.has_ordered_trait {
-            Ok(DynOrdered::new(self, true))
-        } else {
-            Err(ConfigError::UnsupportedTraitError(String::from(
-                "This container configuration does not support the Ordered trait."),
-            ))
         }
     }
 }
@@ -395,8 +195,6 @@ impl<C> Drop for DynConcurrent<C> {
     }
 }
 
-impl<R: Ord, C: Ordered<R>> Ordered<R> for DynConcurrent<C> {}
-
 unsafe impl<C> Send for DynConcurrent<C> {}
 
 unsafe impl<C> Sync for DynConcurrent<C> {}
@@ -405,7 +203,6 @@ impl<C> Concurrent for DynConcurrent<C> {
     fn clone(&self) -> Self {
         Self {
             building_block: self.building_block,
-            has_ordered_trait: self.has_ordered_trait,
             rc: self.rc.clone(),
         }
     }

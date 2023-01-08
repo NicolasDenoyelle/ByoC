@@ -44,8 +44,10 @@ pub struct StreamConfig {
     capacity: usize,
 }
 
+impl ConfigWithTraits for StreamConfig {}
+
 impl<T, F> IntoConfig<StreamConfig> for StreamBuilder<T, F> {
-    fn into_config(&self) -> StreamConfig {
+    fn as_config(&self) -> StreamConfig {
         StreamConfig {
             id: String::from(StreamConfig::id()),
             capacity: self.capacity,
@@ -87,12 +89,6 @@ where
     }
 }
 
-impl ConfigWithTraits for StreamConfig {
-    fn is_ordered(&self) -> bool {
-        true
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::StreamConfig;
@@ -127,7 +123,7 @@ mod tests {
     }
 
     #[test]
-    fn test_builder_into_config() {
+    fn test_builder_as_config() {
         let builder = StreamBuilder::<(), _>::new(VecStreamFactory {}, 2);
         test_config_builder(builder);
     }

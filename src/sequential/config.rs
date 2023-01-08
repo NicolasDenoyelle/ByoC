@@ -45,9 +45,8 @@ where
     C: ConfigInstance,
     B: IntoConfig<C>,
 {
-    fn into_config(&self) -> SequentialConfig {
-        let container_toml_str =
-            self.builder.into_config().to_toml_string();
+    fn as_config(&self) -> SequentialConfig {
+        let container_toml_str = self.builder.as_config().to_toml_string();
         let container: toml::value::Value =
             toml::de::from_str(container_toml_str.as_ref()).unwrap();
         SequentialConfig {
@@ -91,12 +90,6 @@ where
 impl ConfigWithTraits for SequentialConfig {
     fn is_concurrent(&self) -> bool {
         true
-    }
-
-    fn is_ordered(&self) -> bool {
-        GenericConfig::from_toml(&self.container)
-            .unwrap()
-            .has_ordered_trait
     }
 }
 
@@ -143,7 +136,7 @@ capacity='ten'
     }
 
     #[test]
-    fn test_builder_into_config() {
+    fn test_builder_as_config() {
         let builder = SequentialBuilder::new(ArrayBuilder::<()>::new(2));
         test_config_builder(builder);
     }

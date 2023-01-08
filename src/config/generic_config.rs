@@ -13,6 +13,7 @@ use crate::builder::Build;
 #[cfg(feature = "compression")]
 use crate::compression::config::CompressedConfig;
 use crate::exclusive::config::ExclusiveConfig;
+use crate::flush_stopper::config::FlushStopperConfig;
 // use crate::inclusive::config::InclusiveConfig;
 use crate::profiler::config::ProfilerConfig;
 use crate::sequential::config::SequentialConfig;
@@ -28,7 +29,6 @@ use toml;
 #[derive(Clone, Serialize)]
 pub(crate) struct GenericConfig {
     pub has_concurrent_trait: bool,
-    pub has_ordered_trait: bool,
     toml_config: toml::Value,
 }
 
@@ -46,7 +46,6 @@ impl GenericConfig {
         let toml_value = v.clone();
         C::from_toml(&v).map(move |cfg| GenericConfig {
             has_concurrent_trait: cfg.is_concurrent(),
-            has_ordered_trait: cfg.is_ordered(),
             toml_config: toml_value,
         })
     }
@@ -104,6 +103,9 @@ impl ConfigInstance for GenericConfig {
             }
             "ExclusiveConfig" => {
                 Self::from_config::<ExclusiveConfig>(value)
+            }
+            "FlushStopperConfig" => {
+                Self::from_config::<FlushStopperConfig>(value)
             }
             // "InclusiveConfig" => {
             //     Self::from_config::<InclusiveConfig>(value)
@@ -174,6 +176,11 @@ where
             }
             "ExclusiveConfig" => {
                 Self::into_config::<ExclusiveConfig>(&self.toml_config)
+                    .unwrap()
+                    .build()
+            }
+            "FlushStopperConfig" => {
+                Self::into_config::<FlushStopperConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }

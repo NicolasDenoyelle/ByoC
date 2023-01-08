@@ -67,7 +67,7 @@ pub enum ProfilerOutputKind {
 ///
 /// This is a simple wrapper calling into the wrapped container methods while
 /// counting statistics in each method:
-/// * [`size()`](trait.BuildingBlock.html#tymethod.count):
+/// * [`size()`](trait.BuildingBlock.html#tymethod.size):
 /// Time spent in the method,
 /// * [`contains()`](trait.BuildingBlock.html#tymethod.contains):
 /// Time spent in the method, plus a miss if the key was not found, else a hit
@@ -137,7 +137,7 @@ impl<C> Drop for Profiler<C> {
         match &self.output {
             ProfilerOutputKind::None => {}
             ProfilerOutputKind::Stdout => {
-                print_it!(self.stats.as_ref(), count, prefix);
+                print_it!(self.stats.as_ref(), size, prefix);
                 print_it!(self.stats.as_ref(), contains, prefix);
                 print_it!(self.stats.as_ref(), take, prefix);
                 print_it!(self.stats.as_ref(), pop, prefix);
@@ -151,7 +151,7 @@ impl<C> Drop for Profiler<C> {
             }
             ProfilerOutputKind::File(s) => match File::create(s) {
                 Ok(mut f) => {
-                    write_it!(self.stats.as_ref(), count, prefix, f);
+                    write_it!(self.stats.as_ref(), size, prefix, f);
                     write_it!(self.stats.as_ref(), contains, prefix, f);
                     write_it!(self.stats.as_ref(), take, prefix, f);
                     write_it!(self.stats.as_ref(), pop, prefix, f);
@@ -186,10 +186,10 @@ impl<C> Profiler<C> {
     }
 
     /// Get a summary of (0) the number of
-    /// [`size()`](trait.BuildingBlock.html#tymethod.count) method call
+    /// [`size()`](trait.BuildingBlock.html#tymethod.size) method call
     /// and (1) the total time spent in nanoseconds in these calls.
-    pub fn count_stats(&self) -> (u64, u64) {
-        self.stats.as_ref().count.read()
+    pub fn size_stats(&self) -> (u64, u64) {
+        self.stats.as_ref().size.read()
     }
     /// Get a summary of (0) the number of
     /// [`contains()`](trait.BuildingBlock.html#tymethod.contain) method
@@ -265,7 +265,7 @@ impl<C> Profiler<C> {
 
     /// Get the total time spent in methods call so far.
     pub fn time_stats(&self) -> u64 {
-        let count_time = self.stats.as_ref().count.read().1;
+        let size_time = self.stats.as_ref().size.read().1;
         let contains_time = self.stats.as_ref().contains.read().1;
         let take_time = self.stats.as_ref().take.read().1;
         let pop_time = self.stats.as_ref().pop.read().1;
@@ -274,7 +274,7 @@ impl<C> Profiler<C> {
         let flush_iter_time = self.stats.as_ref().flush_iter.read().1;
         let get_time = self.stats.as_ref().get.read().1;
         let get_mut_time = self.stats.as_ref().get_mut.read().1;
-        count_time
+        size_time
             + contains_time
             + take_time
             + pop_time

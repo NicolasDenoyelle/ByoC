@@ -1,4 +1,5 @@
 use super::BTree;
+use crate::internal::size::find_cut_at_size;
 use crate::BuildingBlock;
 use std::collections::BTreeMap;
 use std::rc::Rc;
@@ -13,7 +14,7 @@ where
     /// This is the size set by the constructor
     /// [`BTree::new()`](struct.BTree.html#method.new).
     /// The meaning of this methods depends on the meaning of the
-    /// elements size that can be set with the method
+    /// `elements_size()` function that can be set with the method
     /// [`with_element_size()`](struct.struct..html#method.with_element_size).
     /// For instance, capacity can be the number of elements in the BTree
     /// when all elements size is one, or it can be the maximum stack
@@ -22,6 +23,11 @@ where
         self.capacity
     }
 
+    /// Get the size currently occupied by elements in this [`BTree`].
+    ///
+    /// This is the sum of this [`BTree`] elements size, as defined by the
+    /// function `element_size()` set by the method
+    /// [`with_element_size()`](struct.Array.html#method.with_element_size).
     fn size(&self) -> usize {
         self.total_size
     }
@@ -41,126 +47,107 @@ where
         self.map.contains_key(key)
     }
 
-    /// Insert key/value pairs in the container. If the container cannot
-    /// store all the values, the last input values not fitting in are
-    /// returned. This container does not accept keys matching keys
-    /// already inside the container and will return the corresponding
-    /// key/value pairs.
-    fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        // Find out if we have too many elements and where to split them.
-        let mut split = 0;
-        let mut size = 0;
-        for (i, s) in elements
+    /// Insert key/value pairs in the container.
+    ///
+    /// The total `size` of the elements to push is computed using
+    /// `element_size()` function set by the method
+    /// [`with_element_size()`](struct.BTree.html#method.with_element_size).
+    ///
+    /// If the room in the container is sufficient to store every `elements`,
+    /// then they are inserted and an empty vector is returned.
+    ///
+    /// If the `size` is larger than or equal to this [`BTree`] capacity, then
+    /// at least, all the elements contained in the [`BTree`] will be returned.
+    /// Additionally, if `size` is strictly larger than this container size, then
+    /// the `elements` with the greatest values that don't fit in are also
+    /// returned.
+    ///
+    /// Otherwise, the redundant keys that were in the container will be
+    /// returned. Additionally, if there are more `elements` to insert than the
+    /// remaining room, enough existing elements inside the [`BTree`] will be
+    /// popped to make room for the new `elements`.
+    fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
+        let size: usize = elements
             .iter()
-            .map(|(k, v)| (self.element_size)(k, v))
-            .enumerate()
-        {
-            if size + s > self.capacity {
-                break;
+            .map(|(k, v)| (self.element_size)((k, v)))
+            .sum();
+
+        // If we insert more than available capacity, we need to flush
+        // and return flushed plus extra exceeding capacity.
+        if size >= self.capacity {
+            let mut out: Vec<(K, V)> = self.flush().collect();
+            self.insert_values_unchecked(elements);
+            self.total_size = size;
+            if size > self.capacity {
+                out.append(&mut self.pop(size - self.capacity));
             }
-            split = i + 1;
-            size += s;
+            return out;
         }
 
-        // Remove extra elements from the container.
-        let mut out: Vec<(K, V)> = if split < elements.len() {
-            // Here there is more elements to insert than the container
-            // capacity.
+        // Remove redundant keys.
+        let mut out = self.take_multiple(
+            &mut elements.iter().map(|(k, _)| *k).collect(),
+        );
 
-            // Remove extra elements from input.
-            let mut out = elements.split_off(split);
-            // Clear container.
-            let mut map = BTreeMap::<K, Rc<V>>::new();
-            std::mem::swap(&mut self.map, &mut map);
-            self.set.clear();
+        // Get the most we can fit in.
+        let room = self.capacity - self.total_size;
 
-            // Move all elements that were in the container in the returned
-            // vector.
-            for (k, rc) in map.into_iter() {
-                match Rc::<V>::try_unwrap(rc) {
-                    Ok(v) => out.push((k, v)),
-                    Err(_) => panic!(
-                        "Looks like we forgot to delete an Rc value."
-                    ),
-                }
-            }
-
-            // The container is cleared entirely.
-            self.total_size = 0;
-            out
-        } else if size + self.total_size > self.capacity {
-            // Pop out the extra size. The container size is updated.
-            self.pop(size + self.total_size - self.capacity)
-        } else {
-            // Nothing to pop or remove from input elements.
-            Vec::new()
-        };
-
-        // Insert new elements in the container.
-        for (k, v) in elements.into_iter() {
-            let value = Rc::new(v);
-            if self.set.insert((Rc::clone(&value), k)) {
-                self.map.insert(k, value);
-            } else {
-                match Rc::<V>::try_unwrap(value) {
-                    Ok(v) => out.push((k, v)),
-                    Err(_) => panic!(
-                        "Looks like we forgot to delete an Rc value."
-                    ),
-                }
-            }
+        if room < size {
+            out.append(&mut self.pop(size - room));
         }
 
-        // Update size.
+        self.insert_values_unchecked(elements);
         self.total_size += size;
         out
     }
 
-    /// Remove up to `n` size values from the container.
-    /// If less than `n` size is occupied by values in the container,
-    /// the returned vector contains all the container values and
-    /// the container is left empty.
-    /// This building block implements the trait
-    /// [`Ordered`](../trait.Ordered.html), which means that
-    /// the highest values are popped out. This is implemented by
-    /// retrieving the last values stored in a binary tree.
-    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
-        // List keys to evict.
-        let mut size = 0;
-        let mut split: Option<(Rc<V>, K)> = None;
-        for (rc, k) in self.set.iter().rev() {
-            size += (self.element_size)(k, rc.as_ref());
-            if size >= n {
-                split = Some((rc.clone(), *k));
-                break;
-            }
+    /// Free up to `size` space from the container.
+    ///
+    /// If the [`BTree`] is empty, an empty vector is returned.
+    ///
+    /// If the `size` to pop is less than the current size in the container,
+    /// the container is emptied and all its elements are returned.
+    ///
+    /// Otherwise, the elements with the greatest values are evicted, until
+    /// the sum of there sizes is at least equal to the requested `size` to
+    /// evict.
+    fn pop(&mut self, size: usize) -> Vec<(K, V)> {
+        if self.map.is_empty() {
+            return Vec::new();
+        }
+        if self.total_size <= size {
+            return self.flush().collect();
         }
 
-        match split {
-            None => self.flush().collect(),
-            Some(s) => {
-                self.total_size -= size;
-                let out_set = self.set.split_off(&s);
-                // Drop Rc<V> clone to avoid panicking when unwrapping the value
-                drop(s);
-                let mut out = Vec::with_capacity(out_set.len());
-                for (rc, k) in out_set.into_iter() {
-                    // Drop Rc<V> clone to avoid panicking when unwrapping the
-                    // value below
-                    drop(rc);
-                    let rc = self.map.remove(&k).unwrap();
-                    out.push((k, Self::as_value(rc)));
-                }
-                out
-            }
+        let (_, cut_size, option_rc_k) = find_cut_at_size(
+            &self.set,
+            |(rc, k)| (self.element_size)((k, rc)),
+            size,
+        );
+
+        let e = option_rc_k.map(|(rc, k)| (Rc::clone(rc), *k)).expect(
+            "Failure in find_cut_at_size(). It should not return None.",
+        );
+
+        self.total_size -= cut_size;
+        let out_set = self.set.split_off(&e);
+        drop(e);
+        let mut out = Vec::with_capacity(out_set.len());
+        for (rc, k) in out_set.into_iter() {
+            // Drop Rc<V> clone to avoid panicking when unwrapping the
+            // value below
+            drop(rc);
+            let rc = self.map.remove(&k).unwrap();
+            out.push((k, Self::as_value(rc)));
         }
+        out
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
         match self.map.remove(key) {
             None => None,
             Some(rc) => {
-                self.total_size -= (self.element_size)(key, rc.as_ref());
+                self.total_size -= (self.element_size)((key, rc.as_ref()));
                 self.set.remove(&(rc.clone(), *key));
                 Some((*key, Self::as_value(rc)))
             }
@@ -183,21 +170,18 @@ mod tests {
     #[test]
     fn building_block_stack_size() {
         test_building_block(
-            BTree::new(0).with_element_size(|_, _| {
-                std::mem::size_of::<TestElement>()
-            }),
+            BTree::new(0)
+                .with_element_size(|_| std::mem::size_of::<TestElement>()),
             true,
         );
         test_building_block(
-            BTree::new(10).with_element_size(|_, _| {
-                std::mem::size_of::<TestElement>()
-            }),
+            BTree::new(10)
+                .with_element_size(|_| std::mem::size_of::<TestElement>()),
             true,
         );
         test_building_block(
-            BTree::new(100).with_element_size(|_, _| {
-                std::mem::size_of::<TestElement>()
-            }),
+            BTree::new(100)
+                .with_element_size(|_| std::mem::size_of::<TestElement>()),
             true,
         );
     }

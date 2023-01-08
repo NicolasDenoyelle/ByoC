@@ -51,14 +51,15 @@ pub struct ProfilerConfig {
     container: toml::Value,
 }
 
+impl ConfigWithTraits for ProfilerConfig {}
+
 impl<C, B> IntoConfig<ProfilerConfig> for ProfilerBuilder<C, B>
 where
     C: ConfigInstance,
     B: IntoConfig<C>,
 {
-    fn into_config(&self) -> ProfilerConfig {
-        let container_toml_str =
-            self.builder.into_config().to_toml_string();
+    fn as_config(&self) -> ProfilerConfig {
+        let container_toml_str = self.builder.as_config().to_toml_string();
         let container: toml::value::Value =
             toml::de::from_str(container_toml_str.as_ref()).unwrap();
         ProfilerConfig {
@@ -100,14 +101,6 @@ where
             self.output,
             GenericConfig::from_toml(&self.container).unwrap().build(),
         ))
-    }
-}
-
-impl ConfigWithTraits for ProfilerConfig {
-    fn is_ordered(&self) -> bool {
-        GenericConfig::from_toml(&self.container)
-            .unwrap()
-            .has_ordered_trait
     }
 }
 
@@ -160,7 +153,7 @@ capacity=10
     }
 
     #[test]
-    fn test_builder_into_config() {
+    fn test_builder_as_config() {
         let builder = ProfilerBuilder::new(
             "config_builder_test",
             crate::utils::profiler::ProfilerOutputKind::None,

@@ -34,7 +34,7 @@ static mut COUNTER_STATE: AtomicU64 = AtomicU64::new(0);
 /// the global atomic counter is incremented.
 ///
 /// ```
-/// use byoc::utils::policy::timestamp::{Timestamp, Counter};
+/// use byoc::utils::timestamp::{Timestamp, Counter};
 ///
 /// // Counters are strictly ascending
 /// assert_eq!(u64::from(Counter::now()) + 1, u64::from(Counter::now()));
@@ -66,7 +66,7 @@ impl Timestamp for Counter {
     /// Compute the difference then cast the result to f32.
     ///
     /// ```
-    /// use byoc::utils::policy::timestamp::{Timestamp, Counter};
+    /// use byoc::utils::timestamp::{Timestamp, Counter};
     ///
     /// let t0 = Counter::now();
     /// assert_eq!(Counter::now().diff(&t0), 1.0);
@@ -86,7 +86,7 @@ impl Timestamp for Counter {
 /// The granularity of the clock is the nanosecond.
 ///
 /// ```
-/// use byoc::utils::policy::timestamp::{Timestamp, Clock};
+/// use byoc::utils::timestamp::{Timestamp, Clock};
 ///    
 /// assert!(Clock::now() < Clock::now());
 /// ```

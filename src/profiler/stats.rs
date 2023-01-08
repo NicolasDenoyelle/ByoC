@@ -31,7 +31,7 @@ impl MethodStats {
 
 /// Accumulator of building block method stats.
 pub(super) struct Stats {
-    pub count: MethodStats,
+    pub size: MethodStats,
     pub contains: MethodStats,
     pub take: MethodStats,
     pub pop: MethodStats,
@@ -48,7 +48,7 @@ impl Stats {
     /// Initialize zeroed method stats.
     pub fn new() -> Self {
         Stats {
-            count: MethodStats::new(),
+            size: MethodStats::new(),
             contains: MethodStats::new(),
             take: MethodStats::new(),
             pop: MethodStats::new(),

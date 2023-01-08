@@ -57,7 +57,7 @@ pub struct SocketClientConfig {
 impl<A: ToSocketAddrs + ToString> IntoConfig<SocketClientConfig>
     for SocketClientBuilder<A>
 {
-    fn into_config(&self) -> SocketClientConfig {
+    fn as_config(&self) -> SocketClientConfig {
         SocketClientConfig {
             id: String::from(SocketClientConfig::id()),
             address: self.address.to_string(),
@@ -165,9 +165,9 @@ where
     B: IntoConfig<C>,
     C: ConfigInstance,
 {
-    fn into_config(&self) -> SocketServerConfig {
+    fn as_config(&self) -> SocketServerConfig {
         let container_toml_str =
-            self.container_builder.into_config().to_toml_string();
+            self.container_builder.as_config().to_toml_string();
         let container: toml::value::Value =
             toml::de::from_str(container_toml_str.as_ref()).unwrap();
 
@@ -354,13 +354,13 @@ capacity=10
     }
 
     #[test]
-    fn test_socket_client_builder_into_config() {
+    fn test_socket_client_builder_as_config() {
         let builder = SocketClientBuilder::new("localhost:12345");
         test_config_builder(builder);
     }
 
     #[test]
-    fn test_socket_server_builder_into_config() {
+    fn test_socket_server_builder_as_config() {
         let builder = SocketServerBuilder::<(), (), _, _, _>::new(
             "localhost:12345",
             ArrayBuilder::<()>::new(2),

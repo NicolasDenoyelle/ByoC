@@ -53,8 +53,8 @@ where
     B: IntoConfig<C>,
     C: ConfigInstance,
 {
-    fn into_config(&self) -> AssociativeConfig {
-        let container_config = self.builder.into_config();
+    fn as_config(&self) -> AssociativeConfig {
+        let container_config = self.builder.as_config();
         let container_config_str = container_config.to_toml_string();
         let container_config_toml: toml::value::Value =
             toml::de::from_str(container_config_str.as_ref()).unwrap();
@@ -112,13 +112,6 @@ impl ConfigWithTraits for AssociativeConfig {
             .map(|cfg| GenericConfig::from_toml(cfg).unwrap())
             .all(|cfg| cfg.is_concurrent())
     }
-
-    fn is_ordered(&self) -> bool {
-        self.container
-            .iter()
-            .map(|cfg| GenericConfig::from_toml(cfg).unwrap())
-            .all(|cfg| cfg.is_ordered())
-    }
 }
 
 #[cfg(test)]
@@ -175,7 +168,7 @@ capacity={}
     }
 
     #[test]
-    fn test_builder_into_config() {
+    fn test_builder_as_config() {
         let builder = AssociativeBuilder::new(
             ArrayBuilder::<()>::new(2),
             DefaultHasher::new(),

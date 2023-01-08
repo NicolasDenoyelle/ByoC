@@ -1,6 +1,5 @@
 use super::Associative;
 use crate::BuildingBlock;
-use std::cmp::Ordering;
 use std::hash::{Hash, Hasher};
 
 impl<'a, K, V, C, H> BuildingBlock<'a, K, V> for Associative<C, H>
@@ -10,10 +9,14 @@ where
     C: BuildingBlock<'a, K, V>,
     H: Hasher + Clone,
 {
-    /// Get the maximum "size" that elements in the container can fit.
+    /// Get the maximum storage size of this [`BuildingBlock`].
     ///
     /// This is the sum of the capacities of the containers that this
     /// [`Associative`] container is composed of.
+    ///
+    /// Note that this container may refuse new elements before being having
+    /// `size` close to its `capacity` if their respective buckets/sets are
+    /// full.
     fn capacity(&self) -> usize {
         self.containers.iter().map(|c| c.capacity()).sum()
     }
@@ -29,20 +32,46 @@ where
         )
     }
 
+    /// Check if container contains a matching key.
+    ///
+    /// The key is first hashed to find out which bucket may contain the key.
+    /// Then the method returns whether the matching container actually contains
+    /// the key.
     fn contains(&self, key: &K) -> bool {
         let i = self.set(key.clone());
         self.containers[i].contains(key)
     }
 
+    /// Get the size currently occupied by elements in this [`BuildingBlock`].
+    ///
+    /// This is the sum of the sizes of the containers that this
+    /// [`Associative`] container is composed of.
+    ///
+    /// Note that this container may refuse new elements before being having
+    /// `size` close to its `capacity` if their respective buckets/sets are
+    /// full.
     fn size(&self) -> usize {
         self.containers.iter().map(|c| c.size()).sum()
     }
 
+    /// Take the matching key/value pair out of the container.
+    ///
+    /// The key is first hashed to find out which bucket may contain the key.
+    /// Then the method returns the result of
+    /// [`take()`](trait.BuildingBlock.html#method.take) method on the
+    /// matching container.
     fn take(&mut self, key: &K) -> Option<(K, V)> {
         let i = self.set(key.clone());
         self.containers[i].take(key)
     }
 
+    /// Take multiple keys out of a container at once.
+    ///
+    /// This method will first hash all the keys and sort them by index of their
+    /// matching bucket.
+    /// Then, for each bucket in sequential order, the result of
+    /// [`take_multiple()`](trait.BuildingBlock.html#method.take_multiple)
+    /// with the matching bucket keys is returned.
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
         let mut ret = Vec::with_capacity(keys.len());
 
@@ -60,7 +89,9 @@ where
         for (c, keys) in
             self.containers.iter_mut().zip(set_keys.iter_mut())
         {
-            ret.append(&mut c.take_multiple(keys));
+            if !keys.is_empty() {
+                ret.append(&mut c.take_multiple(keys));
+            }
         }
 
         // Put the remaining keys back in the input keys.
@@ -71,100 +102,139 @@ where
         ret
     }
 
-    /// Remove up to `n` values from the container.
-    /// If less than `n` values are stored in the container,
+    /// Free up to `size` space from the container.
+    ///
+    /// If the container is empty or the requested size is `0`, an empty
+    /// vector is returned.
+    ///
+    /// If less than `size` can be evicted out,
     /// the returned vector contains all the container values and
     /// the container is left empty.
-    /// This pop method will pop elements from buckets so as to balance
-    /// the amount of elements in each bucket. The kind of element popping
-    /// out of buckets depends on the implementation of buckets `pop()`
-    /// method.
-    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+    ///
+    /// Else, this [`pop()`](trait.BuildingBlock.html#method.pop)
+    /// method will pop elements from buckets with the goal of balancing
+    /// the size of all the buckets. The kind of element popping
+    /// out of buckets depends on the implementation of individual buckets
+    /// [`pop()`](trait.BuildingBlock.html#method.pop) method.
+    ///
+    /// If the container is concurrently accessed this method will still
+    /// attempt to pop the requested size elements. However, the method can't
+    /// guarantee to achieve optimal bucket balancing.
+    fn pop(&mut self, size: usize) -> Vec<(K, V)> {
         let mut victims = Vec::<(K, V)>::new();
-        if n == 0 || self.capacity() == 0 {
-            return victims;
-        }
-        victims.reserve(n);
 
-        let n_sets = self.containers.len();
+        // Collect all buckets sizes and indexes.
+        // In this variable we keep the buckets we intend to pop from and
+        // their size.
+        let mut popped_buckets: Vec<(usize, usize)> = self
+            .containers
+            .iter()
+            .map(|c| c.size())
+            .enumerate()
+            .collect();
 
-        // Collect all buckets element count.
-        // We acquire exclusive lock on buckets in the process.
-        let mut counts = Vec::<(usize, usize)>::with_capacity(n_sets + 1);
-        for i in 0..n_sets {
-            let n = self.containers[i].size();
-            counts.push((n, i));
-        }
+        // The total size of popped buckets.
+        let mut popped_buckets_size =
+            popped_buckets.iter().map(|(_, s)| s).sum();
 
-        let mut total_count: usize = counts.iter().map(|(n, _)| n).sum();
-
-        // If there is more elements to pop than elements available
-        // Then we pop everything.
-        if total_count <= n {
-            for (_, i) in counts.into_iter() {
-                victims.append(&mut self.containers[i].flush().collect())
-            }
+        // Easy path, we don't need to go further if there is nothing to return.
+        if size == 0 || popped_buckets_size == 0 {
             return victims;
         }
 
-        // Sort counts in descending order.
-        counts.sort_unstable_by(|(a, _), (b, _)| match a.cmp(b) {
-            Ordering::Less => Ordering::Greater,
-            Ordering::Equal => Ordering::Equal,
-            Ordering::Greater => Ordering::Less,
-        });
+        // Easy path, we don't need to go further we need to return everything.
+        if size >= popped_buckets_size {
+            return self.flush().collect();
+        }
 
-        // The amount of elements in each popping bucket after pop.
-        let target_count = loop {
-            // This the average number of elements per bucket after pop.
-            let target_count = (total_count - n) / counts.len();
-            // Last popped bucket. If it does not change after below loop,
-            // we return above target_count.
-            let prev_i = counts[counts.len() - 1].1;
-            // Remove smallest bucket if its count is below target.
-            loop {
-                let (bucket_count, bucket_i) = counts.pop().expect("Unexpected error in pop() method of Associative buildinding block.");
-                // If the buckets has more elements than the target
-                // count we keep it as a pop bucket.
-                if bucket_count >= target_count {
-                    counts.push((bucket_count, bucket_i));
-                    break;
-                } else {
-                    total_count -= bucket_count;
-                }
+        // Generic pop(size) scenario:
+        //
+        //  1   3   2   0  -- sorted buckets
+        //             +-+
+        //         +-+ | |
+        //     +-+ | | | |
+        // ------------------ average bucket size
+        // ------------------ target average bucket size after pop.
+        //     | | | | | |
+        // +-+ | | | | | |
+        // | | | | | | | |
+        // We cannot pop from bucket `1` without increasing imbalance.
+        // Instead we will need to pop below the
+        // target average bucket size after pop` in other buckets.
+        // Consequently, we need to recompute our goal of:
+        // `target average bucket size after pop` without the buckets below
+        // that value. We can process iteratively removing the smallest
+        // bucket with a size below the target value at every step.
+
+        // First, sort ! in reverse order to have the small buckets last.
+        popped_buckets.sort_unstable_by(|(a, _), (b, _)| b.cmp(a));
+
+        // Then loop through the buckets starting from the smallest (tail) and:
+        let target_average_bucket_size = loop {
+            // Compute the goal for buckets size:
+            let target_average_bucket_size =
+                (popped_buckets_size - size) / (popped_buckets.len() + 1);
+
+            // Look if the smaller bucket size is greater than the goal.
+            let (bucket_size, bucket_index) = popped_buckets
+                .pop()
+                .expect("Associative container pop() error.");
+
+            // If it is greater, then we can stop and go to the next step.
+            if bucket_size >= target_average_bucket_size {
+                popped_buckets.push((bucket_size, bucket_index));
+                break target_average_bucket_size;
             }
-            // If we did not remove any bucket, all the buckets have
-            // more elements than the target count. Therefore, we can
-            // stop and pop.
-            if prev_i == counts[counts.len() - 1].1 {
-                break target_count;
-            }
+
+            // Else, we loop on what's left of the buckets.
+            // The new `popped_buckets_size` of remaining bucket is the current
+            // one minus the discarded bucket.
+            popped_buckets_size -= bucket_size;
+
+            // Since bucket_size < target_average_bucket_size,
+            // there must be more than requested pop size in other buckets.
+            // If this is not true, the next iteration of the loop will panic
+            // on computing `popped_buckets_size - size`.
+            assert!(
+                popped_buckets_size > size,
+                "Associative container pop() error."
+            );
         };
 
-        // Below is the pop phase.
-        // We remove whats above target_count from each bucket.
-        // Since target_count is a round number, the total to pop
-        // might exceed what was asked. Therefore, we don't keep popping
-        // if we reached the amount requested. We but still have to unlock
-        // the locked buckets.
-        let mut popped = 0;
-        for (count, i) in counts.into_iter() {
-            let pop_count =
-                std::cmp::min(count - target_count, n - popped);
-            if pop_count > 0 {
-                victims.append(&mut self.containers[i].pop(pop_count));
-                popped += pop_count;
-            }
+        // Now all the buckets in `popped_buckets` vector have a size that is
+        // greater than the `target_average_bucket_size`. We just have to pop()
+        // the difference between their size and the target size from them.
+        //
+        //  3   2   0  -- remaining sorted buckets.
+        //         +-+     +
+        //     +-+ | |     |
+        // +-+ | | | |     | size to pop      +
+        // | | | | | |     | in last bucket.  | size to pop
+        // | | | | | |     |                  | in first bucket.
+        // | | | | | |     +                  +
+        // -------------- average bucket size after pop
+        // | | | | | |
+        for (bucket_size, bucket_index) in popped_buckets.into_iter().rev()
+        {
+            let bucket = &mut self.containers[bucket_index];
+            let pop_size = bucket_size - target_average_bucket_size;
+            victims.append(&mut bucket.pop(pop_size));
         }
 
         victims
     }
 
-    /// Insert key/value pairs in the container. If the container cannot
-    /// store all the values, some values are returned.
-    /// If a bucket where a value is assign is full, the associated
-    /// input key/value pair will be returned, even though this
-    /// `Associative` building block is not at capacity.
+    /// Insert key/value pairs in the container.
+    ///
+    /// Each key to insert is hashed and assigned to a bucket.
+    /// Then for each bucket where a there is at least one key to insert,
+    /// the bucket [`push()`](trait.BuildingBlock.html#method.push) invoked
+    /// with the associated keys and values to insert. It is up to this
+    /// container to choose what will be inserted and what may be evicted.
+    ///
+    /// Note that this container may refuse new elements before being having
+    /// its `size` close to its `capacity` if for instance most key are assigned
+    /// to a full bucket while other buckets still have room.
     fn push(&mut self, elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let n = elements.len();
         let n_sets = self.containers.len();

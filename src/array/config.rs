@@ -37,6 +37,8 @@ pub struct ArrayConfig {
     capacity: usize,
 }
 
+impl ConfigWithTraits for ArrayConfig {}
+
 impl ConfigInstance for ArrayConfig {
     fn id() -> &'static str {
         "ArrayConfig"
@@ -63,14 +65,8 @@ where
     }
 }
 
-impl ConfigWithTraits for ArrayConfig {
-    fn is_ordered(&self) -> bool {
-        true
-    }
-}
-
 impl<T> IntoConfig<ArrayConfig> for ArrayBuilder<T> {
-    fn into_config(&self) -> ArrayConfig {
+    fn as_config(&self) -> ArrayConfig {
         ArrayConfig {
             id: String::from(ArrayConfig::id()),
             capacity: self.capacity,
@@ -100,7 +96,7 @@ mod tests {
     }
 
     #[test]
-    fn test_builder_into_config() {
+    fn test_builder_as_config() {
         let builder = ArrayBuilder::<()>::new(10);
         test_config_builder(builder);
     }

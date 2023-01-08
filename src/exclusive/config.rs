@@ -48,6 +48,8 @@ pub struct ExclusiveConfig {
     back: toml::Value,
 }
 
+impl ConfigWithTraits for ExclusiveConfig {}
+
 impl<L, LB, R, RB> IntoConfig<ExclusiveConfig>
     for ExclusiveBuilder<L, LB, R, RB>
 where
@@ -56,9 +58,9 @@ where
     L: ConfigInstance,
     R: ConfigInstance,
 {
-    fn into_config(&self) -> ExclusiveConfig {
-        let left_config: L = self.lbuilder.into_config();
-        let right_config: R = self.rbuilder.into_config();
+    fn as_config(&self) -> ExclusiveConfig {
+        let left_config: L = self.lbuilder.as_config();
+        let right_config: R = self.rbuilder.as_config();
         let left_config_str = left_config.to_toml_string();
         let right_config_str = right_config.to_toml_string();
         let front = toml::de::from_str(left_config_str.as_ref()).unwrap();
@@ -105,17 +107,6 @@ where
             GenericConfig::from_toml(&self.front).unwrap().build(),
             GenericConfig::from_toml(&self.back).unwrap().build(),
         ))
-    }
-}
-
-impl ConfigWithTraits for ExclusiveConfig {
-    fn is_ordered(&self) -> bool {
-        GenericConfig::from_toml(&self.front)
-            .unwrap()
-            .has_ordered_trait
-            && GenericConfig::from_toml(&self.back)
-                .unwrap()
-                .has_ordered_trait
     }
 }
 
@@ -168,7 +159,7 @@ toto='titi'
     }
 
     #[test]
-    fn test_builder_into_config() {
+    fn test_builder_as_config() {
         let builder = ExclusiveBuilder::new(
             ArrayBuilder::<()>::new(2),
             ArrayBuilder::<()>::new(2),

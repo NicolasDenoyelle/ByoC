@@ -2,28 +2,43 @@ use std::hash::{Hash, Hasher};
 
 /// Associative `BuildingBlock` wrapper with multiple sets/buckets.
 ///
-/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
+/// This [`BuildingBlock`](trait.BuildingBlock.html) is implemented as an
+/// array of buckets where each bucket is itself a
+/// [`BuildingBlock`](trait.BuildingBlock.html). We may use both a "set" or
+/// a "bucket" to qualify the latter. The primary goal of this container is
+/// to balance the access to multiple containers while offering some
+/// amount of parallelism when using it concurrently.
 ///
-/// This building block is implemented as an array of building blocks.
-/// Keys inserted in this container must be hashable to find in which bucket
-/// it should be stored/retrieved.
+/// Keys inserted in this container must be hashable and their hash value
+/// is used to associate them with a specific bucket. Association between
+/// keys and buckets cannot be changed once this container is instantiated.
+/// Below is how keys and buckets is associated. This can be used to provide
+/// a custom `Hasher` that will tune how keys are grouped into buckets.
+///
+/// ```
+/// use std::collections::hash_map::DefaultHasher;
+/// use std::hash::{Hash, Hasher};
+///
+/// // Something to hash keys.
+/// let mut hasher = DefaultHasher::new();
+/// // Let's suppose we have 10 buckets.
+/// let n_buckets = 10;
+/// // The key for which we want to find the destination bucket.
+/// let key = "some key";
+/// // The key hash value.
+/// key.hash(&mut hasher);
+/// let key_hash = hasher.finish();
+/// // This is the bucket where this key is assigned.
+/// let key_bucket_index = key_hash % n_buckets;
+/// ```
 ///
 /// Since a key can only go in one bucket, the container may refuse
-/// insertions before it is actually full if one of the target buckets is full.
-///
-/// When [popping](trait.BuildingBlock.html#tymethod.pop) elements,
-/// the policy is to balance buckets element count rather than strictly
-/// pop values in descending order. This is because popping values in descending
-/// order requires lot of [`pop()`](trait.BuildingBlock.html#tymethod.pop)
-/// and [`push()`](trait.BuildingBlock.html#tymethod.push) operations whereas
-/// balancing buckets can be done by looking at the count of each bucket once
-/// and [popping](trait.BuildingBlock.html#tymethod.pop) once per bucket.
-///
-/// ## [`Get`](trait.Get.html) Implementation
+/// insertions before it is actually full if the target bucket is full.
 ///
 /// [`Get`](trait.Get.html) and [`Concurrent`](trait.Concurrent.html)
 /// traits are inherited from the type of container used to build this
-/// associative container.
+/// associative container. If the buckets bear any of these traits,
+/// then so does [`Associative`] container.
 ///
 /// ## Examples
 ///

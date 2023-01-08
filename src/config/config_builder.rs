@@ -2,11 +2,11 @@ use super::{
     ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
 };
 use crate::builder::Build;
-use crate::config::{DynBuildingBlock, DynOrdered};
-use crate::policy::config::PolicyKind;
-use crate::policy::timestamp::Counter;
-use crate::policy::{Fifo, Lrfu, Lru};
-use crate::Policy;
+use crate::config::DynBuildingBlock;
+use crate::decorator::config::DecorationType;
+use crate::decorator::{Fifo, Lrfu, Lru};
+use crate::utils::timestamp::Counter;
+use crate::Decorator;
 use serde::Serialize;
 use toml;
 
@@ -88,48 +88,28 @@ use toml;
 /// [`into_concurrent()`](struct.DynBuildingBlock.html#method.into_concurrent)
 /// method.
 ///
-/// ## `Ordered` Trait
-///
-/// If the container being built supports the
-/// [`Ordered`](../policy/trait.Ordered.html) trait, it can also be converted
-/// into a [`DynOrdered`]`<`[`DynBuildingBlock`]`>` with the
-/// [`into_ordered()`](struct.DynBuildingBlock.html#method.into_ordered) method
-/// of the [`DynBuildingBlock`] object. The container configuration is checked
-/// when instantiating a [`ConfigBuilder`] object. This is at this moment that
-/// the [`ConfigBuilder`] object is marked as being able to bear the
-/// [`Ordered`](../policy/trait.Ordered.html) trait. Containers are recursively
-/// checked from the top container to see if they carry the trait. For instance,
-/// a [`ArrayConfig`](configs/struct.ArrayConfig.html) can be built into a
-/// [`DynOrdered`]`<`[`DynBuildingBlock`]`>`,  a
-/// [`BTreeConfig`](configs/struct.BTreeConfig.html) cannot be built as such,
-/// while a [`SequentialConfig`](configs/struct.SequentialConfig.html) will
-/// depend on whether the child container carries the trait or not. We cannot
-/// enforce that containers that carry the trait will have a matching
-/// configuration feature, but we are trying to achieve as close as possible
-/// of a match.
-///
 /// ## Container `Policies`
 ///
 /// Containers built from a configuration file can carry only one
-/// [`policy`](../policy/index.html) on the top container of the configuration.
+/// [`decorator`](../decorator/index.html) on the top container of the configuration.
 /// This limitation is due to a recursion issue  happening at compile time.
-/// The configuration format with one policy per container stage would allows
-/// for nesting an arbitrary number of policy containers that will result in
-/// values generic being wrapped an arbitrary number of time in a policy cell.
-/// As a result, `serde` crate will automatically recurse on nesting policy
+/// The configuration format with one decorator per container stage would allows
+/// for nesting an arbitrary number of decorator containers that will result in
+/// values generic being wrapped an arbitrary number of time in a decorator cell.
+/// As a result, `serde` crate will automatically recurse on nesting decorator
 /// types until a compile time error occurs. This cannot be explicitly limited
 /// at compile time and in a matching configuration. A workaround for this is
-/// to allow to set a policy a single time at the top level of the container
+/// to allow to set a decorator a single time at the top level of the container
 /// configuration.
 ///
 /// At the moment only three policies are supported via a key/value attribute
 /// at the top of the configuration:
-/// * `policy.kind='Fifo'` the [`Fifo`](../policy/struct.Fifo.html) policy,
-/// * `policy.kind='Lru'` the [`Lru`](../policy/struct.Lru.html) policy,
-/// * `policy.kind='Lrfu'` the [`Lrfu`](../policy/struct.Lrfu.html) policy,
+/// * `decorator.kind='Fifo'` the [`Fifo`](../decorator/struct.Fifo.html) policy,
+/// * `decorator.kind='Lru'` the [`Lru`](../decorator/struct.Lru.html) policy,
+/// * `decorator.kind='Lrfu'` the [`Lrfu`](../decorator/struct.Lrfu.html) policy,
 ///
 /// where the `exponent` attribute `Lrfu` last policy can be configured with
-/// an additional key/value attribute: `policy.exponent=<value>`.
+/// an additional key/value attribute: `decorator.exponent=<value>`.
 ///
 /// ## Examples
 ///
@@ -143,7 +123,7 @@ use toml;
 ///
 /// let config_str = format!("
 /// id='SequentialConfig'
-/// policy.kind = 'Lru'
+/// decorator.kind = 'Lru'
 /// [container]
 /// id='ExclusiveConfig'
 /// [container.front]
@@ -160,7 +140,7 @@ use toml;
 #[derive(Clone, Serialize)]
 pub struct ConfigBuilder {
     config: GenericConfig,
-    policy: PolicyKind,
+    decorator: DecorationType,
 }
 
 impl ConfigBuilder {
@@ -188,43 +168,34 @@ impl ConfigInstance for ConfigBuilder {
             }
         };
 
-        let policy = match table.get("policy") {
-            None => PolicyKind::None,
+        let decorator = match table.get("decorator") {
+            None => DecorationType::None,
             Some(toml::value::Value::Table(t)) => match t.get("kind") {
-		None => PolicyKind::None,
+		None => DecorationType::None,
 		Some(toml::value::Value::String(s)) => match s.as_ref() {
-		"Fifo" => PolicyKind::Fifo,
-		"Lru" => PolicyKind::Lru,
+		"Fifo" => DecorationType::Fifo,
+		"Lru" => DecorationType::Lru,
 		"Lrfu" => {
-		    match table.get("policy.Lrfu.exponent") {
-			None => PolicyKind::Lrfu(1.0),
-			Some(&toml::value::Value::Float(f)) => PolicyKind::Lrfu(f as f32),
-			_ => return Err(ConfigError::ConfigFormatError(format!("Invalid exponent format for policy {},", s)))
+		    match table.get("decorator.Lrfu.exponent") {
+			None => DecorationType::Lrfu(1.0),
+			Some(&toml::value::Value::Float(f)) => DecorationType::Lrfu(f as f32),
+			_ => return Err(ConfigError::ConfigFormatError(format!("Invalid exponent format for decorator {},", s)))
 		    }
 		},
-		_ => return Err(ConfigError::ConfigFormatError(format!("Invalid policy.kind value {}. Must be one of: Fifo, Lru, Lrfu", s))),
+		_ => return Err(ConfigError::ConfigFormatError(format!("Invalid decorator.kind value {}. Must be one of: Fifo, Lru, Lrfu", s))),
 		},
-	    _ => return Err(ConfigError::ConfigFormatError(String::from("Invalid policy attribute. Must be 'policy.kind' or 'policy.Lrfu'."))),
+	    _ => return Err(ConfigError::ConfigFormatError(String::from("Invalid decorator attribute. Must be 'decorator.kind' or 'decorator.Lrfu'."))),
             },
-	    _ => return Err(ConfigError::ConfigFormatError(String::from("Invalid policy TOML type. Must be toml table."))),
+	    _ => return Err(ConfigError::ConfigFormatError(String::from("Invalid decorator TOML type. Must be toml table."))),
         };
 
         // Make sure the configuration is valid for specific child configs.
-        let mut config = match GenericConfig::from_toml(value) {
+        let config = match GenericConfig::from_toml(value) {
             Err(e) => return Err(e),
             Ok(c) => c,
         };
 
-        // Make sure policy is not used on a container that does not
-        // support ordered trait.
-        match (policy, config.has_ordered_trait) {
-	    (PolicyKind::None, _) => Ok(ConfigBuilder { config, policy }),
-	    (_, true) => {
-		config.has_ordered_trait=false;
-		Ok(ConfigBuilder { config, policy })
-	    },
-	    _ => Err(ConfigError::UnsupportedTraitError(String::from("Cannot use a policy with a top level container that does not support dynamically built Ordered trait.")))
-	}
+        Ok(ConfigBuilder { config, decorator })
     }
 }
 
@@ -235,27 +206,21 @@ where
 {
     fn build(self) -> DynBuildingBlock<'a, K, V> {
         let has_concurrent_trait = self.config.has_concurrent_trait;
-        let has_ordered_trait = self.config.has_ordered_trait;
-        let build = match self.policy {
-            PolicyKind::None => self.config.build(),
-            PolicyKind::Fifo => Box::new(Policy::new(
-                DynOrdered::new(self.config.build(), has_concurrent_trait),
-                Fifo::new(),
-            )),
-            PolicyKind::Lru => Box::new(Policy::new(
-                DynOrdered::new(self.config.build(), has_concurrent_trait),
+        let build = match self.decorator {
+            DecorationType::None => self.config.build(),
+            DecorationType::Fifo => {
+                Box::new(Decorator::new(self.config.build(), Fifo::new()))
+            }
+            DecorationType::Lru => Box::new(Decorator::new(
+                self.config.build(),
                 Lru::<Counter>::new(),
             )),
-            PolicyKind::Lrfu(e) => Box::new(Policy::new(
-                DynOrdered::new(self.config.build(), has_concurrent_trait),
+            DecorationType::Lrfu(e) => Box::new(Decorator::new(
+                self.config.build(),
                 Lrfu::<Counter>::new(e),
             )),
         };
-        DynBuildingBlock::new(
-            build,
-            has_concurrent_trait,
-            has_ordered_trait,
-        )
+        DynBuildingBlock::new(build, has_concurrent_trait)
     }
 }
 
@@ -264,9 +229,8 @@ mod tests {
     use crate::builder::Build;
     use crate::config::{
         ConfigBuilder, ConfigError, DynBuildingBlock, DynConcurrent,
-        DynOrdered,
     };
-    use crate::tests::{test_concurrent, test_ordered};
+    use crate::tests::test_concurrent;
     use crate::BuildingBlock;
 
     #[test]
@@ -297,7 +261,7 @@ mod tests {
             "
 id='ArrayConfig'
 capacity={}
-policy.kind='Fifo'
+decorator.kind='Fifo'
 ",
             capacity
         );
@@ -307,7 +271,7 @@ policy.kind='Fifo'
                 .build();
         assert_eq!(array.capacity(), capacity);
         assert!(matches!(
-            array.into_ordered(),
+            array.into_concurrent(),
             Err(ConfigError::UnsupportedTraitError(_))
         ));
     }
@@ -319,8 +283,8 @@ policy.kind='Fifo'
             "
 id='ArrayConfig'
 capacity={}
-policy.kind='Lrfu'
-policy.Lrfu.exponent=0.5
+decorator.kind='Lrfu'
+decorator.Lrfu.exponent=0.5
 ",
             capacity
         );
@@ -329,45 +293,6 @@ policy.Lrfu.exponent=0.5
                 .unwrap()
                 .build();
         assert_eq!(array.capacity(), capacity);
-        assert!(matches!(
-            array.into_ordered(),
-            Err(ConfigError::UnsupportedTraitError(_))
-        ));
-    }
-
-    #[test]
-    fn test_invalid_ordered() {
-        let capacity = 10;
-        let config_str = format!(
-            "
-id='BTreeConfig'
-capacity={}
-policy.kind='Fifo'
-",
-            capacity
-        );
-        let builder = ConfigBuilder::from_string(config_str.as_str());
-        assert!(matches!(
-            builder,
-            Err(ConfigError::UnsupportedTraitError(_))
-        ));
-    }
-
-    #[test]
-    fn test_valid_ordered() {
-        let capacity = 10;
-        let config_str = format!(
-            "
-id='ArrayConfig'
-capacity={}
-",
-            capacity
-        );
-        let builder =
-            ConfigBuilder::from_string(config_str.as_str()).unwrap();
-        let container: DynOrdered<DynBuildingBlock<u16, u32>> =
-            builder.build().into_ordered().unwrap();
-        test_ordered(container);
     }
 
     #[test]

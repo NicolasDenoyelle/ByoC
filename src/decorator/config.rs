@@ -1,25 +1,30 @@
-use crate::builder::{Build, PolicyBuilder};
+use crate::builder::{Build, DecoratorBuilder};
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, DynOrdered,
-    GenericConfig, GenericKey, GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
+    GenericKey, GenericValue, IntoConfig,
 };
-use crate::policy::{
-    timestamp::{Counter, Timestamp},
-    Fifo, Lrfu, Lru,
-};
-use crate::{BuildingBlock, Policy};
+use crate::decorator::{Fifo, Lrfu, Lru};
+use crate::utils::timestamp::{Counter, Timestamp};
+use crate::{BuildingBlock, Decorator};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Copy, Clone)]
 #[serde(tag = "kind", content = "exponent")]
-pub enum PolicyKind {
+pub enum DecorationType {
     Lrfu(f32),
     Lru,
     Fifo,
     None,
 }
 
-/// Configuration format for [`Policy`](../struct.Policy.html)
+impl Default for DecorationType {
+    /// The default value of a [`DecorationType`] is `None`, i.e no decoration.
+    fn default() -> Self {
+        DecorationType::None
+    }
+}
+
+/// Configuration format for [`Decorator`](../struct.Decorator.html)
 /// containers.
 ///
 /// ! At the moment this configuration cannot be built due to recursion
@@ -32,14 +37,14 @@ pub enum PolicyKind {
 /// set a policy a single time at the top level of the container configuration.
 ///
 /// This configuration format is composed of     
-/// * an `id` field where the `id` value must be "PolicyConfig",
-/// * `policy.kind` field which accept values defined in the [`PolicyKind`]
+/// * an `id` field where the `id` value must be "DecoratorConfig",
+/// * `decorator.kind` field which accept values defined in the [`DecorationType`]
 /// enum,
-/// * `policy.exponent` field that sets the floating point value for the
-/// [`Lrfu`](../policy/struct.Lrfu.html) policy.
+/// * `decorator.exponent` field that sets the floating point value for the
+/// [`Lrfu`](../decorator/struct.Lrfu.html) decorator.
 ///
 /// Below is an example of the configuration of a
-/// [`Policy`](../struct.Policy.html) wrapping an
+/// [`Decorator`](../struct.Decorator.html) wrapping an
 /// [`Array`](../struct.Array.html) container.
 /// ```no_run
 /// use byoc::BuildingBlock;
@@ -47,8 +52,8 @@ pub enum PolicyKind {
 /// use byoc::config::{ConfigBuilder, DynBuildingBlock};
 ///
 /// let config_str = format!("
-/// id='PolicyConfig'
-/// policy.kind='Fifo'
+/// id='DecoratorConfig'
+/// decorator.kind='Fifo'
 /// [container]
 /// id='ArrayConfig'
 /// capacity=10
@@ -60,70 +65,71 @@ pub enum PolicyKind {
 ///                .build();
 /// ```
 #[derive(Deserialize, Serialize, Clone)]
-pub struct PolicyConfig {
+pub struct DecoratorConfig {
     #[allow(dead_code)]
     id: String,
-    policy: PolicyKind,
+    decorator: DecorationType,
     container: toml::Value,
 }
 
-impl PolicyConfig {
+impl DecoratorConfig {
     fn from_builder<C: ConfigInstance, B: IntoConfig<C>>(
         builder: &B,
-        policy: PolicyKind,
+        decorator: DecorationType,
     ) -> Self {
-        let container_config_str = builder.into_config().to_toml_string();
+        let container_config_str = builder.as_config().to_toml_string();
         let container: toml::value::Value =
             toml::de::from_str(container_config_str.as_ref()).unwrap();
 
-        PolicyConfig {
-            id: String::from(PolicyConfig::id()),
-            policy,
+        DecoratorConfig {
+            id: String::from(DecoratorConfig::id()),
+            decorator,
             container,
         }
     }
 }
 
-impl<C, V, B, T> IntoConfig<PolicyConfig>
-    for PolicyBuilder<C, V, Lru<T>, B>
+impl<C, V, B, T> IntoConfig<DecoratorConfig>
+    for DecoratorBuilder<C, V, Lru<T>, B>
 where
     C: ConfigInstance,
     B: IntoConfig<C>,
     T: Timestamp,
 {
-    fn into_config(&self) -> PolicyConfig {
-        PolicyConfig::from_builder(&self.builder, PolicyKind::Lru)
+    fn as_config(&self) -> DecoratorConfig {
+        DecoratorConfig::from_builder(&self.builder, DecorationType::Lru)
     }
 }
 
-impl<C, V, B, T> IntoConfig<PolicyConfig>
-    for PolicyBuilder<C, V, Lrfu<T>, B>
+impl<C, V, B, T> IntoConfig<DecoratorConfig>
+    for DecoratorBuilder<C, V, Lrfu<T>, B>
 where
     C: ConfigInstance,
     B: IntoConfig<C>,
     T: Timestamp,
 {
-    fn into_config(&self) -> PolicyConfig {
-        PolicyConfig::from_builder(
+    fn as_config(&self) -> DecoratorConfig {
+        DecoratorConfig::from_builder(
             &self.builder,
-            PolicyKind::Lrfu(self.policy.exponent()),
+            DecorationType::Lrfu(self.decorator.exponent()),
         )
     }
 }
 
-impl<C, V, B> IntoConfig<PolicyConfig> for PolicyBuilder<C, V, Fifo, B>
+impl<C, V, B> IntoConfig<DecoratorConfig>
+    for DecoratorBuilder<C, V, Fifo, B>
 where
     C: ConfigInstance,
     B: IntoConfig<C>,
 {
-    fn into_config(&self) -> PolicyConfig {
-        PolicyConfig::from_builder(&self.builder, PolicyKind::Fifo)
+    fn as_config(&self) -> DecoratorConfig {
+        DecoratorConfig::from_builder(&self.builder, DecorationType::Fifo)
     }
 }
 
-impl ConfigInstance for PolicyConfig {
+impl ConfigInstance for DecoratorConfig {
     fn id() -> &'static str {
-        "PolicyConfig"
+        "DecoratorConfig"
     }
 
     fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
@@ -133,66 +139,51 @@ impl ConfigInstance for PolicyConfig {
 }
 
 impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for PolicyConfig
+    for DecoratorConfig
 where
     K: 'a + GenericKey,
     V: 'a + GenericValue,
 {
     fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
-        match self.policy {
-            PolicyKind::Lrfu(exponent) => Box::new(Policy::new(
-                DynOrdered::new(
-                    GenericConfig::from_toml(&self.container)
-                        .unwrap()
-                        .build(),
-                    false,
-                ),
+        match self.decorator {
+            DecorationType::Lrfu(exponent) => Box::new(Decorator::new(
+                GenericConfig::from_toml(&self.container).unwrap().build(),
                 Lrfu::<Counter>::new(exponent),
             )),
-            PolicyKind::Lru => Box::new(Policy::new(
-                DynOrdered::new(
-                    GenericConfig::from_toml(&self.container)
-                        .unwrap()
-                        .build(),
-                    false,
-                ),
+            DecorationType::Lru => Box::new(Decorator::new(
+                GenericConfig::from_toml(&self.container).unwrap().build(),
                 Lru::<Counter>::new(),
             )),
-            PolicyKind::Fifo => Box::new(Policy::new(
-                DynOrdered::new(
-                    GenericConfig::from_toml(&self.container)
-                        .unwrap()
-                        .build(),
-                    false,
-                ),
+            DecorationType::Fifo => Box::new(Decorator::new(
+                GenericConfig::from_toml(&self.container).unwrap().build(),
                 Fifo::new(),
             )),
-            PolicyKind::None => {
+            DecorationType::None => {
                 GenericConfig::from_toml(&self.container).unwrap().build()
             }
         }
     }
 }
 
-impl ConfigWithTraits for PolicyConfig {}
+impl ConfigWithTraits for DecoratorConfig {}
 
 #[cfg(test)]
 mod tests {
-    use super::PolicyConfig;
-    use crate::builder::{ArrayBuilder, Build, PolicyBuilder};
+    use super::DecoratorConfig;
+    use crate::builder::{ArrayBuilder, Build, DecoratorBuilder};
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
-    use crate::utils::policy::Fifo;
+    use crate::decorator::Fifo;
     use crate::BuildingBlock;
 
     #[test]
-    fn test_valid_policy_config() {
+    fn test_valid_decorator_config() {
         let array_capacity = 10;
         let config_str = format!(
             "
-id='PolicyConfig'
-policy.kind='Lrfu'
-policy.exponent=0.5
+id='DecoratorConfig'
+decorator.kind='Lrfu'
+decorator.exponent=0.5
 [container]
 id='ArrayConfig'
 capacity={}
@@ -201,17 +192,17 @@ capacity={}
         );
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
-        let config = PolicyConfig::from_toml(&value).unwrap();
+        let config = DecoratorConfig::from_toml(&value).unwrap();
         let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
         assert_eq!(container.capacity(), array_capacity);
     }
 
     #[test]
-    fn test_invalid_policy_config() {
+    fn test_invalid_decorator_config() {
         let config_str = "
-id='PolicyConfig'
-policy.kind='LRF'
-policy.exponent=0.5
+id='DecoratorConfig'
+decorator.kind='LRF'
+decorator.exponent=0.5
 [container]
 id='ArrayConfig'
 capacity=10
@@ -220,14 +211,14 @@ capacity=10
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         assert!(matches!(
-            PolicyConfig::from_toml(&value),
+            DecoratorConfig::from_toml(&value),
             Err(ConfigError::TomlFormatError(_))
         ));
     }
 
     #[test]
-    fn test_builder_into_config() {
-        let builder = PolicyBuilder::<_, (), _, _>::new(
+    fn test_builder_as_config() {
+        let builder = DecoratorBuilder::<_, (), _, _>::new(
             ArrayBuilder::<()>::new(2),
             Fifo::new(),
         );

@@ -6,7 +6,7 @@ where
     C: ConfigInstance,
 {
     // Building configuration object succeeds or panics.
-    let config: C = builder.into_config();
+    let config: C = builder.as_config();
     // Building container from configuration object succeeds or panics.
     println!(
         "{} into {}: \n{}",

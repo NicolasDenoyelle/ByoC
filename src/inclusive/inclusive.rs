@@ -67,45 +67,35 @@ impl<V> DerefMut for InclusiveCell<V> {
     }
 }
 
-/// Multilevel `BuildingBlock` mirroring values in its first level.
+/// Two stages `BuildingBlock` where elements in the first are copies of
+/// elements in the second stage.
 ///
 /// This building block behaves has a two level cache where the front container
-/// serves as a cache to the back container. In this variant, when an element
-/// from the back container is [accessed](trait.Get.html),
-/// it is cloned in the front container and accessed from there.
-/// This avoids writes back to the back container on
-/// evictions if the evicted element was not modified from its initial clone.
+/// serves as a cache to the back container.
+/// The two-level structure of this container allows
+/// to optimize lookups, read and writes when the most frequently accessed
+/// element are kept in the fastest (front) container. This is because this
+/// implementation tries first to find elements in the front container and will
+/// not access the back container if the needed elements were found in the
+/// former.
 ///
-/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
-///
-/// Elements are [inserted](trait.BuildingBlock.html#method.push)
-/// at the front of the container. Inserted elements are
+/// Elements in the front of an [`Inclusive`] container are also present in
+/// the back container. Consequently, the front container
+/// capacity must be at least as large as the back container capacity.
+/// In practice, it is implemented using clones in the
+/// front container and updating their counterpart in the back container when
+/// they are evicted from the front container towards the back. Elements are
 /// wrapped in a cell containing flags to keep track if the element has been
-/// updated or cloned. Evicted elements go toward the back unless they are not
-/// updated clones of elements from the back container.
+/// updated (in the front container) or cloned. It allows to avoid
+/// unnecessary writes-back, when for instance, an element evicted from the
+/// front to the back has not been updated or when an element evicted from
+/// the back has not been cloned and therefore does not have an updated clone
+/// to be updated from.
 ///
-/// When [taking](trait.BuildingBlock.html#method.take) elements out of the
-/// container, they are first searched in the front container and then in the
-/// back container if it was not in the former. If the element is found in the
-/// in the front container and it is marked as cloned, it is also searched in
-/// the back container and deleted.
-///
-/// When [popping](trait.BuildingBlock.html#method.pop) elements out,
-/// this container first tries to make room in the back container using this
-/// container [`pop()`](trait.BuildingBlock.html#method.pop) method. If this is
-/// not enough room compared to what is requested, only then the front container
-/// will also be popped from. Note that element popped from the back container
-/// are not necessarily returned if they are also present in the front
-/// container. They still free the room they previously occupied.
-///
-/// ## [`Get`](trait.Get.html) Implementation
-///
-/// [`Get`](trait.Get.html) and [`GetMut`](trait.GetMut.html) traits require
-/// that both the front and the back container implement these traits so that
-/// elements can be accessed at the front and cloned from the back to the front
-/// if they were only present in the back. The associated methods will search
-/// for the element first in the front container, and then in the back container
-/// if it was not found in the former.
+/// When accessing elements with [`Get`](trait.Get.html) and
+/// [`GetMut`](trait.GetMut.html) traits, elements found in the back container
+/// but not in the front container will be copied in the front to give
+/// it a chance to be in the "faster" container on its next access.
 ///
 /// ## Examples
 ///
@@ -115,48 +105,31 @@ impl<V> DerefMut for InclusiveCell<V> {
 ///
 /// // Create cache
 /// let mut front = Array::new(2);
-/// let mut back = Array::new(4);
+/// let mut back = Array::new(3);
 /// let mut cache = Inclusive::new(front, back);
-/// // [[][]]
+/// // [[][]] This represent the content of both front and back containers.
 ///
-/// // Populate front.
+/// // Insertion happens both at the front and the back.
+/// // The back is necessary because this is an inclusive cache.
+/// // The front is because we assume that recent insertion of elements will
+/// // be used soon.
 /// assert!(cache.push(vec![("first", 1), ("second", 0)]).pop().is_none());
-/// // [[("first", 1), ("second", 0)][]]
+/// // [[("first", 1), ("second", 0)][("first", 1), ("second", 0)]]
 ///
 /// // Front side is full. Next push will move the highest values
 /// // from the front to the back to make room for the new
-/// // value in the front.
+/// // value in the front. The "highest values" is because
+/// // `Array` (front) container pops highest values when it is full.
 /// assert!(cache.push(vec![("third", 3)]).pop().is_none());
-/// // [[("second", 0), ("third", 3)][("first", 1)]]
-///
-/// // At this point, "second" and "third" are in front and
-/// // "first" is in the back.
-/// // Pop operation removes elements from the back first
-/// // then the front.
-/// assert_eq!(cache.pop(1).pop().unwrap().0, "first");
-/// // [[("second", 0), ("third", 3)][]]
-///
-/// // We reinsert "first". As a result "third" moves to the back
-/// // because the associated value is the highest on this side of the
-/// // cache.
-/// assert!(cache.push(vec![("first", 1)]).pop().is_none());
-/// // [[("first", 1), ("second", 0)][("third", 3)]]
-///
-/// // We access third. It moves it to the front, while a victim goes
-/// // to the back.
-/// assert!(!cache.front().contains(&"third"));
-/// let val = cache.get(&"third");
-/// // [[("third", 3), ("second", 0)][("first", 1)]]
-/// assert!(cache.front().contains(&"third"));
+/// // [[("second", 0), ("third", 3)]
+/// //  [("first", 1), ("second", 0), ("third", 3)]]
+/// assert!(!cache.front().contains(&"first"));
 /// assert!(cache.back().contains(&"first"));
 ///
-/// // If we make room at the front then access an element at the
-/// // back, this element will be both at the front and the back.
-/// assert!(cache.take(&"third").is_some());
-/// let val = cache.get(&"first");
-/// // [[("first", 1), ("second", 0)][("first", 1)]]
-/// assert!(cache.front().contains(&"first"));
-/// assert!(cache.back().contains(&"first"));
+/// // Pop operation removes elements from the back first and also from the
+/// // the front if it is present there.
+/// assert_eq!(cache.pop(1).pop().unwrap().0, "third");
+/// // [[("second", 0)][("first", 1), ("second", 0)]]
 /// ```
 pub struct Inclusive<'a, K, V, L, R>
 where
@@ -177,8 +150,14 @@ where
     L: BuildingBlock<'a, K, InclusiveCell<V>>,
     R: BuildingBlock<'a, K, InclusiveCell<V>>,
 {
-    /// Construct a Inclusive Cache.
+    /// Construct an [`Inclusive`] Cache with two stages.
+    ///
+    /// The `front` stage should be the "faster" container, usually with
+    /// a smaller capacity then the `back` stage. The `back` is also usually
+    /// the "slower" container. When an element is accessed, it is copied to
+    /// the front to make its subsequent accesses faster.
     pub fn new(front: L, back: R) -> Self {
+        assert!(front.capacity() <= back.capacity());
         Inclusive {
             front,
             back,

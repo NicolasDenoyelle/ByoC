@@ -1,19 +1,19 @@
-use crate::policy::{Reference, ReferenceFactory};
+use crate::decorator::{Decoration, DecorationFactory};
 use std::cmp::Ord;
 
 //----------------------------------------------------------------------------//
 // Default reference                                                          //
 //----------------------------------------------------------------------------//
 
-/// Implementation of [`Reference`](trait.Reference.html) as its inner value.
+/// Implementation of [`Decoration`](trait.Decoration.html) as its inner value.
 ///
 /// ## Examples
 ///
 /// ```
 /// use byoc::container::Array;
-/// use byoc::utils::policy::{Policy, Default};
+/// use byoc::utils::decorator::{Decorator, Default};
 ///
-/// let c = Policy::new(Array::new(3), Default::new());
+/// let c = Decorator::new(Array::new(3), Default::new());
 /// c.push(vec!["item1", "item2", "item0"]);
 /// assert_eq!(c.pop(1).pop().unwrap(), "item2");
 /// assert_eq!(c.pop(1).pop().unwrap(), "item1");
@@ -30,7 +30,7 @@ impl<V: Ord> DefaultCell<V> {
     }
 }
 
-impl<V: Ord> Reference<V> for DefaultCell<V> {
+impl<V: Ord> Decoration<V> for DefaultCell<V> {
     fn unwrap(self) -> V {
         self.value
     }
@@ -45,7 +45,7 @@ impl<V: Ord> Reference<V> for DefaultCell<V> {
 #[derive(Clone)]
 pub struct Default {}
 
-impl<V: Ord> ReferenceFactory<V> for Default {
+impl<V: Ord> DecorationFactory<V> for Default {
     type Item = DefaultCell<V>;
 
     fn wrap(&mut self, v: V) -> Self::Item {

@@ -7,4 +7,3 @@ pub use get::{CompressedCell, CompressedMutCell};
 pub(crate) mod builder;
 #[cfg(feature = "config")]
 pub(crate) mod config;
-mod ordered;

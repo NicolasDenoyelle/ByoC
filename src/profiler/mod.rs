@@ -9,4 +9,3 @@ mod concurrent;
 #[cfg(feature = "config")]
 pub(crate) mod config;
 mod get;
-mod ordered;

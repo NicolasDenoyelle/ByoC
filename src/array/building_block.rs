@@ -1,4 +1,5 @@
 use super::Array;
+use crate::internal::size::find_cut_at_size;
 use crate::BuildingBlock;
 
 impl<'a, K, V> BuildingBlock<'a, K, V> for Array<(K, V)>
@@ -6,7 +7,7 @@ where
     K: 'a + Ord,
     V: 'a + Ord,
 {
-    /// Get the maximum "size" that elements in the container can fit.
+    /// Get the maximum storage size of this [`Array`].
     ///
     /// This is the size set by the constructor
     /// [`Array::new()`](struct.Array.html#method.new).
@@ -29,56 +30,108 @@ where
         self.values.iter().any(|(k, _)| k == key)
     }
 
+    /// Get the size currently occupied by elements in this [`Array`].
+    ///
+    /// This is the sum of this [`Array`] elements size, as defined by the
+    /// function `element_size()` set by the method
+    /// [`with_element_size()`](struct.Array.html#method.with_element_size).
     fn size(&self) -> usize {
         self.total_size
     }
 
-    /// Remove up to `n` values from the container.
-    /// If less than `n` values are stored in the container,
-    /// the returned array contains all the container values and
-    /// the container is left empty.
-    /// This building block implements the trait
-    /// [`Ordered`](../trait.Ordered.html), which means that
-    /// the highest values are popped out. This is implemented by
-    /// sorting the array on values and spitting it where appropriate.
-    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
+    /// Free up to `size` space from the container.
+    ///
+    /// If the [`Array`] is empty, an empty vector is returned.
+    ///
+    /// If the `size` to pop is greater than the current size in the container,
+    /// the container is emptied and all its elements are returned.
+    ///
+    /// Otherwise, array elements are sorted by value using values
+    /// [`std::cmp::Ord`] trait and the greatest ones are evicted until the
+    /// sum of evicted elements' size meets the `size` threshold. Elements
+    /// size is computed with the function `element_size()` set by the method
+    /// [`with_element_size()`](struct.Array.html#method.with_element_size).
+    fn pop(&mut self, size: usize) -> Vec<(K, V)> {
+        // If the vector is empty there is nothing to return.
+        if self.values.is_empty() {
+            return Vec::new();
+        }
+
+        // If the vector has less total size than requested we return
+        // everything.
+        if self.total_size <= size {
+            self.total_size = 0;
+            return self.values.split_off(0);
+        }
+
+        // Otherwise, we need to evict the greatest elements.
+
+        // Sort values.
         self.values.sort_unstable_by(|(_, v1), (_, v2)| v1.cmp(v2));
-        let i = self.values.len();
-        let out = self.values.split_off(i - std::cmp::min(i, n));
-        let out_size: usize =
-            out.iter().map(|e| (self.element_size)(e)).sum();
-        self.total_size -= out_size;
-        out
+
+        // Find cut.
+        let (cut, cut_size, _) =
+            find_cut_at_size(&self.values, self.element_size, size);
+
+        // Evict.
+        self.total_size -= cut_size;
+        self.values.split_off(cut)
     }
 
+    /// Insert key/value pairs in the container.
+    ///
+    /// The total `size` of the elements to push is computed using
+    /// `element_size()` function set by the method
+    /// [`with_element_size()`](struct.Array.html#method.with_element_size).
+    ///
+    /// If the room in the container is sufficient to store every `elements`,
+    /// then they are inserted and an empty vector is returned.
+    ///
+    /// If the `size` is larger than or equal to this [`Array`] capacity, then
+    /// at least, all the elements contained in the [`Array`] will be returned.
+    /// Additionally, if `size` is strictly larger than this container size,
+    /// then the `elements` with the greatest values that don't fit in are also
+    /// returned.
+    ///
+    /// Otherwise, the redundant keys that were in the container will be
+    /// returned. Additionally, if there are more `elements` to insert than the
+    /// remaining room, enough existing elements inside the [`Array`] will be
+    /// popped to make room for the new `elements`.
     fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
-        let mut split = 0;
-        let mut size = 0;
-        for (i, s) in
-            elements.iter().map(|e| (self.element_size)(e)).enumerate()
-        {
-            if size + s > self.capacity {
-                break;
-            }
-            split = i + 1;
-            size += s;
+        let size: usize =
+            elements.iter().map(|e| (self.element_size)(e)).sum();
+        let room = self.capacity - self.total_size;
+
+        if size <= room {
+            self.total_size += size;
+            self.values.append(&mut elements);
+            return elements;
         }
 
-        if split < elements.len() {
-            self.values.append(&mut elements.split_off(split));
-            std::mem::swap(&mut elements, &mut self.values);
+        if size == self.capacity {
+            std::mem::swap(&mut self.values, &mut elements);
             self.total_size = size;
-            elements
-        } else if size + self.total_size > self.capacity {
-            let out = self.pop(size + self.total_size - self.capacity);
-            self.values.append(&mut elements);
-            self.total_size += size;
-            out
-        } else {
-            self.values.append(&mut elements);
-            self.total_size += size;
-            Vec::new()
+            return elements;
         }
+
+        if size > self.capacity {
+            elements.sort_by(|(_, v1), (_, v2)| v1.cmp(v2));
+            let (cut, cut_size, _) = find_cut_at_size(
+                &elements,
+                self.element_size,
+                size - self.capacity,
+            );
+            let mut out = elements.split_off(cut);
+            std::mem::swap(&mut self.values, &mut elements);
+            elements.append(&mut out);
+            self.total_size = size - cut_size;
+            return elements;
+        }
+
+        let out = self.pop(size - room);
+        self.total_size += size;
+        self.values.append(&mut elements);
+        out
     }
 
     fn take(&mut self, key: &K) -> Option<(K, V)> {
@@ -98,7 +151,13 @@ where
         }
     }
 
-    // One pass take
+    /// Take multiple keys out the container at once.
+    ///
+    /// This method is an optimization of `take()` method for removal of
+    /// multiple keys. The method first sorts the input keys. Then, it walks the
+    /// [`Array`] elements one by one in reverse order, and searches for a
+    /// matching key in the input array of keys. When a key is matched, it is
+    /// removed from the [`Array`] and appended to the returned elements.
     fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
         let mut ret = Vec::with_capacity(keys.len());
         keys.sort();

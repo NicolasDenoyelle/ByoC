@@ -1,5 +1,5 @@
-use crate::policy::timestamp::Timestamp;
-use crate::policy::{Reference, ReferenceFactory};
+use crate::decorator::{Decoration, DecorationFactory};
+use crate::utils::timestamp::Timestamp;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::cell::Cell;
@@ -59,7 +59,7 @@ impl<T: Timestamp + Copy> Stats<T> {
     }
 }
 
-/// Implementation of [`Reference`](trait.Reference.html)
+/// Implementation of [`Decoration`](trait.Decoration.html)
 /// with a Least Recently Frequently Used (Lrfu) eviction policy.
 ///
 /// `LrfuCell` references implement an order
@@ -69,12 +69,12 @@ impl<T: Timestamp + Copy> Stats<T> {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct LrfuCell<V, T: Timestamp + Copy> {
-    /// Reference value.
+    /// Decoration value.
     value: V,
     stats: Cell<Stats<T>>,
 }
 
-/// Reference implementation of Least Recently Frequently Used ordering.
+/// Decoration implementation of Least Recently Frequently Used ordering.
 ///
 /// `Lrfu` wraps values into cells implementing Lrfu ordering policy.
 /// It tries to keep in cache frequently used elements while giving a chance
@@ -95,10 +95,10 @@ pub struct LrfuCell<V, T: Timestamp + Copy> {
 /// ## Examples
 ///
 /// ```
-/// use byoc::{Array, Policy};
-/// use byoc::utils::policy::Lrfu;
+/// use byoc::{Array, Decorator};
+/// use byoc::utils::decorator::Lrfu;
 ///
-/// // let c = Policy::new(Array::new(3), Lrfu::new(2.0));
+/// // let c = Decorator::new(Array::new(3), Lrfu::new(2.0));
 /// ```
 pub struct Lrfu<T: Timestamp + Copy> {
     exponent: f32,
@@ -141,7 +141,7 @@ impl<T: Timestamp + Copy> Lrfu<T> {
 unsafe impl<T: Timestamp + Copy> Send for Lrfu<T> {}
 unsafe impl<T: Timestamp + Copy> Sync for Lrfu<T> {}
 
-impl<V, T: Timestamp + Copy> ReferenceFactory<V> for Lrfu<T> {
+impl<V, T: Timestamp + Copy> DecorationFactory<V> for Lrfu<T> {
     type Item = LrfuCell<V, T>;
     fn wrap(&mut self, v: V) -> Self::Item {
         LrfuCell::new(v, self.exponent)
@@ -200,7 +200,7 @@ impl<V, T: Timestamp + Copy> PartialEq for LrfuCell<V, T> {
 
 impl<V, T: Timestamp + Copy> Eq for LrfuCell<V, T> {}
 
-impl<V, T: Timestamp + Copy> Reference<V> for LrfuCell<V, T> {
+impl<V, T: Timestamp + Copy> Decoration<V> for LrfuCell<V, T> {
     fn unwrap(self) -> V {
         self.value
     }
@@ -217,8 +217,8 @@ impl<V, T: Timestamp + Copy> Reference<V> for LrfuCell<V, T> {
 #[cfg(test)]
 mod tests {
     use super::LrfuCell;
-    use crate::policy::timestamp::Counter;
-    use crate::policy::Reference;
+    use crate::decorator::Decoration;
+    use crate::utils::timestamp::Counter;
 
     #[test]
     fn test_lrfu_ref() {

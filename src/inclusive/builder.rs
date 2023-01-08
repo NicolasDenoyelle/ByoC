@@ -7,8 +7,8 @@ use std::marker::PhantomData;
 ///
 /// This builder can be consumed later to connect two containers together
 /// with a [`Inclusive`](../../struct.Inclusive.html) connector.
-/// It is created from two other builders that will build the front hand
-/// side of the connection and the back hand side of the connection.
+/// It is created from two other builders that will build the front
+/// side of the connection and the back side of the connection.
 ///
 /// ## Examples
 ///
