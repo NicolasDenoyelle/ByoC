@@ -51,9 +51,12 @@ where
     ///
     /// The total `size` of the elements to push is computed using
     /// `element_size()` function set by the method
-    /// [`with_element_size()`](struct.Array.html#method.with_element_size).
+    /// [`with_element_size()`](struct.BTree.html#method.with_element_size).
     ///
-    /// If the `size` is larger are equal than this [`BTree`] capacity, then
+    /// If the room in the container is sufficient to store every `elements`,
+    /// then they are inserted and an empty vector is returned.
+    ///
+    /// If the `size` is larger than or equal to this [`BTree`] capacity, then
     /// at least, all the elements contained in the [`BTree`] will be returned.
     /// Additionally, if `size` is strictly larger than this container size, then
     /// the `elements` with the greatest values that don't fit in are also

@@ -80,11 +80,23 @@ where
 
     /// Insert key/value pairs in the container.
     ///
-    /// The method does north check for duplicate keys for performance reasons.
+    /// The total `size` of the elements to push is computed using
+    /// `element_size()` function set by the method
+    /// [`with_element_size()`](struct.Array.html#method.with_element_size).
     ///
-    /// This container only inserts elements that can fit in the container.
-    /// No element is evicted out of the container as a result of this method
-    /// call.
+    /// If the room in the container is sufficient to store every `elements`,
+    /// then they are inserted and an empty vector is returned.
+    ///
+    /// If the `size` is larger than or equal to this [`Array`] capacity, then
+    /// at least, all the elements contained in the [`Array`] will be returned.
+    /// Additionally, if `size` is strictly larger than this container size,
+    /// then the `elements` with the greatest values that don't fit in are also
+    /// returned.
+    ///
+    /// Otherwise, the redundant keys that were in the container will be
+    /// returned. Additionally, if there are more `elements` to insert than the
+    /// remaining room, enough existing elements inside the [`Array`] will be
+    /// popped to make room for the new `elements`.
     fn push(&mut self, mut elements: Vec<(K, V)>) -> Vec<(K, V)> {
         let size: usize =
             elements.iter().map(|e| (self.element_size)(e)).sum();

@@ -15,7 +15,7 @@ use std::marker::PhantomData;
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::{Build,DecoratorBuild};
-/// use byoc::decorator::Fifo;
+/// use byoc::utils::decorator::Fifo;
 /// use byoc::builder::{ArrayBuilder, DecoratorBuilder};
 ///
 /// let array_builder = ArrayBuilder::new(2);
@@ -73,7 +73,7 @@ where
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::builder::{Build,Builder,DecoratorBuild};
-/// use byoc::decorator::Fifo;
+/// use byoc::utils::decorator::Fifo;
 ///
 /// let mut container = Builder::array(10000)
 ///                    .with_decorator(Fifo::new())

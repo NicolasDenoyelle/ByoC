@@ -5,39 +5,31 @@ use std::marker::PhantomData;
 // Decoration wrapper                                                      //
 //------------------------------------------------------------------------//
 
-/// Decorator for `BuildingBlock` values.
+/// `BuildingBlock` wrapping its values in a `Decoration` cell.
 ///
-/// ## [`BuildingBlock`](trait.BuildingBlock.html) Implementation
+/// [`Decorator`] is a [`BuildingBlock`](trait.BuildingBlock.html) wrapper that
+/// wraps its values inside of
+/// a [`Decoration`](utils/decorator/trait.Decoration.html) cell when they are
+/// inserted and unwraps them out of the cell when they are taken out.
 ///
-/// TODO
+/// The [`Decorator`] [`BuildingBlock`](trait.BuildingBlock.html) simply
+/// forwards methods calls to the
+/// [`BuildingBlock`](trait.BuildingBlock.html) it wraps. It is associated with
+/// a [`DecorationFactory`](utils/decorator/trait.DecorationFactory.html) that
+/// instantiates the wrapping
+/// [`Decoration`](utils/decorator/trait.Decoration.html) cell of the element
+/// to insert when the latter is inserted.
 ///
-/// ## [`Get`](trait.Get.html) Implementation
-///
-/// It is critical to note that accessing values wrapped into
-/// an order cell might change the order of elements in the container, and
-/// therefore, policies should not be used with containers relying on
-/// a stable order of their values. Containers that rely on a
-/// stable order of values should not allow access to their inner values
-/// altogether and should not implement the Ordering trait to avoid this problem.
+/// Decorating a building block values may allow to customize its behavior when
+/// the latter relies on the implementation of a trait carried by its values and
+/// implemented by the decoration.
+/// For instance, for a container evicting values based on their order,
+/// decoration cells may provide a specific implementation of values order,
+/// therefore dictating the eviction policy.
 ///
 /// ## Examples
 ///
-/// ```
-/// use byoc::BuildingBlock;
-/// use byoc::{Array, Decorator};
-/// use byoc::decorator::Fifo;
-///
-/// let mut c = Decorator::new(Array::new(3), Fifo::new());
-/// c.push(vec![("item1",1u16), ("item2",2u16), ("item0",3u16)]);
-/// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
-/// assert_eq!(c.pop(1).pop().unwrap().0, "item2");
-/// assert_eq!(c.pop(1).pop().unwrap().0, "item0");
-///```
-///
-/// Policies can be added to building blocks built with a
-/// [builder pattern](builder/trait.Build.html#method.with_policy) or
-/// built from a
-/// [configuration](config/index.html).
+/// See [`decorator`](utils/decorator/index.html) module for examples.
 pub struct Decorator<C, V, F>
 where
     F: DecorationFactory<V>,

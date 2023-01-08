@@ -1,4 +1,4 @@
-/// A clonable concurrent `BuildingBlock` with thread safe clones.
+/// A thread safe `BuildingBlock`.
 ///
 /// This trait allows to clone a [`BuildingBlock`](trait.BuildingBlock.html)
 /// into a shadow copies of itself. Each clone obtained with the method

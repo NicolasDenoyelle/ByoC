@@ -115,10 +115,30 @@ where
 
     /// Empty the container and retrieve all of its elements.
     ///
-    /// This method flushes first the front container and then the back
-    /// container into a chained iterator.
+    /// This method moves elements towards the end of the container and flushes
+    /// them from the back of the container as follow.
+    ///
+    /// 1. This method flushes first the back container.
+    ///
+    /// 2. Then elements from the front container are flushed and pushed in the
+    /// back container. Popping element are chained to the flushed elements in
+    /// step 1.
+    ///
+    /// 3. Elements in the back are flushed and chained to elements from the two
+    /// former steps.
+    ///
+    ///
+    /// This is conveniently composable with
+    /// [`FlushStopper`](struct.FlushStopper.html) building block.
+    /// When composed together, the new container `flush()` method pushes
+    /// elements from the front container to the back and returns any popping
+    /// element.
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        Box::new(self.front.flush().chain(self.back.flush()))
+        let back = self.back.flush();
+        let front = self.front.flush().collect();
+        let front = self.back.push(front).into_iter();
+        let new_back = self.back.flush();
+        Box::new(back.chain(front.chain(new_back)))
     }
 }
 

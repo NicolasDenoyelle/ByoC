@@ -32,7 +32,7 @@ pub struct LruCell<V, T: Timestamp> {
 ///
 /// ```
 /// use byoc::{Array, Decorator};
-/// use byoc::decorator::Lru;
+/// use byoc::utils::decorator::Lru;
 /// use byoc::utils::timestamp::Clock;
 ///
 /// // let c = Decorator::new(Array::new(3), Lru::<Clock>::new());

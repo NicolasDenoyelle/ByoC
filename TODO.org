@@ -46,6 +46,15 @@ last level goes in the first level.
 * DONE Configuration Builder:
 + config to toml
 + Build to config
+* DONE Decorator
+Decorators are containers wrapping their values into a cell.
+Decorator takes a Factory generic. The Factory wraps/decorate a value that
+goes in the container.
+`decorator` module provides a way to chain Factories into a FactoryChain.
+Policies should movo into `decorator` module.
+* DONE Flush stopper:
+Stop flushes between two levels always returning an empty iterator.
+* TODO Fix serde recursion in decorator and inclusive containers. 
 * TODO Prefetcher building block implementations.
 A building block wrapping another and asynchronously prefetching keys based.
 on some predictions.
@@ -77,8 +86,6 @@ user pages are written to the cache;
 + A POSIX buffered filesystem implementation where reads and writes go to
 the cache;
 * TODO Batch builder implementation.
-* TODO Flush stopper:
-Stop flushes between two levels always returning an empty iterator.
 * TODO Marker trait:
 + ValueDecorator instead of Policy, with DecorationFactory
 + ContainerDecorator for Sequential, Profiler, etc.
@@ -88,12 +95,6 @@ Stop flushes between two levels always returning an empty iterator.
 * TODO Coverage test
 * TODO Logging
 * TODO CI.
-* TODO Decorator
-Decorators are containers wrapping their values into a cell.
-Decorator takes a Factory generic. The Factory wraps/decorate a value that
-goes in the container.
-`decorator` module provides a way to chain Factories into a FactoryChain.
-Policies should movo into `decorator` module.
 * TODO Builder refresh
 Rename `Build` trait into `BuildingBlockBuilder`.
 Make sure we can build all containers with it.

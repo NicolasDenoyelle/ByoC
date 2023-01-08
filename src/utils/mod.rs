@@ -7,6 +7,50 @@ pub mod stream {
     };
 }
 
+/// Decoration wrappers for values and traits for `Decorator` `BuildingBlock`.
+///
+/// This module is a companion module of
+/// [`Decorator`](../../struct.Decorator.html) container. The module provides
+/// two traits: [`Decoration`](trait.Decoration.html) and
+/// [`DecorationFactory`](trait.DecorationFactory.html).
+///
+/// [`Decoration`](trait.Decoration.html)s are structures used to wrap values
+/// inserted in [`Decorator`](../struct.Decorator.html) containers.
+/// They may provide values with an
+/// implementation of a trait that affect the decorated container.
+/// They are instantiated through a
+/// [`DecorationFactory`](trait.DecorationFactory.html) that may customize
+/// each individual [`Decoration`](trait.Decoration.html)s.
+///
+/// ### Examples
+///
+/// In below example we show how to add a [`Fifo`](struct.Fifo.html) eviction
+/// policy to an
+/// [`Array`](../../struct.Array.html) container. `Array` container is a
+/// container that evicts its largest elements when an eviction is needed.
+/// Since `Fifo` [`DecorationFactory`](trait.DecorationFactory.html)
+/// orders value in the order they are
+/// wrapped (i.e inserted in the container), the first values evicted will be
+/// the first values inserted.
+///
+/// ```
+/// use byoc::BuildingBlock;
+/// use byoc::{Array, Decorator};
+/// use byoc::utils::decorator::Fifo;
+///
+/// let mut c = Decorator::new(Array::new(3), Fifo::new());
+/// assert_eq!(c.push(vec![("item1",1u16), ("item2",2u16), ("item0",0u16)])
+///             .len(), 0);
+/// assert_eq!(c.pop(1).pop().unwrap().0, "item1");
+/// assert_eq!(c.pop(1).pop().unwrap().0, "item2");
+/// assert_eq!(c.pop(1).pop().unwrap().0, "item0");
+/// ```
+pub mod decorator {
+    pub use crate::decorator::{
+        Decoration, DecorationFactory, Fifo, Lrfu, Lru,
+    };
+}
+
 /// `Profiler` struct helpers.
 pub mod profiler {
     pub use crate::profiler::ProfilerOutputKind;

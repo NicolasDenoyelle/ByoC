@@ -11,7 +11,7 @@ use std::cmp::Ord;
 ///
 /// ```
 /// use byoc::container::Array;
-/// use byoc::decorator::{Decorator, Default};
+/// use byoc::utils::decorator::{Decorator, Default};
 ///
 /// let c = Decorator::new(Array::new(3), Default::new());
 /// c.push(vec!["item1", "item2", "item0"]);

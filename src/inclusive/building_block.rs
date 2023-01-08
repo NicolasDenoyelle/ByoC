@@ -191,19 +191,33 @@ where
 
     /// Empty the container and retrieve all of its elements.
     ///
-    /// This function returns chained iterators from flushing elements in the
-    /// front and flushing elements in the back, where elements in the back are
-    /// filtered to only keep those that were not in the front.
+    /// This function will flush the front container and replace updated
+    /// element in the back with the their updated copies in from front.
+    /// Then it will return elements from the back using the back flush method.
+    ///
+    /// This is conveniently composable with
+    /// [`FlushStopper`](struct.FlushStopper.html) building block.
+    /// When composed together, the new container `flush()` method empties
+    /// the front container and updates elements in the back container if any
+    /// of its elements is updated.
     fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        let front = self.front.flush().map(|(k, c)| (k, c.unwrap()));
-        let back = self.back.flush().filter_map(|(k, c)| {
-            if c.is_cloned() {
-                None
-            } else {
-                Some((k, c.unwrap()))
-            }
-        });
-        Box::new(front.chain(back))
+        let front: Vec<(K, InclusiveCell<V>)> = self
+            .front
+            .flush()
+            .filter_map(|(k, c)| {
+                if c.is_updated() {
+                    Some((k, InclusiveCell::new(c.unwrap())))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        let mut keys: Vec<K> =
+            front.iter().map(|(k, _)| k.clone()).collect();
+        self.back.take_multiple(&mut keys);
+        assert_eq!(self.back.push(front).len(), 0);
+        Box::new(self.back.flush().map(|(k, c)| (k, c.unwrap())))
     }
 }
 

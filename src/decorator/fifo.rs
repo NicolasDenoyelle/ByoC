@@ -32,7 +32,7 @@ pub struct FifoCell<V> {
 /// ```
 /// use byoc::BuildingBlock;
 /// use byoc::{Array, Decorator};
-/// use byoc::decorator::Fifo;
+/// use byoc::utils::decorator::Fifo;
 ///
 /// let mut c = Decorator::new(Array::new(3), Fifo::new());
 /// assert_eq!(c.push(vec![("item1",1u16), ("item2",2u16), ("item0",3u16)])

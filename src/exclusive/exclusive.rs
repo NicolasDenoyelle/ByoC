@@ -1,7 +1,7 @@
 use crate::BuildingBlock;
 use std::marker::PhantomData;
 
-/// Multilevel `BuildingBlock` withoutduplicates between levels.
+/// Multilevel `BuildingBlock` without duplicates between levels.
 ///
 /// This building block behaves has a two level cache where the front container
 /// serves as a cache to the back container. In this variant, elements move

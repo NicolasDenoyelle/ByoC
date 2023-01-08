@@ -13,6 +13,7 @@ use crate::builder::Build;
 #[cfg(feature = "compression")]
 use crate::compression::config::CompressedConfig;
 use crate::exclusive::config::ExclusiveConfig;
+use crate::flush_stopper::config::FlushStopperConfig;
 // use crate::inclusive::config::InclusiveConfig;
 use crate::profiler::config::ProfilerConfig;
 use crate::sequential::config::SequentialConfig;
@@ -103,6 +104,9 @@ impl ConfigInstance for GenericConfig {
             "ExclusiveConfig" => {
                 Self::from_config::<ExclusiveConfig>(value)
             }
+            "FlushStopperConfig" => {
+                Self::from_config::<FlushStopperConfig>(value)
+            }
             // "InclusiveConfig" => {
             //     Self::from_config::<InclusiveConfig>(value)
             // }
@@ -172,6 +176,11 @@ where
             }
             "ExclusiveConfig" => {
                 Self::into_config::<ExclusiveConfig>(&self.toml_config)
+                    .unwrap()
+                    .build()
+            }
+            "FlushStopperConfig" => {
+                Self::into_config::<FlushStopperConfig>(&self.toml_config)
                     .unwrap()
                     .build()
             }

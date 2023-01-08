@@ -96,7 +96,7 @@ pub struct LrfuCell<V, T: Timestamp + Copy> {
 ///
 /// ```
 /// use byoc::{Array, Decorator};
-/// use byoc::decorator::Lrfu;
+/// use byoc::utils::decorator::Lrfu;
 ///
 /// // let c = Decorator::new(Array::new(3), Lrfu::new(2.0));
 /// ```

@@ -20,7 +20,7 @@
 //! use byoc::BuildingBlock;
 //! use byoc::{Array, Exclusive, Sequential, Decorator};
 //! use byoc::utils::timestamp::Clock;
-//! use byoc::decorator::Lru;
+//! use byoc::utils::decorator::Lru;
 //!
 //! let front = Array::new(10000);
 //! let back = Array::new(1000000);
@@ -34,7 +34,7 @@
 //! ```
 //! use byoc::BuildingBlock;
 //! use byoc::utils::timestamp::Clock;
-//! use byoc::decorator::Lru;
+//! use byoc::utils::decorator::Lru;
 //! use byoc::builder::{Build,
 //!                     Builder,
 //!                     ExclusiveBuild,
@@ -64,6 +64,7 @@ pub use crate::btree::builder::BTreeBuilder;
 pub use crate::compression::builder::CompressedBuilder;
 pub use crate::decorator::builder::DecoratorBuilder;
 pub use crate::exclusive::builder::ExclusiveBuilder;
+pub use crate::flush_stopper::builder::FlushStopperBuilder;
 pub use crate::inclusive::builder::InclusiveBuilder;
 pub use crate::profiler::builder::ProfilerBuilder;
 pub use crate::sequential::builder::SequentialBuilder;
@@ -77,6 +78,7 @@ pub use crate::stream::builder::StreamBuilder;
 pub use crate::associative::builder::AssociativeBuild;
 pub use crate::decorator::builder::DecoratorBuild;
 pub use crate::exclusive::builder::ExclusiveBuild;
+pub use crate::flush_stopper::builder::FlushStopperBuild;
 pub use crate::inclusive::builder::InclusiveBuild;
 pub use crate::profiler::builder::ProfilerBuild;
 pub use crate::sequential::builder::SequentialBuild;

@@ -1,36 +1,12 @@
-//! The [`Decorator`](../struct.Decorator.html) container is wrapper around
-//! such a container that will wrap values into
-//! a [`Decoration`](trait.Decoration.html)
-//! cell.
-//!
-//! [`Lrfu`](struct.Lrfu.html) and [`Lru`](struct.Lru.html) policies will
-//! change the order of elements
-//! in the container when they are accessed from within the container
-//! using [`Get`](../trait.Get.html) and [`GetMut`](../trait.GetMut.html)
-//! traits. This is potentially dangerous! Indeed, if the container relies
-//! on the order of its elements (for instance it uses a
-//! [`std::collections::BTreeSet`]), then
-//! accessing elements inside the container will make things dicey.
-//!
-//! ### Examples
-//!
-//! ```
-//! use byoc::BuildingBlock;
-//! use byoc::{Array, Decorator};
-//! use byoc::decorator::Fifo;
-//!
-//! let mut c = Decorator::new(Array::new(3), Fifo::new());
-//! assert_eq!(c.push(vec![("item1",1u16), ("item2",2u16), ("item0",0u16)])
-//!             .len(), 0);
-//! assert_eq!(c.pop(1).pop().unwrap().0, "item1");
-//! assert_eq!(c.pop(1).pop().unwrap().0, "item2");
-//! assert_eq!(c.pop(1).pop().unwrap().0, "item0");
-//! ```
-
-/// Decorated wrapper for cache values.
+/// `BuildingBlock` values wrapper.
 ///
 /// A [`Decoration`] is a wrapper for values that live in a
-/// [building block](../trait.BuildingBlock.html).
+/// [building block](../trait.BuildingBlock.html). Values are wrapped using
+/// a [`DecorationFactory`] when they are inserted inside a
+/// [`Decorator`](../../struct.Decorator.html) container. They are unwrapped
+/// using this [`Decoration`] capability and accessed using this trait method
+/// when [`Get`](../../trait.Get.html) and [`GetMut`](../../trait.GetMut.html)
+/// traits methods are invoked.
 pub trait Decoration<V>: Ord {
     fn unwrap(self) -> V;
     fn get(&self) -> &V;
