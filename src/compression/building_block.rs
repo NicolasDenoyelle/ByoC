@@ -103,6 +103,11 @@ where
 
         // Store the index of matches in the container vector and the input
         // keys.
+        //
+        // The collect below is not needless. We collect the indices of
+        // matching keys from `v` elements in ascending order to remove them
+        // from the same vector `v` with a swap remove in descending order.
+        #[allow(clippy::needless_collect)]
         let matches: Vec<(usize, usize)> = v
             .iter()
             .enumerate()
@@ -254,6 +259,10 @@ where
 
         // Here we create the vector to write in the container stream and the
         // vector to return.
+        //
+        // It does not make sense to create a type here to remove the
+        // "type_complexity"
+        #[allow(clippy::type_complexity)]
         let (in_vec, out_vec): (Vec<(K, V)>, Vec<(K, V)>) =
             if total_size > self.capacity {
                 // If there is more values to insert than the container capacity:
