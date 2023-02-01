@@ -1,10 +1,10 @@
 use super::{ServerThreadBuilder, ServerThreadHandle, SocketClient};
 use crate::builder::{Build, SocketClientBuilder, SocketServerBuilder};
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
+    IntoConfig,
 };
-use crate::BuildingBlock;
+use crate::objsafe::DynBuildingBlock;
 use serde::{Deserialize, Serialize};
 use std::net::ToSocketAddrs;
 
@@ -19,9 +19,8 @@ use std::net::ToSocketAddrs;
 /// connects to a server.
 ///
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 /// use byoc::utils::socket::ServerThreadBuilder;
 /// use byoc::Array;
 ///
@@ -89,26 +88,16 @@ impl ConfigInstance for SocketClientConfig {
             Ok(_) => Ok(out),
         }
     }
-}
 
-impl<'a, K, V>
-    Build<std::io::Result<Box<dyn BuildingBlock<'a, K, V> + 'a>>>
-    for SocketClientConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
         self,
-    ) -> std::io::Result<Box<dyn BuildingBlock<'a, K, V> + 'a>> {
-        match SocketClient::<K, V>::new(self.address) {
-            Err(e) => Err(e),
-            Ok(c) => Ok(Box::new(c)),
-        }
+    ) -> DynBuildingBlock<'a, K, V> {
+        DynBuildingBlock::new(
+            SocketClient::<K, V>::new(self.address).unwrap(),
+            false,
+        )
     }
 }
-
-impl ConfigWithTraits for SocketClientConfig {}
 
 /// Configuration to build a `SocketServer` managed by a `ServerThreadHandle`.
 ///
@@ -158,29 +147,8 @@ pub struct SocketServerConfig {
     container: toml::Value,
 }
 
-impl<K, V, A, C, B> IntoConfig<SocketServerConfig>
-    for SocketServerBuilder<K, V, A, C, B>
-where
-    A: ToSocketAddrs + ToString,
-    B: IntoConfig<C>,
-    C: ConfigInstance,
-{
-    fn as_config(&self) -> SocketServerConfig {
-        let container_toml_str =
-            self.container_builder.as_config().to_toml_string();
-        let container: toml::value::Value =
-            toml::de::from_str(container_toml_str.as_ref()).unwrap();
-
-        SocketServerConfig {
-            id: String::from(SocketServerConfig::id()),
-            address: self.address.to_string(),
-            container,
-        }
-    }
-}
-
-impl ConfigInstance for SocketServerConfig {
-    fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
+impl SocketServerConfig {
+    pub fn from_toml(value: &toml::Value) -> Result<Self, ConfigError> {
         let toml = toml::to_string(&value).unwrap();
         let cfg: SocketServerConfig = match toml::from_str(&toml) {
             Err(e) => return Err(ConfigError::TomlFormatError(e)),
@@ -200,6 +168,39 @@ impl ConfigInstance for SocketServerConfig {
             Err(e) => Err(e),
         }
     }
+
+    pub fn from_string(s: &str) -> Result<Self, ConfigError> {
+        match toml::from_str::<toml::Value>(s) {
+            Ok(value) => Self::from_toml(&value),
+            Err(e) => Err(ConfigError::TomlFormatError(e)),
+        }
+    }
+
+    fn id() -> &'static str {
+        "SocketServerConfig"
+    }
+}
+
+impl<K, V, A, C, B> From<&SocketServerBuilder<K, V, A, C, B>>
+    for SocketServerConfig
+where
+    A: ToSocketAddrs + ToString,
+    B: IntoConfig<C>,
+    C: ConfigInstance,
+{
+    fn from(builder: &SocketServerBuilder<K, V, A, C, B>) -> Self {
+        let address = builder.address.to_string();
+        let container_toml_str =
+            builder.container_builder.as_config().to_toml_string();
+        let container: toml::value::Value =
+            toml::de::from_str(container_toml_str.as_ref()).unwrap();
+
+        SocketServerConfig {
+            id: String::from(SocketServerConfig::id()),
+            address,
+            container,
+        }
+    }
 }
 
 impl<K, V> Build<std::io::Result<ServerThreadHandle<K, V>>>
@@ -209,7 +210,7 @@ where
     V: 'static + GenericValue,
 {
     fn build(self) -> std::io::Result<ServerThreadHandle<K, V>> {
-        let container: Box<dyn BuildingBlock<'static, K, V> + 'static> =
+        let container: DynBuildingBlock<'static, K, V> =
             GenericConfig::from_toml(&self.container).unwrap().build();
 
         ServerThreadBuilder::new(self.address, container).spawn()
@@ -219,11 +220,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::{SocketClientConfig, SocketServerConfig};
-    use crate::builder::{
-        ArrayBuilder, Build, SocketClientBuilder, SocketServerBuilder,
-    };
+    use crate::builder::{Build, SocketClientBuilder};
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::socket::{
         ServerThreadBuilder, ServerThreadHandle, SocketClient,
     };
@@ -249,8 +249,8 @@ address='{}'",
         );
         let client_config =
             SocketClientConfig::from_string(client_str.as_ref()).unwrap();
-        let client: Box<dyn BuildingBlock<TestKey, TestValue>> =
-            client_config.build().unwrap();
+        let client: DynBuildingBlock<TestKey, TestValue> =
+            client_config.build();
         assert_eq!(client.capacity(), capacity);
         server.stop_and_join().unwrap();
     }
@@ -304,7 +304,7 @@ capacity={}
         let server_config =
             SocketServerConfig::from_string(server_str.as_ref()).unwrap();
         let server: ServerThreadHandle<TestKey, TestValue> =
-            server_config.build().unwrap();
+            Build::build(server_config).unwrap();
         std::thread::sleep(std::time::Duration::from_millis(100));
 
         let client =
@@ -356,15 +356,6 @@ capacity=10
     #[test]
     fn test_socket_client_builder_as_config() {
         let builder = SocketClientBuilder::new("localhost:12345");
-        test_config_builder(builder);
-    }
-
-    #[test]
-    fn test_socket_server_builder_as_config() {
-        let builder = SocketServerBuilder::<(), (), _, _, _>::new(
-            "localhost:12345",
-            ArrayBuilder::<()>::new(2),
-        );
         test_config_builder(builder);
     }
 }

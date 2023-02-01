@@ -82,24 +82,20 @@ use std::marker::PhantomData;
 /// assert!(cache.push(vec![("first", 1)]).pop().is_none());
 /// // [[("first", 1), ("second", 0)][("third", 3)]]
 /// ```
-pub struct Exclusive<'a, K, V, L, R>
+pub struct Exclusive<K, V, L, R>
 where
-    K: 'a,
-    V: 'a,
-    L: BuildingBlock<'a, K, V>,
-    R: BuildingBlock<'a, K, V>,
+    L: BuildingBlock<K, V>,
+    R: BuildingBlock<K, V>,
 {
     pub(super) front: L,
     pub(super) back: R,
-    pub(super) unused: PhantomData<&'a (K, V)>,
+    pub(super) unused: PhantomData<(K, V)>,
 }
 
-impl<'a, K, V, L, R> Exclusive<'a, K, V, L, R>
+impl<K, V, L, R> Exclusive<K, V, L, R>
 where
-    K: 'a,
-    V: 'a,
-    L: BuildingBlock<'a, K, V>,
-    R: BuildingBlock<'a, K, V>,
+    L: BuildingBlock<K, V>,
+    R: BuildingBlock<K, V>,
 {
     /// Construct a Exclusive Cache.
     pub fn new(front: L, back: R) -> Self {

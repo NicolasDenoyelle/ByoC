@@ -8,10 +8,10 @@ fn mismatch_panic() -> ! {
     panic!("SocketClient Request and SocketServer Response mismatch.");
 }
 
-impl<'a, K, V> BuildingBlock<'a, K, V> for SocketClient<K, V>
+impl<K, V> BuildingBlock<K, V> for SocketClient<K, V>
 where
-    K: 'a + DeserializeOwned + Serialize + Clone,
-    V: 'a + DeserializeOwned + Serialize,
+    K: DeserializeOwned + Serialize + Clone,
+    V: DeserializeOwned + Serialize,
 {
     fn capacity(&self) -> usize {
         match process_request(&self.stream, Request::<K, V>::Capacity) {
@@ -74,9 +74,10 @@ where
         }
     }
 
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    type FlushIterator = std::vec::IntoIter<(K, V)>;
+    fn flush(&mut self) -> Self::FlushIterator {
         match process_request(&self.stream, Request::<K, V>::Flush) {
-            Response::Flush(ret) => Box::new(ret.into_iter()),
+            Response::Flush(ret) => ret.into_iter(),
             _ => mismatch_panic(),
         }
     }

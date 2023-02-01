@@ -2,12 +2,11 @@ use super::{Decoration, DecorationFactory};
 use crate::BuildingBlock;
 use crate::Decorator;
 
-impl<'a, K, V, C, F> BuildingBlock<'a, K, V> for Decorator<C, V, F>
+impl<K, V, C, F> BuildingBlock<K, V> for Decorator<C, V, F>
 where
-    K: 'a + Ord,
-    V: 'a,
-    C: BuildingBlock<'a, K, F::Item>,
-    F: 'a + DecorationFactory<V>,
+    K: Ord,
+    C: BuildingBlock<K, F::Item>,
+    F: DecorationFactory<V>,
 {
     /// Get the maximum "size" that elements in the container can fit.
     ///
@@ -93,14 +92,17 @@ where
             .collect()
     }
 
+    type FlushIterator =
+        std::iter::Map<C::FlushIterator, fn((K, F::Item)) -> (K, V)>;
+
     /// Empty the container and retrieve all of its elements.
     ///
     /// This calls and returns the value of the decorated container
     /// [`flush()`](trait.BuildingBlock.html#method.flush)
     /// method and will remove the decoration from the flushed value to return
     /// on each iteration.
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        Box::new(self.container.flush().map(|(k, r)| (k, r.unwrap())))
+    fn flush(&mut self) -> Self::FlushIterator {
+        self.container.flush().map(|(k, r)| (k, r.unwrap()))
     }
 }
 

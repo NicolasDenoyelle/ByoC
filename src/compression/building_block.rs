@@ -4,10 +4,10 @@ use crate::utils::size::find_cut_at_size;
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
 
-impl<'a, K, V, S> BuildingBlock<'a, K, V> for Compressed<(K, V), S>
+impl<K, V, S> BuildingBlock<K, V> for Compressed<(K, V), S>
 where
-    K: 'a + Serialize + DeserializeOwned + Ord,
-    V: 'a + Serialize + DeserializeOwned + Ord,
+    K: Serialize + DeserializeOwned + Ord,
+    V: Serialize + DeserializeOwned + Ord,
     S: Stream,
 {
     /// Get the maximum "size" that elements in the container can fit.
@@ -309,6 +309,8 @@ where
         out_vec
     }
 
+    type FlushIterator = std::vec::IntoIter<(K, V)>;
+
     /// Empty the container and retrieve all of its elements.
     ///
     /// This function reads, uncompress and deserializes the container
@@ -317,18 +319,18 @@ where
     /// Then the stream is resized to a `0` size.
     /// An iterator of the read values is returned with all of its values
     /// in the memory.
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    fn flush(&mut self) -> Self::FlushIterator {
         // Read elements into memory.
         let v: Vec<(K, V)> = match self.read() {
-            Err(_) => return Box::new(std::iter::empty()),
+            Err(_) => return Vec::new().into_iter(),
             Ok(v) => v,
         };
 
         if self.stream.resize(0).is_err() {
-            return Box::new(std::iter::empty());
+            return Vec::new().into_iter();
         }
 
-        Box::new(v.into_iter())
+        v.into_iter()
     }
 }
 

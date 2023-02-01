@@ -2,10 +2,10 @@ use super::Array;
 use crate::utils::size::find_cut_at_size;
 use crate::BuildingBlock;
 
-impl<'a, K, V> BuildingBlock<'a, K, V> for Array<(K, V)>
+impl<K, V> BuildingBlock<K, V> for Array<(K, V)>
 where
-    K: 'a + Ord,
-    V: 'a + Ord,
+    K: Ord,
+    V: Ord,
 {
     /// Get the maximum storage size of this [`Array`].
     ///
@@ -21,9 +21,10 @@ where
         self.capacity
     }
 
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    type FlushIterator = std::vec::IntoIter<(K, V)>;
+    fn flush(&mut self) -> Self::FlushIterator {
         self.total_size = 0;
-        Box::new(self.values.split_off(0).into_iter())
+        self.values.split_off(0).into_iter()
     }
 
     fn contains(&self, key: &K) -> bool {

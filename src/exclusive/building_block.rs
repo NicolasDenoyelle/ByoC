@@ -1,12 +1,11 @@
 use super::Exclusive;
 use crate::BuildingBlock;
 
-impl<'a, K, V, L, R> BuildingBlock<'a, K, V> for Exclusive<'a, K, V, L, R>
+impl<K, V, L, R> BuildingBlock<K, V> for Exclusive<K, V, L, R>
 where
-    K: 'a + Ord,
-    V: 'a,
-    L: BuildingBlock<'a, K, V>,
-    R: BuildingBlock<'a, K, V>,
+    K: Ord,
+    L: BuildingBlock<K, V>,
+    R: BuildingBlock<K, V>,
 {
     /// Get the maximum "size" that elements in the container can fit.
     ///
@@ -113,6 +112,11 @@ where
         self.back.push(self.front.push(elements))
     }
 
+    type FlushIterator = std::iter::Chain<
+        R::FlushIterator,
+        std::iter::Chain<std::vec::IntoIter<(K, V)>, R::FlushIterator>,
+    >;
+
     /// Empty the container and retrieve all of its elements.
     ///
     /// This method moves elements towards the end of the container and flushes
@@ -133,12 +137,12 @@ where
     /// When composed together, the new container `flush()` method pushes
     /// elements from the front container to the back and returns any popping
     /// element.
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    fn flush(&mut self) -> Self::FlushIterator {
         let back = self.back.flush();
         let front = self.front.flush().collect();
         let front = self.back.push(front).into_iter();
         let new_back = self.back.flush();
-        Box::new(back.chain(front.chain(new_back)))
+        back.chain(front.chain(new_back))
     }
 }
 

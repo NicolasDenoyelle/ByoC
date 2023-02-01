@@ -1,9 +1,10 @@
-use crate::builder::{AssociativeBuilder, Build};
+use crate::builder::AssociativeBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
+    IntoConfig,
 };
-use crate::{Associative, BuildingBlock};
+use crate::objsafe::DynBuildingBlock;
+use crate::Associative;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
@@ -22,9 +23,8 @@ use std::hash::Hasher;
 /// [`ArrayConfig`](struct.ArrayConfig.html) for details on Array configuration
 /// format.
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id='AssociativeConfig'
@@ -86,26 +86,25 @@ impl ConfigInstance for AssociativeConfig {
         }
         Ok(cfg)
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for AssociativeConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
-        Box::new(Associative::new(
-            self.container
-                .into_iter()
-                .map(|cfg| GenericConfig::from_toml(&cfg).unwrap().build())
-                .collect(),
-            DefaultHasher::new(),
-        ))
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
+        let is_concurrent = self.is_concurrent();
+        DynBuildingBlock::new(
+            Associative::new(
+                self.container
+                    .into_iter()
+                    .map(|cfg| {
+                        GenericConfig::from_toml(&cfg).unwrap().build()
+                    })
+                    .collect(),
+                DefaultHasher::new(),
+            ),
+            is_concurrent,
+        )
     }
-}
 
-impl ConfigWithTraits for AssociativeConfig {
     fn is_concurrent(&self) -> bool {
         self.container
             .iter()
@@ -117,9 +116,10 @@ impl ConfigWithTraits for AssociativeConfig {
 #[cfg(test)]
 mod tests {
     use super::AssociativeConfig;
-    use crate::builder::{ArrayBuilder, AssociativeBuilder, Build};
+    use crate::builder::{ArrayBuilder, AssociativeBuilder};
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::BuildingBlock;
     use std::collections::hash_map::DefaultHasher;
 
@@ -141,7 +141,7 @@ capacity={}
             toml::from_str(config_str.as_str()).unwrap();
         let config = AssociativeConfig::from_toml(&value).unwrap();
         assert_eq!(config.container.len(), 2);
-        let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let container: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(container.capacity(), array_capacity * 2);
     }
 

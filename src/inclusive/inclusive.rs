@@ -131,24 +131,24 @@ impl<V> DerefMut for InclusiveCell<V> {
 /// assert_eq!(cache.pop(1).pop().unwrap().0, "third");
 /// // [[("second", 0)][("first", 1), ("second", 0)]]
 /// ```
-pub struct Inclusive<'a, K, V, L, R>
+pub struct Inclusive<K, V, L, R>
 where
-    K: 'a + Clone,
-    V: 'a + Clone,
-    L: BuildingBlock<'a, K, InclusiveCell<V>>,
-    R: BuildingBlock<'a, K, InclusiveCell<V>>,
+    K: Clone,
+    V: Clone,
+    L: BuildingBlock<K, InclusiveCell<V>>,
+    R: BuildingBlock<K, InclusiveCell<V>>,
 {
     pub(super) front: L,
     pub(super) back: R,
-    pub(super) unused: PhantomData<&'a (K, V)>,
+    pub(super) unused: PhantomData<(K, V)>,
 }
 
-impl<'a, K, V, L, R> Inclusive<'a, K, V, L, R>
+impl<K, V, L, R> Inclusive<K, V, L, R>
 where
-    K: 'a + Clone,
-    V: 'a + Clone,
-    L: BuildingBlock<'a, K, InclusiveCell<V>>,
-    R: BuildingBlock<'a, K, InclusiveCell<V>>,
+    K: Clone,
+    V: Clone,
+    L: BuildingBlock<K, InclusiveCell<V>>,
+    R: BuildingBlock<K, InclusiveCell<V>>,
 {
     /// Construct an [`Inclusive`] Cache with two stages.
     ///

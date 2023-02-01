@@ -1,9 +1,8 @@
-use crate::builder::Build;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue,
+    ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
 };
-use crate::{Batch, BuildingBlock};
+use crate::objsafe::DynBuildingBlock;
+use crate::Batch;
 use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`Batch`](../struct.Batch.html)
@@ -20,9 +19,8 @@ use serde::{Deserialize, Serialize};
 /// [`ArrayConfig`](struct.ArrayConfig.html) for details on Array configuration
 /// format.
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id='BatchConfig'
@@ -45,8 +43,6 @@ pub struct BatchConfig {
     container: toml::value::Array,
 }
 
-impl ConfigWithTraits for BatchConfig {}
-
 impl ConfigInstance for BatchConfig {
     fn id() -> &'static str {
         "BatchConfig"
@@ -66,28 +62,24 @@ impl ConfigInstance for BatchConfig {
         }
         Ok(cfg)
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>> for BatchConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
         let c = self
             .container
             .into_iter()
             .map(|cfg| GenericConfig::from_toml(&cfg).unwrap().build())
             .fold(Batch::new(), |acc, batch| acc.append(batch));
-        Box::new(c)
+        DynBuildingBlock::new(c, false)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::BatchConfig;
-    use crate::builder::Build;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::BuildingBlock;
 
     #[test]
@@ -104,7 +96,7 @@ capacity={}",
             toml::from_str(config_str.as_str()).unwrap();
         let config = BatchConfig::from_toml(&value).unwrap();
         assert_eq!(config.container.len(), 1);
-        let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let container: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(container.capacity(), array_capacity);
     }
 

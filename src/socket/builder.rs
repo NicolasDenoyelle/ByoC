@@ -92,7 +92,7 @@ where
     B: Build<C> + Clone,
     K: 'static + DeserializeOwned + Serialize + Eq,
     V: 'static + DeserializeOwned + Serialize + Clone,
-    C: 'static + BuildingBlock<'static, K, V>,
+    C: 'static + BuildingBlock<K, V>,
 {
     fn build(self) -> std::io::Result<ServerThreadHandle<K, V>> {
         let builder = ServerThreadBuilder::<K, V, A, C>::new(
@@ -120,6 +120,6 @@ where
     B: Build<C> + Sized,
     K: 'a + DeserializeOwned + Serialize + Eq,
     V: 'a + DeserializeOwned + Serialize + Clone,
-    C: BuildingBlock<'a, K, V>,
+    C: BuildingBlock<K, V>,
 {
 }

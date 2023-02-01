@@ -1,9 +1,10 @@
-use crate::builder::{Build, FlushStopperBuilder};
+use crate::builder::FlushStopperBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
+    IntoConfig,
 };
-use crate::{BuildingBlock, FlushStopper};
+use crate::objsafe::DynBuildingBlock;
+use crate::FlushStopper;
 use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`FlushStopper`](../struct.FlushStopper.html)
@@ -17,9 +18,8 @@ use serde::{Deserialize, Serialize};
 /// [`FlushStopper`](../struct.FlushStopper.html) wrapping an
 /// [`Array`](../struct.Array.html) container.
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id='FlushStopperConfig'
@@ -72,33 +72,32 @@ impl ConfigInstance for FlushStopperConfig {
             Err(e) => Err(e),
         }
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for FlushStopperConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
-        Box::new(FlushStopper::new(
-            GenericConfig::from_toml(&self.container).unwrap().build(),
-        ))
-    }
-}
-
-impl ConfigWithTraits for FlushStopperConfig {
     fn is_concurrent(&self) -> bool {
-        true
+        GenericConfig::from_toml(&self.container)
+            .unwrap()
+            .is_concurrent()
+    }
+
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
+        DynBuildingBlock::new(
+            FlushStopper::new(
+                GenericConfig::from_toml(&self.container).unwrap().build(),
+            ),
+            self.is_concurrent(),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::FlushStopperConfig;
-    use crate::builder::{ArrayBuilder, Build, FlushStopperBuilder};
+    use crate::builder::{ArrayBuilder, FlushStopperBuilder};
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::BuildingBlock;
 
     #[test]
@@ -115,7 +114,7 @@ capacity={}
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         let config = FlushStopperConfig::from_toml(&value).unwrap();
-        let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let container: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(container.capacity(), array_capacity);
     }
 

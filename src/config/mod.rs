@@ -1,13 +1,16 @@
 //! Module to instantiate a cache architecture from a configuration file.
 //!
-//! Configuration file/strings are a way to instantiate
-//! [`BuildingBlock`] containers.
-//! They describe the latters using the [`toml`](https://toml.io/en/)
-//! format.
+//! There are three ways to build a cache architecture:
+//! 1. From components constructors,
+//! 2. From a [builder pattern](../builder/index.html),
+//! 3. From a [`toml`](https://toml.io/en/) configuration.
+//!
+//! This module provides the tools to implement the 3. method.
 //!
 //! The [`ConfigBuilder`] structure is the entry point to create a
-//! [`BuildingBlock`] instance in the form of a
-//! [`DynBuildingBlock`] structure from a configuration string or file.
+//! [`BuildingBlock`](../trait.BuildingBlock.html) instance in the form of a
+//! [`DynBuildingBlock`](../struct.DynBuildingBlock.html)
+//! structure from a configuration string or file.
 //! [`ConfigBuilder`] structure documentation provides examples and details on
 //! the quirks and the cruxes of configurations containers built from a
 //! configuration.
@@ -20,20 +23,21 @@
 //! [container builder patterns](../builder/index.html) via the [`IntoConfig`]
 //! trait.
 //!
-//! [`DynBuildingBlock`] obtained from [`ConfigBuilder`] will only accept
+//! [`DynBuildingBlock`](../struct.DynBuildingBlock.html) obtained from
+//! [`ConfigBuilder`] will only accept
 //! keys implementing the [`GenericKey`] trait and values implementing the
 //! [`GenericValue`] trait. Since it is not possible to know at compile time
 //! the type of container built from a configuration, it is necessary that keys
 //! and values types are compatible with all possible containers that can be
 //! generated from a configuration.
 //!
-//! If the [`DynBuildingBlock`] obtained from a configuration implements
+//! If the [`DynBuildingBlock`](../struct.DynBuildingBlock.html) obtained from
+//! a configuration implements
 //! the [`Concurrent`](../trait.Concurrent.html) trait, then it should be
 //! detected at runtime and the former struct can be turned respectively into a
-//! [`DynConcurrent`] [`BuildingBlock`]
+//! [`DynConcurrent`](../struct.DynConcurrent.html)
+//! [`BuildingBlock`](../trait.BuildingBlock.html)
 
-use crate::builder::Build;
-use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
 use std::cmp::Ord;
 use std::hash::Hash;
@@ -145,6 +149,17 @@ where
         }
         ConfigInstance::from_string(s.as_str())
     }
+
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> crate::DynBuildingBlock<'a, K, V>;
+
+    /// Return whether this configuration represents a
+    /// [`BuildingBlock`](../trait.BuildingBlock.html) that implements the
+    /// [`Concurrent`](../trait.Concurrent.html) trait.
+    fn is_concurrent(&self) -> bool {
+        false
+    }
 }
 
 /// Convert an object into [`ConfigInstance`].
@@ -164,56 +179,11 @@ pub trait IntoConfig<C: ConfigInstance> {
     fn as_config(&self) -> C;
 }
 
-/// Identify whether a configuration will result in a `BuildingBlock`
-/// implementing some top-level traits.
-pub(crate) trait ConfigWithTraits {
-    /// Return whether this configuration represents a
-    /// [`BuildingBlock`](../trait.BuildingBlock.html) that implements the
-    /// [`Concurrent`](../trait.Concurrent.html) trait.
-    fn is_concurrent(&self) -> bool {
-        false
-    }
-}
-
-/// Trait used to instantiate a configuration object from a toml configuration
-/// and build a `BuildingBlock` container.
-///
-/// The resulting configuration object obtained with the
-/// [`from_toml()`](trait.BuildingBlockConfig.html#tymethod.from_toml) method
-/// can later be used to create a
-/// [`BuildingBlock`](../trait.BuildingBlock.html) after checking that the
-/// parsed configuration was valid.
-///
-/// Implementers of this trait will need to manually update the
-/// [`ConfigBuilder`] implementation to be able to build the trait implementer
-/// configuration.
-pub(crate) trait BuildingBlockConfig<'a, K, V>:
-    ConfigInstance
-    + ConfigWithTraits
-    + Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-}
-
-impl<'a, K, V, T> BuildingBlockConfig<'a, K, V> for T
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-    T: ConfigInstance
-        + ConfigWithTraits
-        + Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>,
-{
-}
-
 #[allow(clippy::module_inception)]
 mod config_builder;
 pub use config_builder::ConfigBuilder;
 mod error;
 pub use error::ConfigError;
-mod dyn_traits;
-pub use dyn_traits::{DynBuildingBlock, DynConcurrent};
 mod generic_config;
 pub(crate) use generic_config::GenericConfig;
 

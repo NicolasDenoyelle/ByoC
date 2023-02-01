@@ -1,11 +1,9 @@
 use super::FlushStopper;
 use crate::BuildingBlock;
 
-impl<'a, K, V, C> BuildingBlock<'a, K, V> for FlushStopper<C>
+impl<K, V, C> BuildingBlock<K, V> for FlushStopper<C>
 where
-    K: 'a,
-    V: 'a,
-    C: BuildingBlock<'a, K, V>,
+    C: BuildingBlock<K, V>,
 {
     fn capacity(&self) -> usize {
         self.container.capacity()
@@ -28,8 +26,10 @@ where
     fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
         self.container.push(values)
     }
+
+    type FlushIterator = std::iter::Empty<(K, V)>;
     /// Returns an empty iterator.
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        Box::new(std::iter::empty())
+    fn flush(&mut self) -> Self::FlushIterator {
+        std::iter::empty()
     }
 }

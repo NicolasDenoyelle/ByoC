@@ -1,7 +1,11 @@
 //! Builder pattern to instantiate a cache architecture.
 //!
-//! Builder module provides the tools to ease the process of building
-//! a complex building block chain.
+//! There are three ways to build a cache architecture:
+//! 1. From components constructors,
+//! 2. From a [builder pattern](../builder/index.html),
+//! 3. From a [`toml`](https://toml.io/en/) configuration.
+//!
+//! This module provides the tools to implement the 2. method.
 //!
 //! For instance, consider the following target architecture:   
 //! A container made of two layers, where the first layer

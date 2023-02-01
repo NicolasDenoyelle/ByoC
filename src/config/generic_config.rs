@@ -1,19 +1,14 @@
-use crate::BuildingBlock;
-
-use super::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
-    GenericValue,
-};
+use super::{ConfigError, ConfigInstance, GenericKey, GenericValue};
 
 use crate::array::config::ArrayConfig;
 use crate::associative::config::AssociativeConfig;
 use crate::batch::config::BatchConfig;
 use crate::btree::config::BTreeConfig;
-use crate::builder::Build;
 #[cfg(feature = "compression")]
 use crate::compression::config::CompressedConfig;
 use crate::exclusive::config::ExclusiveConfig;
 use crate::flush_stopper::config::FlushStopperConfig;
+use crate::objsafe::DynBuildingBlock;
 // use crate::inclusive::config::InclusiveConfig;
 use crate::profiler::config::ProfilerConfig;
 use crate::sequential::config::SequentialConfig;
@@ -40,7 +35,7 @@ impl GenericConfig {
         C::from_toml(v)
     }
 
-    fn from_config<C: ConfigWithTraits + ConfigInstance>(
+    fn from_config<C: ConfigInstance>(
         v: toml::Value,
     ) -> Result<GenericConfig, ConfigError> {
         let toml_value = v.clone();
@@ -126,18 +121,13 @@ impl ConfigInstance for GenericConfig {
             ))),
         }
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for GenericConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
     /// Build the generic config object into an actual container.
     /// At this point we can assume that the checks from `from_toml()`
     /// method have passed. So we can build the configuration.
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
         let id = self
             .toml_config
             .as_table()
@@ -204,7 +194,6 @@ where
                 Self::into_config::<SocketClientConfig>(&self.toml_config)
                     .unwrap()
                     .build()
-                    .unwrap()
             }
             #[cfg(feature = "stream")]
             "StreamConfig" => {
@@ -218,5 +207,3 @@ where
         }
     }
 }
-
-impl ConfigWithTraits for GenericConfig {}

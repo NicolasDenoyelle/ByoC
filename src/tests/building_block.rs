@@ -13,7 +13,7 @@ pub fn rand(a: u64, b: u64) -> u64 {
 
 fn test_push<'a, C>(c: &mut C, kv: TestElements, check_capacity: bool)
 where
-    C: BuildingBlock<'a, TestKey, TestValue>,
+    C: BuildingBlock<TestKey, TestValue>,
 {
     let input = kv.clone();
     let size_before_insertion = c.size();
@@ -52,7 +52,7 @@ pub fn insert<'a, C>(
     elements: TestElements,
 ) -> (TestElements, TestElements)
 where
-    C: BuildingBlock<'a, TestKey, TestValue>,
+    C: BuildingBlock<TestKey, TestValue>,
 {
     let out = c.push(elements.clone());
     let inserted: TestElements = elements
@@ -65,9 +65,7 @@ where
 
 pub fn test_get<'a, C>(mut c: C)
 where
-    C: 'a
-        + BuildingBlock<'a, TestKey, TestValue>
-        + Get<TestKey, TestValue>,
+    C: 'a + BuildingBlock<TestKey, TestValue> + Get<TestKey, TestValue>,
 {
     let elements: TestElements =
         (0u16..10u16).map(|i| (i, i as TestValue)).collect();
@@ -80,9 +78,7 @@ where
 
 pub fn test_get_mut<'a, C>(mut c: C)
 where
-    C: 'a
-        + BuildingBlock<'a, TestKey, TestValue>
-        + GetMut<TestKey, TestValue>,
+    C: 'a + BuildingBlock<TestKey, TestValue> + GetMut<TestKey, TestValue>,
 {
     let elements: TestElements =
         (0u16..10u16).map(|i| (i, i as TestValue)).collect();
@@ -101,7 +97,7 @@ where
 
 fn test_flush<'a, C>(c: &mut C, elements: TestElements)
 where
-    C: BuildingBlock<'a, TestKey, TestValue>,
+    C: BuildingBlock<TestKey, TestValue>,
 {
     #[allow(unused_must_use)]
     {
@@ -121,7 +117,7 @@ fn test_take<'a, C>(
     elements: TestElements,
     check_capacity: bool,
 ) where
-    C: BuildingBlock<'a, TestKey, TestValue>,
+    C: BuildingBlock<TestKey, TestValue>,
 {
     #[allow(unused_must_use)]
     {
@@ -144,7 +140,7 @@ fn test_take<'a, C>(
 
 fn test_pop<'a, C>(c: &mut C, n: usize, check_capacity: bool)
 where
-    C: BuildingBlock<'a, TestKey, TestValue>,
+    C: BuildingBlock<TestKey, TestValue>,
 {
     let old_size = c.size();
     c.pop(n);
@@ -165,7 +161,7 @@ where
 
 fn test_n<'a, C>(c: &mut C, n: usize, check_capacity: bool)
 where
-    C: BuildingBlock<'a, TestKey, TestValue>,
+    C: BuildingBlock<TestKey, TestValue>,
 {
     let elements: TestElements = (0..n as u64)
         .map(|i| (i as TestKey, rand(0u64, n as u64) as TestValue))
@@ -232,7 +228,7 @@ where
 
 pub fn test_building_block<'a, C>(mut c: C, check_capacity: bool)
 where
-    C: BuildingBlock<'a, TestKey, TestValue>,
+    C: BuildingBlock<TestKey, TestValue>,
 {
     let capacity = c.capacity();
     test_n(&mut c, 0, check_capacity);

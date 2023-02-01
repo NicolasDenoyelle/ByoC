@@ -41,7 +41,7 @@ fn try_reconnect<'a, K, V, C>(
 where
     K: 'a + DeserializeOwned + Serialize,
     V: 'a + DeserializeOwned + Serialize,
-    C: BuildingBlock<'a, K, V>,
+    C: BuildingBlock<K, V>,
 {
     if match *persistent {
         None => true,     // Yes reconnect always
@@ -95,7 +95,7 @@ where
     A: 'static + ToSocketAddrs,
     K: 'static + DeserializeOwned + Serialize,
     V: 'static + DeserializeOwned + Serialize,
-    C: 'static + BuildingBlock<'static, K, V>,
+    C: 'static + BuildingBlock<K, V>,
 {
     /// Create a [`ServerThreadBuilder`].
     ///

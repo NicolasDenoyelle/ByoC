@@ -16,7 +16,13 @@
 /// See
 /// [`BuildingBlock` implementors](trait.BuildingBlock.html#implementors)
 /// for more details on structuring building blocks together.
-pub trait BuildingBlock<'a, K: 'a, V: 'a> {
+pub trait BuildingBlock<K, V> {
+    /// The type of the iterator yielded by
+    /// [`flush()`](trait.BuildingBlock.html#tymethod.flush) method.
+    ///
+    /// Each implementation of this trait may have a specific iterator type.
+    type FlushIterator: Iterator<Item = (K, V)>;
+
     /// Get the maximum storage size of this [`BuildingBlock`].
     ///
     /// This value emulate the container maximum memory footprint.
@@ -111,32 +117,5 @@ pub trait BuildingBlock<'a, K: 'a, V: 'a> {
     /// For instance, when flushing a large number of elements out of a file,
     /// the file containing the elements can be moved into a temporary file,
     /// and an iterator over that file elements could be returned.
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a>;
-}
-
-// Auto implementation of the trait for a boxed trait.
-impl<'a, K: 'a, V: 'a> BuildingBlock<'a, K, V>
-    for Box<dyn BuildingBlock<'a, K, V> + 'a>
-{
-    fn capacity(&self) -> usize {
-        (**self).capacity()
-    }
-    fn size(&self) -> usize {
-        (**self).size()
-    }
-    fn contains(&self, key: &K) -> bool {
-        (**self).contains(key)
-    }
-    fn take(&mut self, key: &K) -> Option<(K, V)> {
-        (**self).take(key)
-    }
-    fn pop(&mut self, n: usize) -> Vec<(K, V)> {
-        (**self).pop(n)
-    }
-    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
-        (**self).push(values)
-    }
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        (**self).flush()
-    }
+    fn flush(&mut self) -> Self::FlushIterator;
 }

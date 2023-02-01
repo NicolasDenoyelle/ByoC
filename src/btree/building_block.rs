@@ -4,10 +4,10 @@ use crate::BuildingBlock;
 use std::collections::BTreeMap;
 use std::rc::Rc;
 
-impl<'a, K, V> BuildingBlock<'a, K, V> for BTree<K, V>
+impl<K, V> BuildingBlock<K, V> for BTree<K, V>
 where
-    K: 'a + Copy + Ord,
-    V: 'a + Ord,
+    K: Copy + Ord,
+    V: Ord,
 {
     /// Get the maximum "size" that elements in the container can fit.
     ///
@@ -32,15 +32,17 @@ where
         self.total_size
     }
 
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    type FlushIterator = std::iter::Map<
+        std::collections::btree_map::IntoIter<K, Rc<V>>,
+        fn((K, Rc<V>)) -> (K, V),
+    >;
+    fn flush(&mut self) -> Self::FlushIterator {
         let mut elements = BTreeMap::new();
         std::mem::swap(&mut elements, &mut self.map);
         self.set.clear();
         self.total_size = 0;
 
-        Box::new(
-            elements.into_iter().map(|(k, rc)| (k, Self::as_value(rc))),
-        )
+        elements.into_iter().map(|(k, rc)| (k, Self::as_value(rc)))
     }
 
     fn contains(&self, key: &K) -> bool {

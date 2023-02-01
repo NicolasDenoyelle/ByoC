@@ -1,9 +1,10 @@
-use crate::builder::{Build, InclusiveBuilder};
+use crate::builder::InclusiveBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
+    IntoConfig,
 };
-use crate::{BuildingBlock, Inclusive};
+use crate::objsafe::DynBuildingBlock;
+use crate::Inclusive;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Clone)]
@@ -13,8 +14,6 @@ pub struct InclusiveConfig {
     front: toml::Value,
     back: toml::Value,
 }
-
-impl ConfigWithTraits for InclusiveConfig {}
 
 impl<L, LB, R, RB> IntoConfig<InclusiveConfig>
     for InclusiveBuilder<L, LB, R, RB>
@@ -60,28 +59,27 @@ impl ConfigInstance for InclusiveConfig {
             (Err(e), _) => Err(e),
         }
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for InclusiveConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
-        Box::new(Inclusive::new(
-            GenericConfig::from_toml(&self.front).unwrap().build(),
-            GenericConfig::from_toml(&self.back).unwrap().build(),
-        ))
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
+        DynBuildingBlock::new(
+            Inclusive::new(
+                GenericConfig::from_toml(&self.front).unwrap().build(),
+                GenericConfig::from_toml(&self.back).unwrap().build(),
+            ),
+            false,
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::InclusiveConfig;
-    use crate::builder::{ArrayBuilder, Build, InclusiveBuilder};
+    use crate::builder::{ArrayBuilder, InclusiveBuilder};
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::BuildingBlock;
 
     #[test]
@@ -101,7 +99,7 @@ capacity={}
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         let config = InclusiveConfig::from_toml(&value).unwrap();
-        let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let container: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(container.capacity(), array_capacity);
     }
 

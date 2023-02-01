@@ -17,13 +17,13 @@ macro_rules! time_it {
 
 /// Iterator of flushed elements counting time iterating and number
 /// of iterations.
-struct ProfilerFlushIter<'a, T> {
-    elements: Box<dyn Iterator<Item = T> + 'a>,
+pub struct ProfilerFlushIter<I> {
+    elements: I,
     stats: SharedPtr<Stats>,
 }
 
-impl<'a, T> Iterator for ProfilerFlushIter<'a, T> {
-    type Item = T;
+impl<I: Iterator> Iterator for ProfilerFlushIter<I> {
+    type Item = I::Item;
     fn next(&mut self) -> Option<Self::Item> {
         let (time, item) = time_it!(self.elements.next());
         Clone::clone(&self.stats).as_mut().flush_iter.add(1, time);
@@ -31,11 +31,9 @@ impl<'a, T> Iterator for ProfilerFlushIter<'a, T> {
     }
 }
 
-impl<'a, K, V, C> BuildingBlock<'a, K, V> for Profiler<C>
+impl<K, V, C> BuildingBlock<K, V> for Profiler<C>
 where
-    K: 'a,
-    V: 'a,
-    C: BuildingBlock<'a, K, V>,
+    C: BuildingBlock<K, V>,
 {
     /// Get the maximum storage size of this [`BuildingBlock`].
     ///
@@ -155,6 +153,7 @@ where
         out
     }
 
+    type FlushIterator = ProfilerFlushIter<C::FlushIterator>;
     /// Empty the container and retrieve all of its elements.
     ///
     /// This is calls the same method from the wrapped container.
@@ -165,12 +164,12 @@ where
     ///
     /// The returned iterator, will also profile its iterations over the flushed
     /// elements.
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    fn flush(&mut self) -> Self::FlushIterator {
         let (time, out) = time_it!(self.cache.flush());
         self.stats.as_mut().flush.add(1, time);
-        Box::new(ProfilerFlushIter {
+        ProfilerFlushIter {
             elements: out,
             stats: Clone::clone(&self.stats),
-        })
+        }
     }
 }

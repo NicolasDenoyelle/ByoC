@@ -1,10 +1,11 @@
-use crate::builder::{Build, ProfilerBuilder};
+use crate::builder::ProfilerBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
+    IntoConfig,
 };
+use crate::objsafe::DynBuildingBlock;
 use crate::utils::profiler::ProfilerOutputKind;
-use crate::{BuildingBlock, Profiler};
+use crate::Profiler;
 use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`Profiler`](../struct.Profiler.html)
@@ -20,9 +21,8 @@ use serde::{Deserialize, Serialize};
 /// [`Array`](../struct.Array.html) container and writing the profiler
 /// information to stdout.
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id='ProfilerConfig'
@@ -50,8 +50,6 @@ pub struct ProfilerConfig {
     output: ProfilerOutputKind,
     container: toml::Value,
 }
-
-impl ConfigWithTraits for ProfilerConfig {}
 
 impl<C, B> IntoConfig<ProfilerConfig> for ProfilerBuilder<C, B>
 where
@@ -87,29 +85,35 @@ impl ConfigInstance for ProfilerConfig {
             Err(e) => Err(e),
         }
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for ProfilerConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
-        Box::new(Profiler::new(
-            &self.name,
-            self.output,
-            GenericConfig::from_toml(&self.container).unwrap().build(),
-        ))
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
+        let is_concurrent = self.is_concurrent();
+        DynBuildingBlock::new(
+            Profiler::new(
+                &self.name,
+                self.output,
+                GenericConfig::from_toml(&self.container).unwrap().build(),
+            ),
+            is_concurrent,
+        )
+    }
+
+    fn is_concurrent(&self) -> bool {
+        GenericConfig::from_toml(&self.container)
+            .unwrap()
+            .is_concurrent()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::ProfilerConfig;
-    use crate::builder::{ArrayBuilder, Build, ProfilerBuilder};
+    use crate::builder::{ArrayBuilder, ProfilerBuilder};
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::BuildingBlock;
 
     #[test]
@@ -129,7 +133,7 @@ capacity={}
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         let config = ProfilerConfig::from_toml(&value).unwrap();
-        let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let container: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(container.capacity(), array_capacity);
     }
 

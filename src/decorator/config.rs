@@ -1,11 +1,12 @@
-use crate::builder::{Build, DecoratorBuilder};
+use crate::builder::DecoratorBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
+    IntoConfig,
 };
 use crate::decorator::{Fifo, Lrfu, Lru};
+use crate::objsafe::DynBuildingBlock;
 use crate::utils::timestamp::{Counter, Timestamp};
-use crate::{BuildingBlock, Decorator};
+use crate::Decorator;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize, Copy, Clone)]
@@ -47,9 +48,8 @@ impl Default for DecorationType {
 /// [`Decorator`](../struct.Decorator.html) wrapping an
 /// [`Array`](../struct.Array.html) container.
 /// ```no_run
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id='DecoratorConfig'
@@ -136,28 +136,44 @@ impl ConfigInstance for DecoratorConfig {
         let toml = toml::to_string(&value).unwrap();
         toml::from_str(&toml).map_err(ConfigError::TomlFormatError)
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for DecoratorConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
+    fn is_concurrent(&self) -> bool {
+        GenericConfig::from_toml(&self.container)
+            .unwrap()
+            .is_concurrent()
+    }
+
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
         match self.decorator {
-            DecorationType::Lrfu(exponent) => Box::new(Decorator::new(
-                GenericConfig::from_toml(&self.container).unwrap().build(),
-                Lrfu::<Counter>::new(exponent),
-            )),
-            DecorationType::Lru => Box::new(Decorator::new(
-                GenericConfig::from_toml(&self.container).unwrap().build(),
-                Lru::<Counter>::new(),
-            )),
-            DecorationType::Fifo => Box::new(Decorator::new(
-                GenericConfig::from_toml(&self.container).unwrap().build(),
-                Fifo::new(),
-            )),
+            DecorationType::Lrfu(exponent) => DynBuildingBlock::new(
+                Decorator::new(
+                    GenericConfig::from_toml(&self.container)
+                        .unwrap()
+                        .build(),
+                    Lrfu::<Counter>::new(exponent),
+                ),
+                self.is_concurrent(),
+            ),
+            DecorationType::Lru => DynBuildingBlock::new(
+                Decorator::new(
+                    GenericConfig::from_toml(&self.container)
+                        .unwrap()
+                        .build(),
+                    Lru::<Counter>::new(),
+                ),
+                self.is_concurrent(),
+            ),
+            DecorationType::Fifo => DynBuildingBlock::new(
+                Decorator::new(
+                    GenericConfig::from_toml(&self.container)
+                        .unwrap()
+                        .build(),
+                    Fifo::new(),
+                ),
+                self.is_concurrent(),
+            ),
             DecorationType::None => {
                 GenericConfig::from_toml(&self.container).unwrap().build()
             }
@@ -165,15 +181,14 @@ where
     }
 }
 
-impl ConfigWithTraits for DecoratorConfig {}
-
 #[cfg(test)]
 mod tests {
     use super::DecoratorConfig;
-    use crate::builder::{ArrayBuilder, Build, DecoratorBuilder};
+    use crate::builder::{ArrayBuilder, DecoratorBuilder};
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
     use crate::decorator::Fifo;
+    use crate::objsafe::DynBuildingBlock;
     use crate::BuildingBlock;
 
     #[test]
@@ -193,7 +208,7 @@ capacity={}
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         let config = DecoratorConfig::from_toml(&value).unwrap();
-        let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let container: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(container.capacity(), array_capacity);
     }
 

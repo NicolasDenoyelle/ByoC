@@ -1,9 +1,9 @@
-use crate::builder::{Build, StreamBuilder};
+use crate::builder::StreamBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
-    GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericKey, GenericValue, IntoConfig,
 };
-use crate::{BuildingBlock, Stream};
+use crate::objsafe::DynBuildingBlock;
+use crate::Stream;
 use serde::{Deserialize, Serialize};
 
 use crate::stream::TempFileStreamFactory;
@@ -23,9 +23,8 @@ use crate::stream::VecStreamFactory;
 /// Below is an example of the configuration of a
 /// [`Stream`](../struct.Stream.html).
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id='StreamConfig'
@@ -43,8 +42,6 @@ pub struct StreamConfig {
     id: String,
     capacity: usize,
 }
-
-impl ConfigWithTraits for StreamConfig {}
 
 impl<T, F> IntoConfig<StreamConfig> for StreamBuilder<T, F> {
     fn as_config(&self) -> StreamConfig {
@@ -69,22 +66,23 @@ impl ConfigInstance for StreamConfig {
             ))
         })
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for StreamConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
         #[cfg(feature = "tempfile")]
         {
-            Box::new(Stream::new(TempFileStreamFactory {}, self.capacity))
+            DynBuildingBlock::new(
+                Stream::new(TempFileStreamFactory {}, self.capacity),
+                false,
+            )
         }
         #[cfg(not(feature = "tempfile"))]
         {
-            Box::new(Stream::new(VecStreamFactory {}, self.capacity))
+            DynBuildingBlock::new(
+                Stream::new(VecStreamFactory {}, self.capacity),
+                false,
+            )
         }
     }
 }
@@ -92,9 +90,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::StreamConfig;
-    use crate::builder::{Build, StreamBuilder};
+    use crate::builder::StreamBuilder;
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::stream::VecStreamFactory;
     use crate::BuildingBlock;
 
@@ -107,7 +106,7 @@ mod tests {
             toml::from_str(config_str.as_str()).unwrap();
         let config = StreamConfig::from_toml(&value).unwrap();
         assert_eq!(config.capacity, capacity);
-        let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let container: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(container.capacity(), capacity);
     }
 

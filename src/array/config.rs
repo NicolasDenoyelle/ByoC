@@ -1,9 +1,9 @@
-use crate::builder::{ArrayBuilder, Build};
+use crate::builder::ArrayBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
-    GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericKey, GenericValue, IntoConfig,
 };
-use crate::{Array, BuildingBlock};
+use crate::objsafe::DynBuildingBlock;
+use crate::Array;
 use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`Array`](../struct.Array.html) containers.
@@ -17,9 +17,8 @@ use serde::{Deserialize, Serialize};
 /// will set the maximum number of key/value pairs that the array can
 /// hold.
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id = 'ArrayConfig'
@@ -37,8 +36,6 @@ pub struct ArrayConfig {
     capacity: usize,
 }
 
-impl ConfigWithTraits for ArrayConfig {}
-
 impl ConfigInstance for ArrayConfig {
     fn id() -> &'static str {
         "ArrayConfig"
@@ -53,15 +50,11 @@ impl ConfigInstance for ArrayConfig {
             ))
         })
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>> for ArrayConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
-        Box::new(Array::new(self.capacity))
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
+        DynBuildingBlock::new(Array::new(self.capacity), false)
     }
 }
 
@@ -77,9 +70,10 @@ impl<T> IntoConfig<ArrayConfig> for ArrayBuilder<T> {
 #[cfg(test)]
 mod tests {
     use super::ArrayConfig;
-    use crate::builder::{ArrayBuilder, Build};
+    use crate::builder::ArrayBuilder;
     use crate::config::tests::test_config_builder;
     use crate::config::ConfigInstance;
+    use crate::objsafe::DynBuildingBlock;
     use crate::BuildingBlock;
 
     #[test]
@@ -91,7 +85,7 @@ mod tests {
             toml::from_str(config_str.as_str()).unwrap();
         let config = ArrayConfig::from_toml(&value).unwrap();
         assert_eq!(config.capacity, capacity);
-        let array: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let array: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(array.capacity(), capacity);
     }
 

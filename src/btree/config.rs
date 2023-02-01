@@ -1,9 +1,9 @@
-use crate::builder::{BTreeBuilder, Build};
+use crate::builder::BTreeBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
-    GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericKey, GenericValue, IntoConfig,
 };
-use crate::{BTree, BuildingBlock};
+use crate::objsafe::DynBuildingBlock;
+use crate::BTree;
 use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`BTree`](../struct.BTree.html)
@@ -18,9 +18,8 @@ use serde::{Deserialize, Serialize};
 /// will set the maximum number of key/value pairs that the array can
 /// hold.
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id = 'BTreeConfig'
@@ -52,19 +51,13 @@ impl ConfigInstance for BTreeConfig {
             ))
         })
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>> for BTreeConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
-        Box::new(BTree::new(self.capacity))
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
+        DynBuildingBlock::new(BTree::new(self.capacity), false)
     }
 }
-
-impl ConfigWithTraits for BTreeConfig {}
 
 impl<K: Ord + Copy, V: Ord> IntoConfig<BTreeConfig>
     for BTreeBuilder<K, V>
@@ -80,9 +73,10 @@ impl<K: Ord + Copy, V: Ord> IntoConfig<BTreeConfig>
 #[cfg(test)]
 mod tests {
     use super::BTreeConfig;
-    use crate::builder::{BTreeBuilder, Build};
+    use crate::builder::BTreeBuilder;
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::BuildingBlock;
 
     #[test]
@@ -94,7 +88,7 @@ mod tests {
             toml::from_str(config_str.as_str()).unwrap();
         let config = BTreeConfig::from_toml(&value).unwrap();
         assert_eq!(config.capacity, capacity);
-        let btree: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let btree: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(btree.capacity(), capacity);
     }
 

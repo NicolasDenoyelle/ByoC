@@ -2,12 +2,10 @@ use super::Exclusive;
 use crate::utils::get::LifeTimeGuard;
 use crate::{BuildingBlock, Get, GetMut};
 
-impl<'b, K, V, L, R> Get<K, V> for Exclusive<'b, K, V, L, R>
+impl<K, V, L, R> Get<K, V> for Exclusive<K, V, L, R>
 where
-    K: 'b,
-    V: 'b,
-    L: Get<K, V> + BuildingBlock<'b, K, V>,
-    R: BuildingBlock<'b, K, V>,
+    L: Get<K, V> + BuildingBlock<K, V>,
+    R: BuildingBlock<K, V>,
 {
     type Target = L::Target;
 
@@ -25,12 +23,10 @@ where
     }
 }
 
-impl<'b, K, V, L, R> GetMut<K, V> for Exclusive<'b, K, V, L, R>
+impl<K, V, L, R> GetMut<K, V> for Exclusive<K, V, L, R>
 where
-    K: 'b,
-    V: 'b,
-    L: GetMut<K, V> + BuildingBlock<'b, K, V>,
-    R: BuildingBlock<'b, K, V>,
+    L: GetMut<K, V> + BuildingBlock<K, V>,
+    R: BuildingBlock<K, V>,
 {
     type Target = L::Target;
 

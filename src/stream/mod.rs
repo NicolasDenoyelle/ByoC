@@ -7,7 +7,7 @@ pub(crate) mod builder;
 mod building_block;
 mod file_stream;
 mod io_vec;
-pub(crate) use io_vec::{IOStructMut, IOVec};
+pub(crate) use io_vec::{IOIter, IOStructMut, IOVec};
 mod error;
 pub(crate) use error::{IOError, IOResult};
 pub use file_stream::FileStream;

@@ -1,9 +1,10 @@
-use crate::builder::{Build, SequentialBuilder};
+use crate::builder::SequentialBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
+    IntoConfig,
 };
-use crate::{BuildingBlock, Sequential};
+use crate::objsafe::DynBuildingBlock;
+use crate::Sequential;
 use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`Sequential`](../struct.Sequential.html)
@@ -17,9 +18,8 @@ use serde::{Deserialize, Serialize};
 /// [`Sequential`](../struct.Sequential.html) wrapping an
 /// [`Array`](../struct.Array.html) container.
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id='SequentialConfig'
@@ -72,22 +72,18 @@ impl ConfigInstance for SequentialConfig {
             Err(e) => Err(e),
         }
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for SequentialConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
-        Box::new(Sequential::new(
-            GenericConfig::from_toml(&self.container).unwrap().build(),
-        ))
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
+        DynBuildingBlock::new(
+            Sequential::new(
+                GenericConfig::from_toml(&self.container).unwrap().build(),
+            ),
+            true,
+        )
     }
-}
 
-impl ConfigWithTraits for SequentialConfig {
     fn is_concurrent(&self) -> bool {
         true
     }
@@ -96,9 +92,10 @@ impl ConfigWithTraits for SequentialConfig {
 #[cfg(test)]
 mod tests {
     use super::SequentialConfig;
-    use crate::builder::{ArrayBuilder, Build, SequentialBuilder};
+    use crate::builder::{ArrayBuilder, SequentialBuilder};
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::BuildingBlock;
 
     #[test]
@@ -115,7 +112,7 @@ capacity={}
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         let config = SequentialConfig::from_toml(&value).unwrap();
-        let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let container: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(container.capacity(), array_capacity);
     }
 

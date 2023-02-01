@@ -62,17 +62,17 @@ impl<L, LB, R, RB> InclusiveBuilder<L, LB, R, RB> {
     }
 }
 
-impl<'a, K, V, L, LB, R, RB> Build<Inclusive<'a, K, V, L, R>>
+impl<K, V, L, LB, R, RB> Build<Inclusive<K, V, L, R>>
     for InclusiveBuilder<L, LB, R, RB>
 where
-    K: 'a + Clone,
-    V: 'a + Clone,
-    L: BuildingBlock<'a, K, InclusiveCell<V>>,
-    R: BuildingBlock<'a, K, InclusiveCell<V>>,
+    K: Clone,
+    V: Clone,
+    L: BuildingBlock<K, InclusiveCell<V>>,
+    R: BuildingBlock<K, InclusiveCell<V>>,
     LB: Build<L>,
     RB: Build<R>,
 {
-    fn build(self) -> Inclusive<'a, K, V, L, R> {
+    fn build(self) -> Inclusive<K, V, L, R> {
         Inclusive::new(self.lbuilder.build(), self.rbuilder.build())
     }
 }

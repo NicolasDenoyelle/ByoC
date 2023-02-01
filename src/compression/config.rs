@@ -1,16 +1,14 @@
-use crate::builder::{Build, CompressedBuilder};
+use crate::builder::CompressedBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericKey,
-    GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericKey, GenericValue, IntoConfig,
 };
+use crate::objsafe::DynBuildingBlock;
 #[cfg(feature = "tempfile")]
 use crate::stream::TempFileStreamFactory;
 #[cfg(not(feature = "tempfile"))]
 use crate::stream::VecStream;
-use crate::stream::{
-    FileStream, StreamBase, StreamFactory, VecStreamFactory,
-};
-use crate::{BuildingBlock, Compressed};
+use crate::stream::{FileStream, StreamFactory, VecStreamFactory};
+use crate::Compressed;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 #[cfg(feature = "tempfile")]
 use tempfile::NamedTempFile;
@@ -29,9 +27,8 @@ use tempfile::NamedTempFile;
 /// elements. If filename is not present, compressed elements will be stored
 /// in memory.
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id = 'CompressedConfig'
@@ -49,8 +46,6 @@ pub struct CompressedConfig {
     filename: Option<String>,
     capacity: usize,
 }
-
-impl ConfigWithTraits for CompressedConfig {}
 
 impl<T> IntoConfig<CompressedConfig>
     for CompressedBuilder<T, VecStreamFactory>
@@ -97,39 +92,41 @@ impl ConfigInstance for CompressedConfig {
             ))
         })
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for CompressedConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
-        let s: Box<dyn StreamBase> = match self.filename {
-            Some(s) => Box::new(FileStream::from(&s)),
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
+        match self.filename {
+            Some(s) => {
+                let container =
+                    Compressed::new(FileStream::from(&s), self.capacity);
+                DynBuildingBlock::new(container, false)
+            }
             None => {
                 #[cfg(feature = "tempfile")]
                 {
                     let mut factory = TempFileStreamFactory {};
-                    Box::new(factory.create())
+                    let container =
+                        Compressed::new(factory.create(), self.capacity);
+                    DynBuildingBlock::new(container, false)
                 }
                 #[cfg(not(feature = "tempfile"))]
                 {
-                    Box::new(VecStream::new())
+                    let container = VecStream::new();
+                    DynBuildingBlock::new(container, false)
                 }
             }
-        };
-        Box::new(Compressed::new(s, self.capacity))
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::CompressedConfig;
-    use crate::builder::{Build, CompressedBuilder};
+    use crate::builder::CompressedBuilder;
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::stream::VecStreamFactory;
     use crate::BuildingBlock;
 
@@ -142,7 +139,7 @@ mod tests {
             toml::from_str(config_str.as_str()).unwrap();
         let config = CompressedConfig::from_toml(&value).unwrap();
         assert_eq!(config.capacity, capacity);
-        let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let container: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(container.capacity(), capacity);
     }
 

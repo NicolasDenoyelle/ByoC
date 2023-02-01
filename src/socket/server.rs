@@ -33,7 +33,7 @@ impl<'a, K, V, C> SocketServer<'a, K, V, C>
 where
     K: 'a + DeserializeOwned + Serialize,
     V: 'a + DeserializeOwned + Serialize,
-    C: BuildingBlock<'a, K, V>,
+    C: BuildingBlock<K, V>,
 {
     /// Build a [`SocketServer`](struct.SocketServer.html) from an
     /// initialized `TcpStream` and `container`.

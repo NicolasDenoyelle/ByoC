@@ -4,11 +4,11 @@ use crate::utils::kmin::KMin;
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
 
-impl<'a, K, V, F> BuildingBlock<'a, K, V> for ByteStream<(K, V), F>
+impl<K, V, F> BuildingBlock<K, V> for ByteStream<(K, V), F>
 where
-    K: 'a + DeserializeOwned + Serialize + Ord,
-    V: 'a + DeserializeOwned + Serialize + Ord,
-    F: 'a + StreamFactory,
+    K: DeserializeOwned + Serialize + Ord,
+    V: DeserializeOwned + Serialize + Ord,
+    F: StreamFactory,
 {
     /// Get the maximum storage size of this [`BuildingBlock`].
     ///
@@ -195,6 +195,12 @@ where
         out
     }
 
+    type FlushIterator = std::iter::FlatMap<
+        std::vec::IntoIter<IOVec<(K, V), F::Stream>>,
+        IOIter<(K, V), F::Stream>,
+        fn(IOVec<(K, V), F::Stream>) -> IOIter<(K, V), F::Stream>,
+    >;
+
     #[allow(clippy::needless_collect)]
     // Collect is needed to take everything out of the container.
     /// Empty the container and retrieve all of its elements.
@@ -202,13 +208,13 @@ where
     /// The container will create new empty streams for it self to empty itself.
     /// The old streams are made into iterators and chained together. When the
     /// returned iterator is dropped, the underlying streams are destroyed.
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    fn flush(&mut self) -> Self::FlushIterator {
         let stream: Vec<IOVec<(K, V), F::Stream>> = self
             .stream
             .iter_mut()
             .filter_map(|opt| opt.take())
             .collect();
-        Box::new(stream.into_iter().flat_map(|v| v.into_iter()))
+        stream.into_iter().flat_map(|v| v.into_iter())
     }
 }
 

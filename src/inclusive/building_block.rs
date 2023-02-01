@@ -2,12 +2,12 @@ use super::inclusive::InclusiveCell;
 use super::Inclusive;
 use crate::BuildingBlock;
 
-impl<'a, K, V, L, R> BuildingBlock<'a, K, V> for Inclusive<'a, K, V, L, R>
+impl<K, V, L, R> BuildingBlock<K, V> for Inclusive<K, V, L, R>
 where
-    K: 'a + Clone,
-    V: 'a + Clone,
-    L: BuildingBlock<'a, K, InclusiveCell<V>>,
-    R: BuildingBlock<'a, K, InclusiveCell<V>>,
+    K: Clone,
+    V: Clone,
+    L: BuildingBlock<K, InclusiveCell<V>>,
+    R: BuildingBlock<K, InclusiveCell<V>>,
 {
     /// Get the maximum "size" that elements in the container can fit.
     ///
@@ -189,6 +189,11 @@ where
         back_elements.chain(front_elements).collect()
     }
 
+    type FlushIterator = std::iter::Map<
+        R::FlushIterator,
+        fn((K, InclusiveCell<V>)) -> (K, V),
+    >;
+
     /// Empty the container and retrieve all of its elements.
     ///
     /// This function will flush the front container and replace updated
@@ -200,7 +205,7 @@ where
     /// When composed together, the new container `flush()` method empties
     /// the front container and updates elements in the back container if any
     /// of its elements is updated.
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    fn flush(&mut self) -> Self::FlushIterator {
         let front: Vec<(K, InclusiveCell<V>)> = self
             .front
             .flush()
@@ -217,7 +222,7 @@ where
             front.iter().map(|(k, _)| k.clone()).collect();
         self.back.take_multiple(&mut keys);
         assert_eq!(self.back.push(front).len(), 0);
-        Box::new(self.back.flush().map(|(k, c)| (k, c.unwrap())))
+        self.back.flush().map(|(k, c)| (k, c.unwrap()))
     }
 }
 

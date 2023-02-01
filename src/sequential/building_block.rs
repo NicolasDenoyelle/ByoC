@@ -1,21 +1,20 @@
 use super::Sequential;
 use crate::BuildingBlock;
 
-impl<'a, K, V, C> BuildingBlock<'a, K, V> for Sequential<C>
+impl<K, V, C> BuildingBlock<K, V> for Sequential<C>
 where
-    K: 'a,
-    V: 'a,
-    C: BuildingBlock<'a, K, V>,
+    C: BuildingBlock<K, V>,
 {
     fn capacity(&self) -> usize {
         let _ = self.lock.lock_for(()).unwrap();
         self.container.as_ref().capacity()
     }
 
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    type FlushIterator = C::FlushIterator;
+    fn flush(&mut self) -> Self::FlushIterator {
         self.lock.lock().unwrap();
         let mut container = self.container.as_mut();
-        let out = Box::new(container.flush());
+        let out = container.flush();
         self.lock.unlock();
         out
     }

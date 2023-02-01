@@ -152,11 +152,9 @@ impl<T, V: Iterator<Item = T>> Iterator for SharedPtr<V> {
 //                         BuildingBlock implementation
 //-------------------------------------------------------------------------
 
-impl<'a, K, V, C> BuildingBlock<'a, K, V> for SharedPtr<C>
+impl<K, V, C> BuildingBlock<K, V> for SharedPtr<C>
 where
-    K: 'a,
-    V: 'a,
-    C: BuildingBlock<'a, K, V>,
+    C: BuildingBlock<K, V>,
 {
     fn capacity(&self) -> usize {
         self.as_ref().capacity()
@@ -182,7 +180,8 @@ where
         self.as_mut().push(values)
     }
 
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
+    type FlushIterator = C::FlushIterator;
+    fn flush(&mut self) -> Self::FlushIterator {
         self.as_mut().flush()
     }
 }

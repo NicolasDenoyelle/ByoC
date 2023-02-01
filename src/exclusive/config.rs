@@ -1,9 +1,10 @@
-use crate::builder::{Build, ExclusiveBuilder};
+use crate::builder::ExclusiveBuilder;
 use crate::config::{
-    ConfigError, ConfigInstance, ConfigWithTraits, GenericConfig,
-    GenericKey, GenericValue, IntoConfig,
+    ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
+    IntoConfig,
 };
-use crate::{BuildingBlock, Exclusive};
+use crate::objsafe::DynBuildingBlock;
+use crate::Exclusive;
 use serde::{Deserialize, Serialize};
 
 /// Configuration format for [`Exclusive`](../struct.Exclusive.html)
@@ -22,9 +23,8 @@ use serde::{Deserialize, Serialize};
 /// [`ArrayConfig`](struct.ArrayConfig.html) for details on Array configuration
 /// format.
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id='ExclusiveConfig'
@@ -47,8 +47,6 @@ pub struct ExclusiveConfig {
     front: toml::Value,
     back: toml::Value,
 }
-
-impl ConfigWithTraits for ExclusiveConfig {}
 
 impl<L, LB, R, RB> IntoConfig<ExclusiveConfig>
     for ExclusiveBuilder<L, LB, R, RB>
@@ -94,28 +92,27 @@ impl ConfigInstance for ExclusiveConfig {
             (Err(e), _) => Err(e),
         }
     }
-}
 
-impl<'a, K, V> Build<Box<dyn BuildingBlock<'a, K, V> + 'a>>
-    for ExclusiveConfig
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> Box<dyn BuildingBlock<'a, K, V> + 'a> {
-        Box::new(Exclusive::new(
-            GenericConfig::from_toml(&self.front).unwrap().build(),
-            GenericConfig::from_toml(&self.back).unwrap().build(),
-        ))
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
+        DynBuildingBlock::new(
+            Exclusive::new(
+                GenericConfig::from_toml(&self.front).unwrap().build(),
+                GenericConfig::from_toml(&self.back).unwrap().build(),
+            ),
+            false,
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::ExclusiveConfig;
-    use crate::builder::{ArrayBuilder, Build, ExclusiveBuilder};
+    use crate::builder::{ArrayBuilder, ExclusiveBuilder};
     use crate::config::tests::test_config_builder;
     use crate::config::{ConfigError, ConfigInstance};
+    use crate::objsafe::DynBuildingBlock;
     use crate::BuildingBlock;
 
     #[test]
@@ -135,7 +132,7 @@ capacity={}
         let value: toml::Value =
             toml::from_str(config_str.as_str()).unwrap();
         let config = ExclusiveConfig::from_toml(&value).unwrap();
-        let container: Box<dyn BuildingBlock<u64, u64>> = config.build();
+        let container: DynBuildingBlock<u64, u64> = config.build();
         assert_eq!(container.capacity(), array_capacity * 2);
     }
 

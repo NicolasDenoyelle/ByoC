@@ -1,10 +1,9 @@
 use super::{
     ConfigError, ConfigInstance, GenericConfig, GenericKey, GenericValue,
 };
-use crate::builder::Build;
-use crate::config::DynBuildingBlock;
 use crate::decorator::config::DecorationType;
 use crate::decorator::{Fifo, Lrfu, Lru};
+use crate::objsafe::DynBuildingBlock;
 use crate::utils::timestamp::Counter;
 use crate::Decorator;
 use serde::Serialize;
@@ -117,9 +116,8 @@ use toml;
 /// [`builder`](../builder/index.html) module from a configuration:
 ///
 /// ```
-/// use byoc::BuildingBlock;
-/// use byoc::builder::Build;
-/// use byoc::config::{ConfigBuilder, DynBuildingBlock};
+/// use byoc::{BuildingBlock, DynBuildingBlock};
+/// use byoc::config::{ConfigInstance, ConfigBuilder};
 ///
 /// let config_str = format!("
 /// id='SequentialConfig'
@@ -197,39 +195,40 @@ impl ConfigInstance for ConfigBuilder {
 
         Ok(ConfigBuilder { config, decorator })
     }
-}
 
-impl<'a, K, V> Build<DynBuildingBlock<'a, K, V>> for ConfigBuilder
-where
-    K: 'a + GenericKey,
-    V: 'a + GenericValue,
-{
-    fn build(self) -> DynBuildingBlock<'a, K, V> {
-        let has_concurrent_trait = self.config.has_concurrent_trait;
-        let build = match self.decorator {
+    fn build<'a, K: 'a + GenericKey, V: 'a + GenericValue>(
+        self,
+    ) -> DynBuildingBlock<'a, K, V> {
+        let has_concurrent_trait = self.is_concurrent();
+        match self.decorator {
             DecorationType::None => self.config.build(),
-            DecorationType::Fifo => {
-                Box::new(Decorator::new(self.config.build(), Fifo::new()))
-            }
-            DecorationType::Lru => Box::new(Decorator::new(
-                self.config.build(),
-                Lru::<Counter>::new(),
-            )),
-            DecorationType::Lrfu(e) => Box::new(Decorator::new(
-                self.config.build(),
-                Lrfu::<Counter>::new(e),
-            )),
-        };
-        DynBuildingBlock::new(build, has_concurrent_trait)
+            DecorationType::Fifo => DynBuildingBlock::new(
+                Decorator::new(self.config.build(), Fifo::new()),
+                has_concurrent_trait,
+            ),
+            DecorationType::Lru => DynBuildingBlock::new(
+                Decorator::new(self.config.build(), Lru::<Counter>::new()),
+                has_concurrent_trait,
+            ),
+            DecorationType::Lrfu(e) => DynBuildingBlock::new(
+                Decorator::new(
+                    self.config.build(),
+                    Lrfu::<Counter>::new(e),
+                ),
+                has_concurrent_trait,
+            ),
+        }
+    }
+
+    fn is_concurrent(&self) -> bool {
+        self.config.has_concurrent_trait
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::builder::Build;
-    use crate::config::{
-        ConfigBuilder, ConfigError, DynBuildingBlock, DynConcurrent,
-    };
+    use crate::config::{ConfigBuilder, ConfigError, ConfigInstance};
+    use crate::objsafe::{DynBuildingBlock, DynConcurrent};
     use crate::tests::test_concurrent;
     use crate::BuildingBlock;
 
@@ -270,10 +269,7 @@ decorator.kind='Fifo'
                 .unwrap()
                 .build();
         assert_eq!(array.capacity(), capacity);
-        assert!(matches!(
-            array.into_concurrent(),
-            Err(ConfigError::UnsupportedTraitError(_))
-        ));
+        assert!(matches!(array.into_concurrent(), Err(_)));
     }
 
     #[test]
@@ -309,10 +305,7 @@ capacity={}
             ConfigBuilder::from_string(config_str.as_str())
                 .unwrap()
                 .build();
-        assert!(matches!(
-            container.into_concurrent(),
-            Err(ConfigError::UnsupportedTraitError(_))
-        ));
+        assert!(matches!(container.into_concurrent(), Err(_)));
     }
 
     #[test]
@@ -328,12 +321,14 @@ capacity={}
             capacity
         );
 
-        let container: DynConcurrent<DynBuildingBlock<u16, u32>> =
+        let container: DynConcurrent<DynBuildingBlock<u16, u32>> = match
             ConfigBuilder::from_string(config_str.as_str())
                 .unwrap()
                 .build()
-                .into_concurrent()
-                .unwrap();
+            .into_concurrent() {
+		Ok(c) => c,
+		Err(_) => panic!("Failure to make sequential container into concurrent DynBuildingBlock"),
+	    };
         assert_eq!(container.capacity(), capacity);
         test_concurrent(container, 64);
     }

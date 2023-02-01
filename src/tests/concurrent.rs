@@ -8,7 +8,7 @@ fn test_after_push<C>(
     keys: Vec<TestKey>,
     popped_keys: Vec<TestKey>,
 ) where
-    C: 'static + BuildingBlock<'static, TestKey, TestValue> + Concurrent,
+    C: BuildingBlock<TestKey, TestValue> + Concurrent,
 {
     // The container new size is now larger.
     assert!(c.size() >= size_before_push);
@@ -32,7 +32,7 @@ fn test_after_push<C>(
 
 fn push_concurrent<C>(c: C, num_thread: u8)
 where
-    C: 'static + BuildingBlock<'static, TestKey, TestValue> + Concurrent,
+    C: 'static + BuildingBlock<TestKey, TestValue> + Concurrent,
 {
     let capacity = c.capacity();
     let size = c.size();
@@ -75,7 +75,7 @@ where
 
 pub fn test_concurrent<C>(c: C, num_thread: u8)
 where
-    C: 'static + BuildingBlock<'static, TestKey, TestValue> + Concurrent,
+    C: 'static + BuildingBlock<TestKey, TestValue> + Concurrent,
 {
     push_concurrent(c, num_thread);
 }

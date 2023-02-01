@@ -2,11 +2,10 @@ use super::Batch;
 use crate::BuildingBlock;
 use std::collections::LinkedList;
 
-impl<'a, K, V, C> BuildingBlock<'a, K, V> for Batch<C>
+impl<K, V, C> BuildingBlock<K, V> for Batch<C>
 where
-    K: 'a,
-    V: 'a + Ord,
-    C: BuildingBlock<'a, K, V>,
+    V: Ord,
+    C: BuildingBlock<K, V>,
 {
     /// Get the maximum storage size of this [`BuildingBlock`].
     ///
@@ -113,15 +112,15 @@ where
         values
     }
 
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        Box::new(
-            self.bb
-                .iter_mut()
-                .map(|c| c.flush())
-                .collect::<Vec<Box<dyn Iterator<Item = (K, V)> + 'a>>>()
-                .into_iter()
-                .flatten(),
-        )
+    type FlushIterator =
+        std::iter::Flatten<std::vec::IntoIter<C::FlushIterator>>;
+    fn flush(&mut self) -> Self::FlushIterator {
+        self.bb
+            .iter_mut()
+            .map(|c| c.flush())
+            .collect::<Vec<C::FlushIterator>>()
+            .into_iter()
+            .flatten()
     }
 }
 

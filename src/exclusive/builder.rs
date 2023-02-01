@@ -62,17 +62,15 @@ impl<L, LB, R, RB> ExclusiveBuilder<L, LB, R, RB> {
     }
 }
 
-impl<'a, K, V, L, LB, R, RB> Build<Exclusive<'a, K, V, L, R>>
+impl<K, V, L, LB, R, RB> Build<Exclusive<K, V, L, R>>
     for ExclusiveBuilder<L, LB, R, RB>
 where
-    K: 'a,
-    V: 'a,
-    L: BuildingBlock<'a, K, V>,
-    R: BuildingBlock<'a, K, V>,
+    L: BuildingBlock<K, V>,
+    R: BuildingBlock<K, V>,
     LB: Build<L>,
     RB: Build<R>,
 {
-    fn build(self) -> Exclusive<'a, K, V, L, R> {
+    fn build(self) -> Exclusive<K, V, L, R> {
         Exclusive::new(self.lbuilder.build(), self.rbuilder.build())
     }
 }

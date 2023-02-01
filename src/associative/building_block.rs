@@ -2,11 +2,11 @@ use super::Associative;
 use crate::BuildingBlock;
 use std::hash::{Hash, Hasher};
 
-impl<'a, K, V, C, H> BuildingBlock<'a, K, V> for Associative<C, H>
+impl<K, V, C, H> BuildingBlock<K, V> for Associative<C, H>
 where
-    K: 'a + Clone + Hash,
-    V: 'a + Ord,
-    C: BuildingBlock<'a, K, V>,
+    K: Clone + Hash,
+    V: Ord,
+    C: BuildingBlock<K, V>,
     H: Hasher + Clone,
 {
     /// Get the maximum storage size of this [`BuildingBlock`].
@@ -21,15 +21,15 @@ where
         self.containers.iter().map(|c| c.capacity()).sum()
     }
 
-    fn flush(&mut self) -> Box<dyn Iterator<Item = (K, V)> + 'a> {
-        Box::new(
-            self.containers
-                .iter_mut()
-                .map(|c| c.flush())
-                .collect::<Vec<Box<dyn Iterator<Item = (K, V)> + 'a>>>()
-                .into_iter()
-                .flatten(),
-        )
+    type FlushIterator =
+        std::iter::Flatten<std::vec::IntoIter<C::FlushIterator>>;
+    fn flush(&mut self) -> Self::FlushIterator {
+        self.containers
+            .iter_mut()
+            .map(|c| c.flush())
+            .collect::<Vec<C::FlushIterator>>()
+            .into_iter()
+            .flatten()
     }
 
     /// Check if container contains a matching key.

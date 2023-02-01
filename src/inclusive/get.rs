@@ -10,12 +10,12 @@ use std::ops::{Deref, DerefMut};
 /// recover and panic.
 /// Return whether the element was found in `from` building
 /// block.
-fn downgrade<'b, K, V, L, R>(from: &mut R, to: &mut L, key: &K) -> bool
+fn downgrade<K, V, L, R>(from: &mut R, to: &mut L, key: &K) -> bool
 where
-    K: 'b + Clone,
-    V: 'b + Clone,
-    L: BuildingBlock<'b, K, InclusiveCell<V>>,
-    R: Get<K, InclusiveCell<V>> + BuildingBlock<'b, K, InclusiveCell<V>>,
+    K: Clone,
+    V: Clone,
+    L: BuildingBlock<K, InclusiveCell<V>>,
+    R: Get<K, InclusiveCell<V>> + BuildingBlock<K, InclusiveCell<V>>,
 {
     let c = match from.get(key) {
         None => return false,
@@ -70,12 +70,12 @@ where
     }
 }
 
-impl<'b, K, V, L, R> Get<K, V> for Inclusive<'b, K, V, L, R>
+impl<K, V, L, R> Get<K, V> for Inclusive<K, V, L, R>
 where
-    K: 'b + Clone,
-    V: 'b + Clone,
-    L: Get<K, InclusiveCell<V>> + BuildingBlock<'b, K, InclusiveCell<V>>,
-    R: Get<K, InclusiveCell<V>> + BuildingBlock<'b, K, InclusiveCell<V>>,
+    K: Clone,
+    V: Clone,
+    L: Get<K, InclusiveCell<V>> + BuildingBlock<K, InclusiveCell<V>>,
+    R: Get<K, InclusiveCell<V>> + BuildingBlock<K, InclusiveCell<V>>,
 {
     type Target = InclusiveGetCell<L::Target>;
 
@@ -100,13 +100,12 @@ where
     }
 }
 
-impl<'b, K, V, L, R> GetMut<K, V> for Inclusive<'b, K, V, L, R>
+impl<K, V, L, R> GetMut<K, V> for Inclusive<K, V, L, R>
 where
-    K: 'b + Clone,
-    V: 'b + Clone,
-    L: GetMut<K, InclusiveCell<V>>
-        + BuildingBlock<'b, K, InclusiveCell<V>>,
-    R: Get<K, InclusiveCell<V>> + BuildingBlock<'b, K, InclusiveCell<V>>,
+    K: Clone,
+    V: Clone,
+    L: GetMut<K, InclusiveCell<V>> + BuildingBlock<K, InclusiveCell<V>>,
+    R: Get<K, InclusiveCell<V>> + BuildingBlock<K, InclusiveCell<V>>,
 {
     type Target = InclusiveGetCell<L::Target>;
 

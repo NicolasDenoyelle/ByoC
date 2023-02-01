@@ -1,23 +1,24 @@
 use crate::utils::lock::RWLock;
 use crate::{BuildingBlock, Concurrent};
 
-/// A wrapper around a [`DynBuildingBlock`] that provides the `Concurrent`
-/// trait.
+/// A wrapper around a [`DynBuildingBlock`](struct.DynBuildingBlock.html) that
+/// provides the `Concurrent` trait.
 ///
-/// This object can only be constructed from a [`DynBuildingBlock`] using the
-/// latter
+/// This object can only be constructed from a
+/// [`DynBuildingBlock`](struct.DynBuildingBlock.html) using the latter
 /// [`into_concurrent()`](struct.DynBuildingBlock.html#method.into_concurrent)
 /// method.
 ///
 /// Under the hood, this structure wraps a reference counter on a pointer to
-/// a [`DynBuildingBlock`] object. When the
+/// a [`DynBuildingBlock`](struct.DynBuildingBlock.html) object. When the
 /// [`Concurrent::clone()`](../trait.Concurrent.html#tymethod.clone) method
 /// is called, the reference count is incremented and the pointer copied.
 /// When the last clone goes out of scope, the pointer is freed.
 /// This can only work safely if the pointer points to a building block that
 /// can effectively be safely used concurrently without needing to check
 /// borrowing rules. This is supposedly checked by the object implementing
-/// [`std::convert::From`] creating the [`DynBuildingBlock`].
+/// [`std::convert::From`] creating the
+/// [`DynBuildingBlock`](struct.DynBuildingBlock.html).
 pub struct DynConcurrent<C> {
     building_block: *mut C,
     rc: RWLock,
