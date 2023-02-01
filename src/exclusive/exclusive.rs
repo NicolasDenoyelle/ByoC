@@ -157,3 +157,16 @@ where
         panic!("Failure to move an element from the back container of the exclusive cache to the front. This happened because we tried to move an element from the back container to the front, then the front container popped elements to make room for the former element, and finally, the back container was not able to fit the popped elements.")
     }
 }
+
+impl<'a, K, V, L, R> From<Exclusive<K, V, L, R>>
+    for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a + Ord,
+    V: 'a,
+    L: 'a + BuildingBlock<K, V>,
+    R: 'a + BuildingBlock<K, V>,
+{
+    fn from(exclusive: Exclusive<K, V, L, R>) -> Self {
+        crate::DynBuildingBlock::new(exclusive, false)
+    }
+}

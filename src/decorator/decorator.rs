@@ -66,6 +66,19 @@ where
     }
 }
 
+impl<'a, K, V, C, F> From<Decorator<C, V, F>>
+    for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a + Ord,
+    V: 'a,
+    F: 'a + DecorationFactory<V>,
+    C: 'a + crate::BuildingBlock<K, F::Item>,
+{
+    fn from(decorator: Decorator<C, V, F>) -> Self {
+        crate::DynBuildingBlock::new(decorator, false)
+    }
+}
+
 //------------------------------------------------------------------------//
 //  Tests
 //------------------------------------------------------------------------//

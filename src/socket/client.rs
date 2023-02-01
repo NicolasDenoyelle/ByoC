@@ -61,3 +61,14 @@ where
         })
     }
 }
+
+impl<'a, K, V> From<SocketClient<K, V>>
+    for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a + Serialize + DeserializeOwned + Clone,
+    V: 'a + Serialize + DeserializeOwned,
+{
+    fn from(socket: SocketClient<K, V>) -> Self {
+        crate::DynBuildingBlock::new(socket, false)
+    }
+}

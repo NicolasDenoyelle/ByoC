@@ -93,3 +93,16 @@ impl<C, H: Hasher + Clone> Associative<C, H> {
         (i % (n_sets as u64)) as usize
     }
 }
+
+impl<'a, K, V, C, H> From<Associative<C, H>>
+    for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a + Clone + Hash,
+    V: 'a + Ord,
+    C: 'a + crate::BuildingBlock<K, V> + crate::Concurrent,
+    H: 'a + Hasher + Clone,
+{
+    fn from(associative: Associative<C, H>) -> Self {
+        crate::DynBuildingBlock::new(associative, true)
+    }
+}

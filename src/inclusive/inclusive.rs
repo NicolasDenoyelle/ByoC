@@ -175,3 +175,16 @@ where
         &self.back
     }
 }
+
+impl<'a, K, V, L, R> From<Inclusive<K, V, L, R>>
+    for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a + Clone,
+    V: 'a + Clone,
+    L: 'a + BuildingBlock<K, InclusiveCell<V>>,
+    R: 'a + BuildingBlock<K, InclusiveCell<V>>,
+{
+    fn from(inclusive: Inclusive<K, V, L, R>) -> Self {
+        crate::DynBuildingBlock::new(inclusive, false)
+    }
+}

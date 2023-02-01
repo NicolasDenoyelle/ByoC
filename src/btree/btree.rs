@@ -141,3 +141,13 @@ where
         }
     }
 }
+
+impl<'a, K, V> From<BTree<K, V>> for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a + Copy + Ord,
+    V: 'a + Ord,
+{
+    fn from(btree: BTree<K, V>) -> Self {
+        crate::DynBuildingBlock::new(btree, false)
+    }
+}

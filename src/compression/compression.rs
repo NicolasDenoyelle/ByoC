@@ -188,3 +188,15 @@ impl<T: Serialize + DeserializeOwned, S: Stream> Compressed<T, S> {
         Ok(())
     }
 }
+
+impl<'a, K, V, S> From<Compressed<(K, V), S>>
+    for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a + Serialize + DeserializeOwned + Ord,
+    V: 'a + Serialize + DeserializeOwned + Ord,
+    S: 'a + Stream,
+{
+    fn from(compressed: Compressed<(K, V), S>) -> Self {
+        crate::DynBuildingBlock::new(compressed, false)
+    }
+}

@@ -116,3 +116,11 @@ impl<T: Clone> Clone for Array<T> {
         }
     }
 }
+
+impl<'a, K: 'a + Ord, V: 'a + Ord> From<Array<(K, V)>>
+    for crate::DynBuildingBlock<'a, K, V>
+{
+    fn from(array: Array<(K, V)>) -> Self {
+        crate::DynBuildingBlock::new(array, false)
+    }
+}

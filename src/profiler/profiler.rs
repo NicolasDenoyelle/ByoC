@@ -285,3 +285,14 @@ impl<C> Profiler<C> {
             + get_mut_time
     }
 }
+
+impl<'a, K, V, C> From<Profiler<C>> for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+    C: 'a + crate::BuildingBlock<K, V> + crate::Concurrent,
+{
+    fn from(profiler: Profiler<C>) -> Self {
+        crate::DynBuildingBlock::new(profiler, true)
+    }
+}

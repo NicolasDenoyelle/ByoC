@@ -59,3 +59,14 @@ impl<C> Sequential<C> {
         }
     }
 }
+
+impl<'a, K, V, C> From<Sequential<C>> for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+    C: 'a + crate::BuildingBlock<K, V>,
+{
+    fn from(sequential: Sequential<C>) -> Self {
+        crate::DynBuildingBlock::new(sequential, true)
+    }
+}

@@ -114,3 +114,15 @@ where
         }
     }
 }
+
+impl<'a, K, V, F> From<ByteStream<(K, V), F>>
+    for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a + DeserializeOwned + Serialize + Ord,
+    V: 'a + DeserializeOwned + Serialize + Ord,
+    F: 'a + StreamFactory,
+{
+    fn from(stream: ByteStream<(K, V), F>) -> Self {
+        crate::DynBuildingBlock::new(stream, true)
+    }
+}

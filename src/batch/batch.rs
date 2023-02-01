@@ -68,3 +68,14 @@ impl<C> Default for Batch<C> {
         Self::new()
     }
 }
+
+impl<'a, K, V, C> From<Batch<C>> for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a,
+    V: 'a + Ord,
+    C: 'a + crate::BuildingBlock<K, V>,
+{
+    fn from(batch: Batch<C>) -> Self {
+        crate::DynBuildingBlock::new(batch, false)
+    }
+}

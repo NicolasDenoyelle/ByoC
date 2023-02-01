@@ -65,3 +65,15 @@ impl<C> FlushStopper<C> {
         FlushStopper { container }
     }
 }
+
+impl<'a, K, V, C> From<FlushStopper<C>>
+    for crate::DynBuildingBlock<'a, K, V>
+where
+    K: 'a,
+    V: 'a,
+    C: 'a + crate::BuildingBlock<K, V> + crate::Concurrent,
+{
+    fn from(flush_stopper: FlushStopper<C>) -> Self {
+        crate::DynBuildingBlock::new(flush_stopper, true)
+    }
+}

@@ -21,10 +21,6 @@ mod batch;
 pub use batch::Batch;
 mod btree;
 pub use btree::BTree;
-#[cfg(feature = "compression")]
-mod compression;
-#[cfg(feature = "compression")]
-pub use compression::Compressed;
 mod exclusive;
 pub use exclusive::Exclusive;
 mod inclusive;
@@ -37,6 +33,12 @@ mod decorator;
 pub use decorator::decorator::Decorator;
 mod sequential;
 pub use sequential::Sequential;
+mod objsafe;
+pub use objsafe::{DynBuildingBlock, DynConcurrent};
+#[cfg(feature = "compression")]
+mod compression;
+#[cfg(feature = "compression")]
+pub use compression::Compressed;
 #[cfg(feature = "socket")]
 mod socket;
 #[cfg(feature = "socket")]
