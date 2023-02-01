@@ -129,3 +129,21 @@ pub mod get {
 pub mod socket {
     pub use crate::socket::{ServerThreadBuilder, ServerThreadHandle};
 }
+
+//-----------------------------------------------------------------------------
+// Private utils.
+//-----------------------------------------------------------------------------
+
+/// Math utils
+pub(crate) mod math;
+/// Utils for obtaining multiple writable shallow copies of a resource.
+mod shared_ptr;
+pub(crate) use shared_ptr::SharedPtr;
+#[cfg(feature = "stream")]
+/// Utils for extracting k min elements.
+pub(crate) mod kmin;
+/// Library custom read/write lock.
+pub(crate) mod lock;
+
+/// Size computation utils.
+pub(crate) mod size;

@@ -1,5 +1,5 @@
-use crate::internal::lock::RWLock;
-use crate::internal::SharedPtr;
+use crate::utils::lock::RWLock;
+use crate::utils::SharedPtr;
 
 /// `Concurrent` `BuildingBlock` wrapper with a lock.
 ///

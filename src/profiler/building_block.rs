@@ -1,6 +1,6 @@
 use super::Profiler;
 use super::Stats;
-use crate::internal::SharedPtr;
+use crate::utils::SharedPtr;
 use crate::BuildingBlock;
 use std::time::Instant;
 

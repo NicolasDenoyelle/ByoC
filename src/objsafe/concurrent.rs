@@ -1,4 +1,4 @@
-use crate::internal::lock::RWLock;
+use crate::utils::lock::RWLock;
 use crate::{BuildingBlock, Concurrent};
 
 /// A wrapper around a [`DynBuildingBlock`] that provides the `Concurrent`

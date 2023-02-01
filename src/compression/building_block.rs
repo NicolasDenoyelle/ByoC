@@ -1,6 +1,6 @@
 use super::Compressed;
-use crate::internal::size::find_cut_at_size;
 use crate::stream::Stream;
+use crate::utils::size::find_cut_at_size;
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
 

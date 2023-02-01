@@ -1,7 +1,7 @@
-use crate::internal::lock::RWLock;
 #[cfg(feature = "tempfile")]
 use crate::stream::StreamFactory;
 use crate::stream::{Stream, StreamBase};
+use crate::utils::lock::RWLock;
 use std::fs::File;
 use std::fs::OpenOptions;
 use std::path::PathBuf;

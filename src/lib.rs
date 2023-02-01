@@ -59,15 +59,6 @@ pub mod config;
 /// Traits and structures specific helpers.
 pub mod utils;
 
-//-------------------------------------------------------------------------
-// Private Utils
-//-------------------------------------------------------------------------
-
-/// Private crate boilerplate code.
-/// This code is not available to user but used throughout the
-/// library.
-mod internal;
-
 /// Private test utilities available at test time.
 ///
 /// This module tests the expected behavior of

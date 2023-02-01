@@ -1,5 +1,5 @@
 use super::BTree;
-use crate::internal::size::find_cut_at_size;
+use crate::utils::size::find_cut_at_size;
 use crate::BuildingBlock;
 use std::collections::BTreeMap;
 use std::rc::Rc;

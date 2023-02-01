@@ -1,5 +1,5 @@
-use crate::internal::SharedPtr;
 use crate::stream::{Stream, StreamBase, StreamFactory};
+use crate::utils::SharedPtr;
 use std::io::{Read, Result, Seek, SeekFrom, Write};
 
 /// An implementation of a [`Stream`](trait.Stream.html) in a `Vec<u8>`.

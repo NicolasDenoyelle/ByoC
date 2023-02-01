@@ -31,7 +31,7 @@ use std::sync::{
 /// ## Example
 ///
 /// ```rust,ignore
-/// use byoc::internal::SharedPtr;
+/// use byoc::utils::SharedPtr;
 ///
 /// let v = SharedPtr::from(4u32);
 /// {

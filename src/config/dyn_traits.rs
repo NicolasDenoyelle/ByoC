@@ -1,5 +1,5 @@
 use crate::config::ConfigError;
-use crate::internal::lock::RWLock;
+use crate::utils::lock::RWLock;
 use crate::{BuildingBlock, Concurrent};
 
 /// A Boxed [`BuildingBlock`] returned by a `ConfigBuilder`.

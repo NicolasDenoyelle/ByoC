@@ -1,6 +1,6 @@
 use super::ByteStream;
-use crate::internal::kmin::KMin;
-use crate::stream::{IOVec, StreamFactory};
+use crate::stream::{IOIter, IOVec, StreamFactory};
+use crate::utils::kmin::KMin;
 use crate::BuildingBlock;
 use serde::{de::DeserializeOwned, Serialize};
 

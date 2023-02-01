@@ -1,5 +1,5 @@
 use super::Stats;
-use crate::internal::SharedPtr;
+use crate::utils::SharedPtr;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fs::File;

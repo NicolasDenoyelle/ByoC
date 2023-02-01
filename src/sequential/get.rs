@@ -1,6 +1,6 @@
 use super::Sequential;
-use crate::internal::lock::RWLock;
 use crate::utils::get::LifeTimeGuard;
+use crate::utils::lock::RWLock;
 use crate::{Get, GetMut};
 use std::ops::{Deref, DerefMut};
 
