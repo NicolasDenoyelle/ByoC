@@ -37,3 +37,6 @@ socket = [ "serde", "bincode" ]
 # Additionally, tempfile is used to generate the files where the key/value
 # are stored.
 stream = [ "socket", "tempfile" ]
+
+[workspace]
+members = [ "benchmarks" ]

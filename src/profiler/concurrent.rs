@@ -12,8 +12,6 @@ where
     fn clone(&self) -> Self {
         Profiler {
             cache: Concurrent::clone(&self.cache),
-            name: self.name.clone(),
-            output: self.output.clone(),
             stats: Clone::clone(&self.stats),
         }
     }

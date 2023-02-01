@@ -1,0 +1,9 @@
+[package]
+name = "byoc_benchmarks"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+byoc = { path = ".." }
+rand = "0.8.3"
+rand_distr = "0.4.2"
