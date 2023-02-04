@@ -4,7 +4,6 @@ use crate::config::{
     IntoConfig,
 };
 use crate::objsafe::DynBuildingBlock;
-use crate::utils::profiler::ProfilerOutputKind;
 use crate::Profiler;
 use serde::{Deserialize, Serialize};
 
@@ -12,9 +11,8 @@ use serde::{Deserialize, Serialize};
 /// containers.
 ///
 /// This configuration format is composed of an `id` field where the
-/// `id` value must be "ProfilerConfig", `name` as the profiler name,
-/// `output` as the destination where the profile information will be written
-/// and the configuration in toml format of the container to profile.
+/// `id` value must be "ProfilerConfig" and the configuration in toml format of
+/// the container to profile.
 ///
 /// Below is an example of the configuration of a
 /// [`Profiler`](../struct.Profiler.html) wrapping an
@@ -26,16 +24,10 @@ use serde::{Deserialize, Serialize};
 ///
 /// let config_str = format!("
 /// id='ProfilerConfig'
-/// name='test_profiler'
-/// output.kind='Stdout'
 /// [container]
 /// id='ArrayConfig'
 /// capacity=10
 /// ");
-///
-/// // "output" fields could have also been:
-/// // output.kind='File'
-/// // output.filename='/dev/stdout'
 ///
 /// let container: DynBuildingBlock<u64, u64> =
 ///                ConfigBuilder::from_string(config_str.as_str())
@@ -46,8 +38,6 @@ use serde::{Deserialize, Serialize};
 pub struct ProfilerConfig {
     #[allow(dead_code)]
     id: String,
-    name: String,
-    output: ProfilerOutputKind,
     container: toml::Value,
 }
 
@@ -62,8 +52,6 @@ where
             toml::de::from_str(container_toml_str.as_ref()).unwrap();
         ProfilerConfig {
             id: String::from(ProfilerConfig::id()),
-            name: self.name.clone(),
-            output: self.output.clone(),
             container,
         }
     }
@@ -92,8 +80,6 @@ impl ConfigInstance for ProfilerConfig {
         let is_concurrent = self.is_concurrent();
         DynBuildingBlock::new(
             Profiler::new(
-                &self.name,
-                self.output,
                 GenericConfig::from_toml(&self.container).unwrap().build(),
             ),
             is_concurrent,
@@ -122,8 +108,6 @@ mod tests {
         let config_str = format!(
             "
 id='ProfilerConfig'
-name='test_profiler'
-output.kind='None'
 [container]
 id='ArrayConfig'
 capacity={}
@@ -141,9 +125,7 @@ capacity={}
     fn test_invalid_profiler_config() {
         let config_str = "
 id='ProfilerConfig'
-name=10
-output.kind='None'
-[container]
+[coraine]
 id='ArrayConfig'
 capacity=10
 "
@@ -158,11 +140,7 @@ capacity=10
 
     #[test]
     fn test_builder_as_config() {
-        let builder = ProfilerBuilder::new(
-            "config_builder_test",
-            crate::utils::profiler::ProfilerOutputKind::None,
-            ArrayBuilder::<()>::new(2),
-        );
+        let builder = ProfilerBuilder::new(ArrayBuilder::<()>::new(2));
         test_config_builder(builder);
     }
 }

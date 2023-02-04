@@ -22,10 +22,14 @@ where
 
     fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         let (time, out) = time_it!(self.cache.get(key));
-        Clone::clone(&self.stats).as_mut().get.add(1, time);
+        Clone::clone(&self.stats).as_mut().get.add(1, time, 0);
         match out {
-            Some(_) => Clone::clone(&self.stats).as_mut().hit.add(1, time),
-            None => Clone::clone(&self.stats).as_mut().miss.add(1, time),
+            Some(_) => {
+                Clone::clone(&self.stats).as_mut().hit.add(1, time, 0)
+            }
+            None => {
+                Clone::clone(&self.stats).as_mut().miss.add(1, time, 0)
+            }
         };
         out
     }
@@ -39,10 +43,14 @@ where
 
     fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>> {
         let (time, out) = time_it!(self.cache.get_mut(key));
-        self.stats.as_mut().get_mut.add(1, time);
+        self.stats.as_mut().get_mut.add(1, time, 0);
         match out {
-            Some(_) => Clone::clone(&self.stats).as_mut().hit.add(1, time),
-            None => Clone::clone(&self.stats).as_mut().miss.add(1, time),
+            Some(_) => {
+                Clone::clone(&self.stats).as_mut().hit.add(1, time, 0)
+            }
+            None => {
+                Clone::clone(&self.stats).as_mut().miss.add(1, time, 0)
+            }
         };
         out
     }

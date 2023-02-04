@@ -51,11 +51,6 @@ pub mod decorator {
     };
 }
 
-/// `Profiler` struct helpers.
-pub mod profiler {
-    pub use crate::profiler::ProfilerOutputKind;
-}
-
 /// `Associative` struct helpers.
 pub mod associative {
     pub use crate::associative::ExclusiveHasher;
