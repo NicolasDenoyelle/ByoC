@@ -25,6 +25,13 @@ impl<'a, T> LifeTimeGuard<'a, T> {
         }
     }
 
+    pub fn map<O, F: FnOnce(T) -> O>(self, f: F) -> LifeTimeGuard<'a, O> {
+        LifeTimeGuard {
+            value: f(self.value),
+            lifetime: PhantomData,
+        }
+    }
+
     pub(crate) fn unwrap(self) -> T {
         self.value
     }
