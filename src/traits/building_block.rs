@@ -119,3 +119,34 @@ pub trait BuildingBlock<K, V> {
     /// and an iterator over that file elements could be returned.
     fn flush(&mut self) -> Self::FlushIterator;
 }
+
+impl<K, V, C> BuildingBlock<K, V> for &'_ mut C
+where
+    C: BuildingBlock<K, V>,
+{
+    type FlushIterator = C::FlushIterator;
+    fn capacity(&self) -> usize {
+        (**self).capacity()
+    }
+    fn size(&self) -> usize {
+        (**self).size()
+    }
+    fn contains(&self, key: &K) -> bool {
+        (**self).contains(key)
+    }
+    fn take(&mut self, key: &K) -> Option<(K, V)> {
+        (**self).take(key)
+    }
+    fn take_multiple(&mut self, keys: &mut Vec<K>) -> Vec<(K, V)> {
+        (**self).take_multiple(keys)
+    }
+    fn pop(&mut self, size: usize) -> Vec<(K, V)> {
+        (**self).pop(size)
+    }
+    fn push(&mut self, values: Vec<(K, V)>) -> Vec<(K, V)> {
+        (**self).push(values)
+    }
+    fn flush(&mut self) -> Self::FlushIterator {
+        (**self).flush()
+    }
+}

@@ -37,6 +37,13 @@ pub trait Get<K, V> {
     fn get(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>>;
 }
 
+impl<K, V, B: Get<K, V>> Get<K, V> for &mut B {
+    type Target = B::Target;
+    fn get(&mut self, key: &K) -> Option<LifeTimeGuard<B::Target>> {
+        (**self).get(key)
+    }
+}
+
 /// Get exclusive write access to a value inside of a `BuildingBlock`.
 ///
 /// When a building block implements this trait, it provides mutable and
@@ -63,4 +70,11 @@ pub trait GetMut<K, V> {
 
     /// Get a smart pointer to a mutable value inside the container.
     fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<Self::Target>>;
+}
+
+impl<K, V, B: GetMut<K, V>> GetMut<K, V> for &mut B {
+    type Target = B::Target;
+    fn get_mut(&mut self, key: &K) -> Option<LifeTimeGuard<B::Target>> {
+        (**self).get_mut(key)
+    }
 }

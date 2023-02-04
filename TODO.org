@@ -53,7 +53,13 @@ goes in the container.
 `decorator` module provides a way to chain Factories into a FactoryChain.
 Policies should movo into `decorator` module.
 * DONE Flush stopper:
+* DONE Associated type for flush iterator
+Use an associated type instead of dynamic dispatch for BuildingBlock::flush
+iterator and remove the trait lifetime.
 Stop flushes between two levels always returning an empty iterator.
+* TODO Benchmarks:
++ Multiple distributions of keys
++ Different sizes of keys and values.
 * TODO Fix serde recursion in decorator and inclusive containers. 
 * TODO Prefetcher building block implementations.
 A building block wrapping another and asynchronously prefetching keys based.
@@ -98,6 +104,3 @@ the cache;
 * TODO Builder refresh
 Rename `Build` trait into `BuildingBlockBuilder`.
 Make sure we can build all containers with it.
-* TODO Benchmarks:
-+ Multiple distributions of keys
-+ Different sizes of keys and values.
