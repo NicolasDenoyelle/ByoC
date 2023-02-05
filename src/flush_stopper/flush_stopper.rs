@@ -60,6 +60,12 @@ pub struct FlushStopper<C> {
     pub(super) container: C,
 }
 
+impl<C> From<C> for FlushStopper<C> {
+    fn from(c: C) -> Self {
+        Self::new(c)
+    }
+}
+
 impl<C> FlushStopper<C> {
     pub fn new(container: C) -> Self {
         FlushStopper { container }

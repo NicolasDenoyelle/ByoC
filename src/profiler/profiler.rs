@@ -78,6 +78,12 @@ pub struct Profiler<C> {
     pub(super) stats: SharedPtr<Stats>,
 }
 
+impl<C> From<C> for Profiler<C> {
+    fn from(c: C) -> Self {
+        Self::new(c)
+    }
+}
+
 impl<C> Profiler<C> {
     /// Wrap a building block into a `Profiler`.
     pub fn new(cache: C) -> Self {

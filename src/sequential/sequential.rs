@@ -40,6 +40,12 @@ pub struct Sequential<C> {
     pub(super) lock: RWLock,
 }
 
+impl<C> From<C> for Sequential<C> {
+    fn from(c: C) -> Self {
+        Self::new(c)
+    }
+}
+
 impl<C: Clone> Clone for Sequential<C> {
     fn clone(&self) -> Self {
         Sequential {
